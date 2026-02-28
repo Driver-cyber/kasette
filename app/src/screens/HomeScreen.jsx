@@ -248,7 +248,7 @@ export default function HomeScreen() {
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search scrapbooks…"
-              className="flex-1 bg-transparent font-sans text-sm text-wheat placeholder:text-rust/50 outline-none"
+              className="flex-1 bg-transparent font-sans text-base text-wheat placeholder:text-rust/50 outline-none"
             />
             {searchQuery && (
               <button onClick={() => setSearchQuery('')} className="active:opacity-70">

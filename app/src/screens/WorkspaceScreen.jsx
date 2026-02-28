@@ -543,7 +543,7 @@ export default function WorkspaceScreen() {
             <button
               key={clip.id}
               data-clip-row
-              onClick={() => !isReordering && setActiveClipId(clip.id)}
+              onClick={() => setActiveClipId(clip.id)}
               className="w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 border text-left active:opacity-75 flex-shrink-0"
               style={{
                 background: '#3D2410',

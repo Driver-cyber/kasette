@@ -204,7 +204,8 @@ export default function WorkspaceScreen() {
   }
 
   // ── Reorder drag — whole-row target with movement threshold ───────────
-  function startReorderDrag(fromIndex, e) {
+  // isSelected: already-active clip gets a 1px threshold (essentially immediate)
+  function startReorderDrag(fromIndex, e, isSelected) {
     const startY = e.touches ? e.touches[0].clientY : e.clientY
     const startX = e.touches ? e.touches[0].clientX : e.clientX
 
@@ -221,8 +222,10 @@ export default function WorkspaceScreen() {
       const dx = clientX - startX
 
       if (!dragStarted) {
-        // Wait for clear vertical intent before locking in as a drag
-        if (Math.abs(dy) < 8 || Math.abs(dx) > Math.abs(dy) * 1.2) return
+        // Selected clip: 1px threshold (any movement starts drag)
+        // Unselected clip: 8px threshold (requires deliberate intent)
+        const threshold = isSelected ? 1 : 8
+        if (Math.abs(dy) < threshold || Math.abs(dx) > Math.abs(dy) * 1.2) return
         dragStarted = true
         dragState.current = { fromIndex, currentIndex: fromIndex, startY }
         setDragFromIndex(fromIndex)
@@ -547,8 +550,8 @@ export default function WorkspaceScreen() {
               key={clip.id}
               data-clip-row
               onClick={() => setActiveClipId(clip.id)}
-              onTouchStart={isReordering ? (e) => startReorderDrag(i, e) : undefined}
-              onMouseDown={isReordering ? (e) => startReorderDrag(i, e) : undefined}
+              onTouchStart={isReordering ? (e) => startReorderDrag(i, e, active) : undefined}
+              onMouseDown={isReordering ? (e) => startReorderDrag(i, e, active) : undefined}
               className="w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 border text-left active:opacity-75 flex-shrink-0"
               style={{
                 background: '#3D2410',

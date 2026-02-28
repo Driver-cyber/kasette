@@ -59,7 +59,8 @@ export default function WorkspaceScreen() {
 
   // Ghost drag state — the floating card that follows your finger
   const [ghostClip, setGhostClip] = useState(null)
-  const [ghostY, setGhostY] = useState(0)
+  const [ghostInitialY, setGhostInitialY] = useState(0) // only used for initial render position
+  const ghostRef = useRef(null) // direct DOM updates for smooth tracking
   const ghostOffsetRef = useRef(0) // touch Y offset from item top
 
   // Fetch
@@ -217,16 +218,18 @@ export default function WorkspaceScreen() {
 
     dragState.current = { fromIndex, currentIndex: fromIndex, startY }
     setDragFromIndex(fromIndex)
+    setGhostInitialY(startY - offsetFromTop)
     setGhostClip(clipsRef.current[fromIndex])
-    setGhostY(startY - offsetFromTop)
 
     function onMove(ev) {
       if (!dragState.current) return
       ev.preventDefault()
       const clientY = ev.touches ? ev.touches[0].clientY : ev.clientY
 
-      // Update ghost position
-      setGhostY(clientY - ghostOffsetRef.current)
+      // Update ghost position directly — bypasses React render cycle for smooth tracking
+      if (ghostRef.current) {
+        ghostRef.current.style.top = (clientY - ghostOffsetRef.current) + 'px'
+      }
 
       // Update list order
       const dy = clientY - dragState.current.startY
@@ -323,7 +326,7 @@ export default function WorkspaceScreen() {
       {/* ── Preview zone ── */}
       <div
         className="mx-4 rounded-2xl overflow-hidden flex-shrink-0 relative bg-deep"
-        style={{ height: 220, opacity: isReordering ? 0.2 : 1, transition: 'opacity 0.2s' }}
+        style={{ height: isReordering ? 0 : 220, transition: 'height 0.3s ease', opacity: isReordering ? 0 : 1 }}
       >
         <video
           ref={videoRef}
@@ -388,8 +391,8 @@ export default function WorkspaceScreen() {
 
       {/* ── Trim zone ── */}
       <div
-        className="px-4 pt-3 pb-2.5 border-b border-walnut-light flex-shrink-0"
-        style={{ opacity: isReordering ? 0.2 : 1, transition: 'opacity 0.2s' }}
+        className="px-4 pt-3 pb-2.5 border-b border-walnut-light flex-shrink-0 overflow-hidden"
+        style={{ maxHeight: isReordering ? 0 : 200, transition: 'max-height 0.3s ease', opacity: isReordering ? 0 : 1 }}
       >
         <div className="flex items-center justify-between mb-2">
           <span className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase">Trim</span>
@@ -602,9 +605,10 @@ export default function WorkspaceScreen() {
       {/* ── Ghost drag card — floats with finger ── */}
       {ghostClip && (
         <div
+          ref={ghostRef}
           className="fixed left-4 right-4 z-50 pointer-events-none flex items-center gap-2.5 rounded-xl px-2.5 py-2 border"
           style={{
-            top: ghostY,
+            top: ghostInitialY,
             background: '#3D2410',
             borderColor: '#F2A24A',
             boxShadow: '0 12px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(242,162,74,0.2)',

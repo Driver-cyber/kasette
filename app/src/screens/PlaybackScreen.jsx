@@ -136,7 +136,7 @@ export default function PlaybackScreen() {
     if (!dragActiveRef.current) return
     dragActiveRef.current = false
 
-    const THRESHOLD = window.innerHeight * 0.35
+    const THRESHOLD = window.innerHeight * 0.28
     const offset = dragOffsetRef.current
 
     if (offset > THRESHOLD && currentIndex < clips.length - 1) {

@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react'
-import { ArrowLeft, Check, Image } from 'lucide-react'
+import { ArrowLeft, Check, Image, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -98,6 +98,7 @@ export default function IntakeScreen() {
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 })
   const [error, setError] = useState(null)
+  const [year, setYear] = useState(new Date().getFullYear())
   const nameInputRef = useRef(null)
 
   const selectedItems = useMemo(() => items.filter(i => i.selected), [items])
@@ -118,11 +119,16 @@ export default function IntakeScreen() {
     return Array.from(map.values()).sort((a, b) => b.date - a.date)
   }, [items])
 
-  // Focus name input when sheet opens
+  // Focus name input + default year when sheet opens
   useEffect(() => {
     if (step === 'name') {
       setTimeout(() => nameInputRef.current?.focus(), 300)
+      const sel = items.filter(i => i.selected)
+      const dates = sel.map(i => i.date.getTime())
+      const earliest = dates.length > 0 ? new Date(Math.min(...dates)) : new Date()
+      setYear(earliest.getFullYear())
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
 
   const handleFilePick = useCallback(async (e) => {
@@ -169,7 +175,7 @@ export default function IntakeScreen() {
       // 1. Create scrapbook record
       const { data: sb, error: sbErr } = await supabase
         .from('scrapbooks')
-        .insert({ name: name.trim(), user_id: session.user.id })
+        .insert({ name: name.trim(), user_id: session.user.id, year })
         .select()
         .single()
       if (sbErr) throw sbErr
@@ -473,6 +479,31 @@ export default function IntakeScreen() {
               className="w-full rounded-xl px-4 py-3.5 font-display font-semibold text-lg text-wheat placeholder:text-rust/50 outline-none border-[1.5px] border-walnut-light focus:border-amber transition-colors mb-5 caret-amber"
               style={{ background: '#2C1A0E' }}
             />
+
+            {/* Year picker */}
+            <p className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase mb-2">
+              Year
+            </p>
+            <div
+              className="flex items-center justify-between rounded-xl px-2 py-1 mb-5 border border-walnut-light"
+              style={{ background: '#2C1A0E' }}
+            >
+              <button
+                onClick={() => setYear(y => y - 1)}
+                className="w-11 h-11 flex items-center justify-center active:opacity-60"
+              >
+                <ChevronLeft size={20} strokeWidth={1.75} className="text-amber" />
+              </button>
+              <span className="font-display font-bold text-[22px] text-wheat tabular-nums">
+                {year}
+              </span>
+              <button
+                onClick={() => setYear(y => y + 1)}
+                className="w-11 h-11 flex items-center justify-center active:opacity-60"
+              >
+                <ChevronRight size={20} strokeWidth={1.75} className="text-amber" />
+              </button>
+            </div>
 
             {/* Cover picker — skip for now, v1 stretch goal */}
             <div className="flex items-center gap-3.5 mb-7">

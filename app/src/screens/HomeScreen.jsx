@@ -42,15 +42,6 @@ function formatCardDate(clips, createdAt) {
   return ref.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 }
 
-function getScrapbookYear(scrapbook) {
-  const clips = scrapbook.clips ?? []
-  const dates = clips.map(c => c.recorded_at ? new Date(c.recorded_at) : null).filter(Boolean)
-  const ref = dates.length > 0
-    ? new Date(Math.min(...dates.map(d => d.getTime())))
-    : new Date(scrapbook.created_at)
-  return ref.getFullYear()
-}
-
 function extractStoragePath(url) {
   const marker = 'cassette-media/'
   const idx = url.indexOf(marker)
@@ -185,7 +176,7 @@ export default function HomeScreen() {
 
   // Group by year, sorted newest first
   const groupedByYear = filteredScrapbooks.reduce((acc, sb) => {
-    const y = getScrapbookYear(sb)
+    const y = sb.year ?? new Date(sb.created_at).getFullYear()
     ;(acc[y] ??= []).push(sb)
     return acc
   }, {})

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Play } from 'lucide-react'
+import { Plus, Play, Search, X, MoreHorizontal } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
@@ -42,7 +42,13 @@ function formatCardDate(clips, createdAt) {
   return ref.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 }
 
-function ScrapbookCard({ scrapbook, index, onClick }) {
+function extractStoragePath(url) {
+  const marker = 'cassette-media/'
+  const idx = url.indexOf(marker)
+  return idx >= 0 ? url.slice(idx + marker.length) : null
+}
+
+function ScrapbookCard({ scrapbook, onClick, onOptionsPress }) {
   const clips = scrapbook.clips ?? []
   const totalDuration = clips.reduce((sum, c) => {
     const out = c.trim_out ?? c.duration ?? 0
@@ -75,6 +81,15 @@ function ScrapbookCard({ scrapbook, index, onClick }) {
           className="absolute inset-0"
           style={{ background: 'linear-gradient(180deg, rgba(44,26,14,0) 40%, rgba(44,26,14,0.85) 100%)' }}
         />
+
+        {/* Options button — top left */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onOptionsPress() }}
+          className="absolute top-2.5 left-2.5 w-8 h-8 rounded-full flex items-center justify-center active:opacity-70"
+          style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}
+        >
+          <MoreHorizontal size={15} strokeWidth={1.75} className="text-wheat/70" />
+        </button>
 
         {/* Clip count badge */}
         <div
@@ -111,13 +126,18 @@ export default function HomeScreen() {
   const { session } = useAuth()
   const [scrapbooks, setScrapbooks] = useState([])
   const [loading, setLoading] = useState(true)
+  const [showSearch, setShowSearch] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+  const searchInputRef = useRef(null)
 
   useEffect(() => {
     if (!session) return
     setLoading(true)
     supabase
       .from('scrapbooks')
-      .select('*, clips(id, duration, trim_in, trim_out, recorded_at)')
+      .select('*, clips(id, video_url, duration, trim_in, trim_out, recorded_at)')
       .eq('user_id', session.user.id)
       .order('created_at', { ascending: false })
       .then(({ data, error }) => {
@@ -125,6 +145,52 @@ export default function HomeScreen() {
         setLoading(false)
       })
   }, [session])
+
+  // Focus search input when it opens
+  useEffect(() => {
+    if (showSearch) {
+      setTimeout(() => searchInputRef.current?.focus(), 100)
+    }
+  }, [showSearch])
+
+  function closeSearch() {
+    setShowSearch(false)
+    setSearchQuery('')
+  }
+
+  const filteredScrapbooks = searchQuery.trim()
+    ? scrapbooks.filter(sb =>
+        sb.name.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : scrapbooks
+
+  const confirmDeleteScrapbook = scrapbooks.find(sb => sb.id === confirmDeleteId)
+
+  async function deleteScrapbook() {
+    if (!confirmDeleteId || deleting) return
+    setDeleting(true)
+
+    const target = scrapbooks.find(sb => sb.id === confirmDeleteId)
+
+    // Optimistically remove from UI
+    setScrapbooks(prev => prev.filter(sb => sb.id !== confirmDeleteId))
+    setConfirmDeleteId(null)
+
+    // Delete storage files (best effort)
+    const clips = target?.clips ?? []
+    const storagePaths = clips
+      .map(c => extractStoragePath(c.video_url))
+      .filter(Boolean)
+    if (storagePaths.length > 0) {
+      await supabase.storage.from('cassette-media').remove(storagePaths)
+    }
+
+    // Delete clips then scrapbook from DB
+    await supabase.from('clips').delete().eq('scrapbook_id', confirmDeleteId)
+    await supabase.from('scrapbooks').delete().eq('id', confirmDeleteId)
+
+    setDeleting(false)
+  }
 
   return (
     <div className="flex flex-col h-screen bg-walnut">
@@ -146,27 +212,67 @@ export default function HomeScreen() {
           </span>
         </div>
 
-        <button
-          onClick={() => navigate('/intake')}
-          className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-xs rounded-full px-4 py-2.5 tracking-wide active:opacity-80 transition-opacity"
-        >
-          <Plus size={12} strokeWidth={2.5} />
-          New
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => showSearch ? closeSearch() : setShowSearch(true)}
+            className="w-9 h-9 flex items-center justify-center rounded-full active:opacity-70"
+            style={{ background: showSearch ? 'rgba(242,162,74,0.12)' : 'transparent' }}
+          >
+            {showSearch
+              ? <X size={16} strokeWidth={2} className="text-amber" />
+              : <Search size={16} strokeWidth={1.75} className="text-wheat/50" />
+            }
+          </button>
+
+          <button
+            onClick={() => navigate('/intake')}
+            className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-xs rounded-full px-4 py-2.5 tracking-wide active:opacity-80 transition-opacity"
+          >
+            <Plus size={12} strokeWidth={2.5} />
+            New
+          </button>
+        </div>
       </header>
 
+      {/* Search bar */}
+      {showSearch && (
+        <div className="px-5 pb-3 flex-shrink-0">
+          <div
+            className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 border"
+            style={{ background: '#3D2410', borderColor: '#4A2E18' }}
+          >
+            <Search size={14} strokeWidth={1.75} className="text-rust flex-shrink-0" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search scrapbooks…"
+              className="flex-1 bg-transparent font-sans text-sm text-wheat placeholder:text-rust/50 outline-none"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="active:opacity-70">
+                <X size={13} strokeWidth={2} className="text-rust" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Divider */}
-      <div className="mx-6 mb-5 h-px bg-walnut-light opacity-60" />
+      <div className="mx-6 mb-5 h-px bg-walnut-light opacity-60 flex-shrink-0" />
 
       {/* Section heading */}
-      <div className="px-6 mb-4 flex-shrink-0">
-        <p className="text-rust text-[10px] font-semibold tracking-[0.2em] uppercase mb-1">
-          Your scrapbooks
-        </p>
-        <h2 className="font-display font-bold text-[30px] text-wheat leading-[1.1]">
-          What would you<br />like to <em className="font-light text-sienna">watch?</em>
-        </h2>
-      </div>
+      {!showSearch && (
+        <div className="px-6 mb-4 flex-shrink-0">
+          <p className="text-rust text-[10px] font-semibold tracking-[0.2em] uppercase mb-1">
+            Your scrapbooks
+          </p>
+          <h2 className="font-display font-bold text-[30px] text-wheat leading-[1.1]">
+            What would you<br />like to <em className="font-light text-sienna">watch?</em>
+          </h2>
+        </div>
+      )}
 
       {/* Scrapbook list */}
       <main className="flex-1 overflow-y-auto px-5 pb-8">
@@ -174,7 +280,7 @@ export default function HomeScreen() {
           <div className="flex items-center justify-center pt-20">
             <div className="w-7 h-7 rounded-full border-2 border-amber border-t-transparent animate-spin" />
           </div>
-        ) : scrapbooks.length === 0 ? (
+        ) : filteredScrapbooks.length === 0 ? (
           <div className="flex flex-col items-center justify-center pt-20 gap-3 text-center">
             <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="opacity-20">
               <circle cx="16" cy="22" r="8" stroke="#F5DEB3" strokeWidth="3" fill="none"/>
@@ -184,25 +290,62 @@ export default function HomeScreen() {
               <rect x="14" y="31" width="20" height="3" rx="1.5" fill="#F5DEB3"/>
             </svg>
             <p className="font-display font-semibold text-xl text-wheat opacity-60">
-              No scrapbooks yet
+              {searchQuery ? `No results for "${searchQuery}"` : 'No scrapbooks yet'}
             </p>
-            <p className="text-rust text-sm leading-relaxed max-w-[220px]">
-              Tap <strong className="text-amber">New</strong> to import videos from your camera roll and create your first scrapbook.
-            </p>
+            {!searchQuery && (
+              <p className="text-rust text-sm leading-relaxed max-w-[220px]">
+                Tap <strong className="text-amber">New</strong> to import videos from your camera roll and create your first scrapbook.
+              </p>
+            )}
           </div>
         ) : (
           <div className="flex flex-col gap-3.5">
-            {scrapbooks.map((sb, i) => (
+            {filteredScrapbooks.map((sb) => (
               <ScrapbookCard
                 key={sb.id}
                 scrapbook={sb}
-                index={i}
                 onClick={() => navigate(`/scrapbook/${sb.id}`)}
+                onOptionsPress={() => setConfirmDeleteId(sb.id)}
               />
             ))}
           </div>
         )}
       </main>
+
+      {/* Delete confirmation sheet */}
+      {confirmDeleteId && (
+        <>
+          <div
+            className="absolute inset-0 bg-black/50 z-10"
+            onClick={() => setConfirmDeleteId(null)}
+          />
+          <div
+            className="absolute bottom-0 left-0 right-0 z-20 rounded-t-3xl border-t border-walnut-light px-5 pb-10 pt-1"
+            style={{ background: '#3D2410' }}
+          >
+            <div className="w-10 h-1 rounded-full bg-walnut-light mx-auto mt-3 mb-6" />
+            <p className="font-display font-semibold text-xl text-wheat mb-1">
+              Delete "{confirmDeleteScrapbook?.name}"?
+            </p>
+            <p className="text-rust text-sm mb-8 leading-relaxed">
+              This will permanently delete the scrapbook and remove all clips from Cassette. Your original videos won't be affected.
+            </p>
+            <button
+              onClick={deleteScrapbook}
+              disabled={deleting}
+              className="w-full bg-sienna text-white font-sans font-bold text-[15px] rounded-2xl py-4 mb-3 active:opacity-80 disabled:opacity-50"
+            >
+              {deleting ? 'Deleting…' : 'Delete Scrapbook'}
+            </button>
+            <button
+              onClick={() => setConfirmDeleteId(null)}
+              className="w-full py-3 text-center text-rust font-semibold text-[15px] active:opacity-70"
+            >
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }

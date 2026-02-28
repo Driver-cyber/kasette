@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react'
-import { ArrowLeft, Check, Image, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Check, Image, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -99,7 +99,10 @@ export default function IntakeScreen() {
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 })
   const [error, setError] = useState(null)
   const [year, setYear] = useState(new Date().getFullYear())
+  const [coverFile, setCoverFile] = useState(null)
+  const [coverPreview, setCoverPreview] = useState(null)
   const nameInputRef = useRef(null)
+  const coverInputRef = useRef(null)
 
   const selectedItems = useMemo(() => items.filter(i => i.selected), [items])
   const totalDuration = useMemo(
@@ -166,6 +169,21 @@ export default function IntakeScreen() {
     setItems(prev => prev.map(p => ({ ...p, selected: !allSelected })))
   }
 
+  function handleCoverPick(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setCoverFile(file)
+    const reader = new FileReader()
+    reader.onload = (ev) => setCoverPreview(ev.target.result)
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  function clearCover() {
+    setCoverFile(null)
+    setCoverPreview(null)
+  }
+
   async function handleCreate() {
     if (!name.trim() || !selectedItems.length || uploading) return
     setUploading(true)
@@ -180,7 +198,22 @@ export default function IntakeScreen() {
         .single()
       if (sbErr) throw sbErr
 
-      // 2. Upload each clip
+      // 2. Upload cover image if provided
+      if (coverFile) {
+        const ext = coverFile.name.split('.').pop()?.toLowerCase() || 'jpg'
+        const coverPath = `${session.user.id}/covers/${sb.id}.${ext}`
+        const { error: coverErr } = await supabase.storage
+          .from('cassette-media')
+          .upload(coverPath, coverFile, { cacheControl: '3600' })
+        if (!coverErr) {
+          const { data: { publicUrl } } = supabase.storage
+            .from('cassette-media')
+            .getPublicUrl(coverPath)
+          await supabase.from('scrapbooks').update({ cover_image_url: publicUrl }).eq('id', sb.id)
+        }
+      }
+
+      // 3. Upload each clip
       for (let i = 0; i < selectedItems.length; i++) {
         setUploadProgress({ current: i + 1, total: selectedItems.length })
         const item = selectedItems[i]
@@ -505,16 +538,38 @@ export default function IntakeScreen() {
               </button>
             </div>
 
-            {/* Cover picker — skip for now, v1 stretch goal */}
-            <div className="flex items-center gap-3.5 mb-7">
-              <div className="w-[60px] h-[60px] rounded-xl border-[1.5px] border-dashed border-walnut-light flex items-center justify-center flex-shrink-0">
-                <Image size={20} strokeWidth={1.75} className="text-rust" />
+            {/* Cover picker */}
+            <button
+              onClick={() => coverInputRef.current?.click()}
+              className="flex items-center gap-3.5 mb-7 w-full text-left active:opacity-75 transition-opacity"
+            >
+              <div className="relative w-[60px] h-[60px] rounded-xl border-[1.5px] flex-shrink-0 overflow-hidden"
+                style={{ borderColor: coverPreview ? '#F2A24A' : '#4A2E18', borderStyle: coverPreview ? 'solid' : 'dashed', background: '#2C1A0E' }}
+              >
+                {coverPreview ? (
+                  <img src={coverPreview} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Image size={20} strokeWidth={1.75} className="text-rust" />
+                  </div>
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-wheat text-[13px] font-semibold mb-0.5">Cover image</p>
-                <p className="text-rust text-[11px] leading-snug">Auto-generated from first clip. Coming soon: custom covers.</p>
+                <p className="text-rust text-[11px] leading-snug">
+                  {coverPreview ? coverFile?.name ?? 'Image selected' : 'Optional · pick from camera roll'}
+                </p>
               </div>
-            </div>
+              {coverPreview && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); clearCover() }}
+                  className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 active:opacity-70"
+                  style={{ background: 'rgba(232,133,90,0.15)' }}
+                >
+                  <X size={13} strokeWidth={2.5} className="text-sienna" />
+                </button>
+              )}
+            </button>
 
             {/* Summary pill */}
             <div className="flex items-center gap-2 bg-walnut border border-walnut-light rounded-full px-3.5 py-2 mb-6 w-fit">
@@ -548,6 +603,13 @@ export default function IntakeScreen() {
         accept="video/*"
         className="hidden"
         onChange={handleFilePick}
+      />
+      <input
+        ref={coverInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleCoverPick}
       />
     </div>
   )

@@ -203,40 +203,43 @@ export default function WorkspaceScreen() {
     }
   }
 
-  // ── Reorder drag — with floating ghost ────────────────────────────────
+  // ── Reorder drag — whole-row target with movement threshold ───────────
   function startReorderDrag(fromIndex, e) {
-    e.preventDefault()
-    e.stopPropagation()
-
     const startY = e.touches ? e.touches[0].clientY : e.clientY
+    const startX = e.touches ? e.touches[0].clientX : e.clientX
 
-    // Calculate where on the row the touch landed so the ghost stays anchored
-    const rowEl = e.currentTarget.closest('[data-clip-row]')
-    const rowRect = rowEl?.getBoundingClientRect()
-    const offsetFromTop = rowRect ? startY - rowRect.top : ROW_H / 2
-    ghostOffsetRef.current = offsetFromTop
+    // Pre-calculate offset so the ghost stays anchored to where the finger landed
+    const rowEl = e.currentTarget.closest('[data-clip-row]') ?? e.currentTarget
+    ghostOffsetRef.current = startY - rowEl.getBoundingClientRect().top
 
-    dragState.current = { fromIndex, currentIndex: fromIndex, startY }
-    setDragFromIndex(fromIndex)
-    setGhostInitialY(startY - offsetFromTop)
-    setGhostClip(clipsRef.current[fromIndex])
+    let dragStarted = false
 
     function onMove(ev) {
-      if (!dragState.current) return
-      ev.preventDefault()
       const clientY = ev.touches ? ev.touches[0].clientY : ev.clientY
+      const clientX = ev.touches ? ev.touches[0].clientX : ev.clientX
+      const dy = clientY - startY
+      const dx = clientX - startX
 
-      // Update ghost position directly — bypasses React render cycle for smooth tracking
+      if (!dragStarted) {
+        // Wait for clear vertical intent before locking in as a drag
+        if (Math.abs(dy) < 8 || Math.abs(dx) > Math.abs(dy) * 1.2) return
+        dragStarted = true
+        dragState.current = { fromIndex, currentIndex: fromIndex, startY }
+        setDragFromIndex(fromIndex)
+        setGhostInitialY(clientY - ghostOffsetRef.current)
+        setGhostClip(clipsRef.current[fromIndex])
+      }
+
+      // Only prevent scroll/click after we've confirmed it's a drag
+      ev.preventDefault()
+
       if (ghostRef.current) {
         ghostRef.current.style.top = (clientY - ghostOffsetRef.current) + 'px'
       }
 
-      // Update list order
-      const dy = clientY - dragState.current.startY
       const delta = Math.round(dy / ROW_H)
-      const from = dragState.current.fromIndex
-      const to = Math.max(0, Math.min(clipsRef.current.length - 1, from + delta))
-      if (to !== dragState.current.currentIndex) {
+      const to = Math.max(0, Math.min(clipsRef.current.length - 1, fromIndex + delta))
+      if (dragState.current && to !== dragState.current.currentIndex) {
         const spliceFrom = dragState.current.currentIndex
         dragState.current.currentIndex = to
         setClips(prev => {
@@ -300,7 +303,7 @@ export default function WorkspaceScreen() {
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-screen bg-walnut overflow-hidden">
+    <div className="flex flex-col h-screen bg-walnut overflow-hidden select-none">
 
       {/* ── Nav ── */}
       <header className="flex items-center justify-between px-5 pt-12 pb-2.5 flex-shrink-0">
@@ -544,6 +547,8 @@ export default function WorkspaceScreen() {
               key={clip.id}
               data-clip-row
               onClick={() => setActiveClipId(clip.id)}
+              onTouchStart={isReordering ? (e) => startReorderDrag(i, e) : undefined}
+              onMouseDown={isReordering ? (e) => startReorderDrag(i, e) : undefined}
               className="w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 border text-left active:opacity-75 flex-shrink-0"
               style={{
                 background: '#3D2410',
@@ -551,13 +556,9 @@ export default function WorkspaceScreen() {
                 minHeight: ROW_H,
               }}
             >
-              {/* Drag handle */}
+              {/* Drag handle — visual affordance only, whole row is the drag target */}
               {isReordering && (
-                <div
-                  className="flex flex-col gap-[4px] px-3 py-3 opacity-50 flex-shrink-0 touch-none cursor-grab active:cursor-grabbing"
-                  onTouchStart={(e) => startReorderDrag(i, e)}
-                  onMouseDown={(e) => startReorderDrag(i, e)}
-                >
+                <div className="flex flex-col gap-[4px] px-3 py-3 opacity-50 flex-shrink-0 cursor-grab">
                   {[0,1,2].map(n => (
                     <span key={n} className="block w-4 h-0.5 bg-wheat rounded" />
                   ))}

@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cassette — Playback</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,300;1,9..144,400;1,9..144,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+:root {
+  --amber:        #F2A24A;
+  --sienna:       #E8855A;
+  --wheat:        #F5DEB3;
+  --walnut:       #2C1A0E;
+  --walnut-mid:   #3D2410;
+  --walnut-light: #4A2E18;
+  --rust:         #7A3B1E;
+  --deep:         #1A0F08;
+}
+
+body {
+  background: #0D0805;
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 36px;
+  padding: 40px 20px 60px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  flex-wrap: wrap;
+}
+
+/* ── Phone shell ── */
+.phone {
+  width: 390px;
+  height: 844px;
+  background: #000;
+  border-radius: 48px;
+  border: 1.5px solid #2A1A10;
+  box-shadow:
+    0 0 0 6px #0D0805,
+    0 40px 80px rgba(0,0,0,0.8),
+    0 0 120px rgba(242,162,74,0.04);
+  overflow: hidden;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.phone-label {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #3A2010;
+  margin-top: 16px;
+}
+
+/* ── Full bleed video fill ── */
+.video-fill {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+}
+
+/* ── Cinematic gradient vignettes ── */
+.vignette-top {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 180px;
+  background: linear-gradient(180deg,
+    rgba(0,0,0,0.55) 0%,
+    rgba(0,0,0,0) 100%
+  );
+  pointer-events: none;
+  z-index: 2;
+}
+.vignette-bottom {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 220px;
+  background: linear-gradient(0deg,
+    rgba(0,0,0,0.7) 0%,
+    rgba(0,0,0,0) 100%
+  );
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ── Status bar ── */
+.status-bar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 28px 8px;
+  z-index: 10;
+}
+.status-time {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(245,222,179,0.9);
+}
+.status-icons { display: flex; align-items: center; gap: 6px; }
+
+/* ── Top controls ── */
+.top-controls {
+  position: absolute;
+  top: 52px; left: 0; right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  z-index: 10;
+}
+.back-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 1px solid rgba(245,222,179,0.1);
+}
+.scrapbook-title-top {
+  font-family: 'Fraunces', serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(245,222,179,0.7);
+  letter-spacing: 0.01em;
+}
+.top-spacer { width: 36px; }
+
+/* ── Segmented progress bar ── */
+.progress-bar {
+  position: absolute;
+  top: 96px; left: 20px; right: 20px;
+  display: flex;
+  gap: 4px;
+  z-index: 10;
+}
+.progress-seg {
+  flex: 1;
+  height: 2.5px;
+  border-radius: 2px;
+  background: rgba(245,222,179,0.2);
+  overflow: hidden;
+  position: relative;
+}
+.progress-seg.done { background: rgba(245,222,179,0.7); }
+.progress-seg.active {
+  background: rgba(245,222,179,0.2);
+}
+.progress-seg-fill {
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  background: var(--wheat);
+  border-radius: 2px;
+  width: 65%;
+  animation: progressPlay 3s linear infinite;
+}
+@keyframes progressPlay {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
+/* ── Caption — draggable overlay ── */
+.caption-overlay {
+  position: absolute;
+  left: 24px;
+  bottom: 160px;
+  z-index: 10;
+  max-width: 320px;
+  cursor: move;
+  user-select: none;
+}
+.caption-text {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 28px;
+  color: var(--wheat);
+  line-height: 1.25;
+  text-shadow:
+    0 2px 12px rgba(0,0,0,0.6),
+    0 0 40px rgba(0,0,0,0.4);
+  letter-spacing: -0.01em;
+}
+
+/* ── Swipe hint ── */
+.swipe-hint {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  z-index: 10;
+  opacity: 0.35;
+  animation: swipeFade 2s ease-in-out infinite;
+}
+@keyframes swipeFade {
+  0%, 100% { opacity: 0.2; transform: translateY(-50%); }
+  50% { opacity: 0.5; transform: translateY(calc(-50% - 6px)); }
+}
+.swipe-arrow { }
+.swipe-label {
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--wheat);
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
+/* ── Bottom clip info ── */
+.bottom-info {
+  position: absolute;
+  bottom: 50px;
+  left: 0; right: 0;
+  padding: 0 24px;
+  z-index: 10;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+.clip-counter {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.counter-nums {
+  font-family: 'Fraunces', serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(245,222,179,0.5);
+  letter-spacing: 0.05em;
+}
+.counter-name {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: rgba(242,162,74,0.5);
+}
+
+/* Pause indicator */
+.play-state {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(245,222,179,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* ── Home indicator ── */
+.home-indicator {
+  position: absolute;
+  bottom: 8px;
+  left: 0; right: 0;
+  display: flex;
+  justify-content: center;
+  z-index: 10;
+}
+.home-bar {
+  width: 134px;
+  height: 5px;
+  background: rgba(245,222,179,0.2);
+  border-radius: 3px;
+}
+
+/* ═══════════════════════════════════
+   VIDEO FILL SCENES
+═══════════════════════════════════ */
+
+/* Scene A — warm indoor Christmas */
+.scene-a {
+  background:
+    radial-gradient(ellipse 60% 50% at 35% 40%, rgba(180,80,20,0.5) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 60% at 70% 60%, rgba(120,50,10,0.4) 0%, transparent 70%),
+    radial-gradient(ellipse 80% 40% at 50% 80%, rgba(80,30,5,0.6) 0%, transparent 70%),
+    linear-gradient(160deg, #3A1A08 0%, #1A0A04 40%, #2C1208 100%);
+}
+.scene-a::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle 80px at 28% 35%, rgba(242,162,74,0.18) 0%, transparent 70%),
+    radial-gradient(circle 50px at 65% 25%, rgba(242,162,74,0.12) 0%, transparent 70%),
+    radial-gradient(circle 30px at 80% 55%, rgba(232,133,90,0.1) 0%, transparent 70%);
+}
+
+/* Scene B — outdoor lake */
+.scene-b {
+  background:
+    linear-gradient(180deg, #0A1E30 0%, #0E2A1E 50%, #0A1810 100%);
+}
+.scene-b::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 100% 30% at 50% 45%, rgba(74,140,180,0.15) 0%, transparent 70%),
+    radial-gradient(circle 120px at 50% 30%, rgba(242,200,74,0.12) 0%, transparent 70%),
+    radial-gradient(ellipse 120% 20% at 50% 65%, rgba(20,80,60,0.3) 0%, transparent 70%);
+}
+
+/* Scene C — school morning */
+.scene-c {
+  background:
+    linear-gradient(160deg, #2A1A08 0%, #1E1008 50%, #301A0A 100%);
+}
+.scene-c::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 70% 30%, rgba(242,180,74,0.2) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 40% at 20% 70%, rgba(100,60,20,0.3) 0%, transparent 60%);
+}
+
+/* Noise / film grain overlay */
+.film-grain {
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.06'/%3E%3C/svg%3E");
+  pointer-events: none;
+  mix-blend-mode: overlay;
+  z-index: 1;
+}
+
+/* ═══════════════════════════════════
+   PHONE 2 — PAUSED STATE
+═══════════════════════════════════ */
+.paused-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.big-play {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(242,162,74,0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 40px rgba(242,162,74,0.3);
+}
+.big-play svg { margin-left: 4px; }
+
+/* ═══════════════════════════════════
+   PHONE 3 — CAPTION EDIT MODE
+   (shown in workspace context)
+═══════════════════════════════════ */
+.caption-edit-handle {
+  position: absolute;
+  inset: -6px;
+  border: 1.5px dashed rgba(242,162,74,0.6);
+  border-radius: 4px;
+  pointer-events: none;
+}
+.caption-resize-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: var(--amber);
+  border-radius: 50%;
+  bottom: -5px;
+  right: -5px;
+}
+.caption-drag-hint {
+  position: absolute;
+  top: -24px;
+  left: 0;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--amber);
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+/* ── Section label ── */
+.section-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #3A2010;
+  text-align: center;
+  margin-bottom: 20px;
+}
+</style>
+</head>
+<body>
+
+<!-- ══ PHONE 1: Playing ══ -->
+<div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
+<div class="phone">
+
+  <!-- Video fill -->
+  <div class="video-fill scene-a"></div>
+  <div class="film-grain"></div>
+  <div class="vignette-top"></div>
+  <div class="vignette-bottom"></div>
+
+  <!-- Status bar -->
+  <div class="status-bar">
+    <div class="status-time" style="color:rgba(245,222,179,0.8);">9:41</div>
+    <div class="status-icons">
+      <svg width="17" height="12" viewBox="0 0 17 12" fill="none"><rect x="0" y="7" width="3" height="5" rx="1" fill="rgba(245,222,179,0.7)"/><rect x="4.5" y="5" width="3" height="7" rx="1" fill="rgba(245,222,179,0.7)"/><rect x="9" y="2.5" width="3" height="9.5" rx="1" fill="rgba(245,222,179,0.7)"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="rgba(245,222,179,0.7)"/></svg>
+      <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x="0.5" y="0.5" width="21" height="11" rx="3.5" stroke="rgba(245,222,179,0.35)"/><rect x="2" y="2" width="16" height="8" rx="2" fill="rgba(245,222,179,0.7)"/><path d="M23 4V8" stroke="rgba(245,222,179,0.4)" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </div>
+  </div>
+
+  <!-- Top controls -->
+  <div class="top-controls">
+    <div class="back-btn">
+      <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7L7 13" stroke="rgba(245,222,179,0.8)" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="scrapbook-title-top">Christmas Morning</div>
+    <div class="back-btn" onclick="document.getElementById('action-sheet').style.display='flex';" style="cursor:pointer;">
+      <svg width="16" height="4" viewBox="0 0 16 4" fill="none">
+        <circle cx="2" cy="2" r="1.5" fill="rgba(245,222,179,0.8)"/>
+        <circle cx="8" cy="2" r="1.5" fill="rgba(245,222,179,0.8)"/>
+        <circle cx="14" cy="2" r="1.5" fill="rgba(245,222,179,0.8)"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Action sheet -->
+  <div id="action-sheet" style="display:none;position:absolute;inset:0;z-index:20;flex-direction:column;justify-content:flex-end;" onclick="this.style.display='none'">
+    <div style="position:absolute;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);"></div>
+    <div style="position:relative;z-index:1;background:#3D2410;border-radius:20px 20px 0 0;border-top:1px solid #4A2E18;padding:0 16px 40px;" onclick="event.stopPropagation()">
+      <div style="width:40px;height:4px;background:#4A2E18;border-radius:2px;margin:14px auto 20px;"></div>
+      <div style="display:flex;align-items:center;gap:14px;padding:16px 8px;border-bottom:1px solid #4A2E18;cursor:pointer;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        <div>
+          <div style="font-size:15px;font-weight:600;color:#F5DEB3;margin-bottom:2px;">Edit Scrapbook</div>
+          <div style="font-size:11px;color:#7A3B1E;">Trim clips, move captions, reorder</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;padding:16px 8px;border-bottom:1px solid #4A2E18;cursor:pointer;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div>
+          <div style="font-size:15px;font-weight:600;color:#F5DEB3;margin-bottom:2px;">Scrapbook Details</div>
+          <div style="font-size:11px;color:#7A3B1E;">Rename, change cover, see clip list</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;padding:16px 8px;cursor:pointer;opacity:0.35;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        <div>
+          <div style="font-size:15px;font-weight:600;color:#F5DEB3;margin-bottom:2px;">Share Scrapbook</div>
+          <div style="font-size:11px;color:#7A3B1E;">Coming soon</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;padding:14px 8px;text-align:center;cursor:pointer;" onclick="document.getElementById('action-sheet').style.display='none'">
+        <span style="font-size:15px;font-weight:600;color:#7A3B1E;">Cancel</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Segmented progress -->
+  <div class="progress-bar">
+    <div class="progress-seg done"></div>
+    <div class="progress-seg done"></div>
+    <div class="progress-seg active"><div class="progress-seg-fill"></div></div>
+    <div class="progress-seg"></div>
+    <div class="progress-seg"></div>
+    <div class="progress-seg"></div>
+    <div class="progress-seg"></div>
+    <div class="progress-seg"></div>
+    <div class="progress-seg"></div>
+    <div class="progress-seg"></div>
+    <div class="progress-seg"></div>
+    <div class="progress-seg"></div>
+    <div class="progress-seg"></div>
+  </div>
+
+  <!-- Caption overlay -->
+  <div class="caption-overlay">
+    <div class="caption-text">"She didn't even look back."</div>
+  </div>
+
+  <!-- Swipe hint -->
+  <div class="swipe-hint">
+    <svg width="16" height="24" viewBox="0 0 16 24" fill="none">
+      <path d="M8 20L8 4" stroke="rgba(245,222,179,0.6)" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M3 8L8 3L13 8" stroke="rgba(245,222,179,0.6)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span class="swipe-label">next</span>
+  </div>
+
+  <!-- Bottom info -->
+  <div class="bottom-info">
+    <div class="clip-counter">
+      <div class="counter-name">Christmas Morning</div>
+      <div class="counter-nums">3 / 13</div>
+    </div>
+    <div class="play-state">
+      <!-- Pause icon -->
+      <svg width="14" height="16" viewBox="0 0 14 16" fill="none">
+        <rect x="1" y="1" width="4" height="14" rx="2" fill="rgba(245,222,179,0.7)"/>
+        <rect x="9" y="1" width="4" height="14" rx="2" fill="rgba(245,222,179,0.7)"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="home-indicator"><div class="home-bar"></div></div>
+</div>
+<div class="phone-label">Playing</div>
+</div>
+
+
+<!-- ══ PHONE 2: Paused ══ -->
+<div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
+<div class="phone">
+
+  <div class="video-fill scene-b"></div>
+  <div class="film-grain"></div>
+  <div class="vignette-top"></div>
+  <div class="vignette-bottom"></div>
+
+  <!-- Pause overlay -->
+  <div class="paused-overlay">
+    <div class="big-play">
+      <svg width="26" height="28" viewBox="0 0 26 28" fill="none">
+        <polygon points="3,2 23,14 3,26" fill="#2C1A0E"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="status-bar">
+    <div class="status-time" style="color:rgba(245,222,179,0.8);">9:41</div>
+    <div class="status-icons">
+      <svg width="17" height="12" viewBox="0 0 17 12" fill="none"><rect x="0" y="7" width="3" height="5" rx="1" fill="rgba(245,222,179,0.7)"/><rect x="4.5" y="5" width="3" height="7" rx="1" fill="rgba(245,222,179,0.7)"/><rect x="9" y="2.5" width="3" height="9.5" rx="1" fill="rgba(245,222,179,0.7)"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="rgba(245,222,179,0.7)"/></svg>
+      <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x="0.5" y="0.5" width="21" height="11" rx="3.5" stroke="rgba(245,222,179,0.35)"/><rect x="2" y="2" width="16" height="8" rx="2" fill="rgba(245,222,179,0.7)"/><path d="M23 4V8" stroke="rgba(245,222,179,0.4)" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </div>
+  </div>
+
+  <div class="top-controls">
+    <div class="back-btn">
+      <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7L7 13" stroke="rgba(245,222,179,0.8)" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="scrapbook-title-top">Christmas Morning</div>
+    <div class="top-spacer"></div>
+  </div>
+
+  <div class="progress-bar">
+    <div class="progress-seg done"></div>
+    <div class="progress-seg done"></div>
+    <div class="progress-seg done"></div>
+    <div class="progress-seg done"></div>
+    <div class="progress-seg done"></div>
+    <div class="progress-seg active"><div class="progress-seg-fill" style="animation-play-state:paused;width:30%;"></div></div>
+    <div class="progress-seg"></div>
+    <div class="progress-seg"></div>
+    <div class="progress-seg"></div>
+    <div class="progress-seg"></div>
+    <div class="progress-seg"></div>
+    <div class="progress-seg"></div>
+    <div class="progress-seg"></div>
+  </div>
+
+  <!-- Caption — different position, top-right area -->
+  <div class="caption-overlay" style="left:auto;right:24px;bottom:auto;top:180px;text-align:right;">
+    <div class="caption-text" style="font-size:22px;">"Finally outside."</div>
+  </div>
+
+  <div class="bottom-info">
+    <div class="clip-counter">
+      <div class="counter-name">Christmas Morning</div>
+      <div class="counter-nums">6 / 13</div>
+    </div>
+    <div class="play-state">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <polygon points="2,1 14,8 2,15" fill="rgba(245,222,179,0.7)"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="home-indicator"><div class="home-bar"></div></div>
+</div>
+<div class="phone-label">Paused — tap to resume</div>
+</div>
+
+
+<!-- ══ PHONE 3: Caption edit mode (workspace) ══ -->
+<div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
+<div class="phone">
+
+  <div class="video-fill scene-c"></div>
+  <div class="film-grain"></div>
+  <div class="vignette-top"></div>
+  <div class="vignette-bottom"></div>
+
+  <!-- Workspace-style dim -->
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,0.25);z-index:3;"></div>
+
+  <!-- Status bar -->
+  <div class="status-bar" style="z-index:11;">
+    <div class="status-time" style="color:rgba(245,222,179,0.8);">9:41</div>
+    <div class="status-icons">
+      <svg width="17" height="12" viewBox="0 0 17 12" fill="none"><rect x="0" y="7" width="3" height="5" rx="1" fill="rgba(245,222,179,0.7)"/><rect x="4.5" y="5" width="3" height="7" rx="1" fill="rgba(245,222,179,0.7)"/><rect x="9" y="2.5" width="3" height="9.5" rx="1" fill="rgba(245,222,179,0.7)"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="rgba(245,222,179,0.7)"/></svg>
+      <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x="0.5" y="0.5" width="21" height="11" rx="3.5" stroke="rgba(245,222,179,0.35)"/><rect x="2" y="2" width="16" height="8" rx="2" fill="rgba(245,222,179,0.7)"/><path d="M23 4V8" stroke="rgba(245,222,179,0.4)" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </div>
+  </div>
+
+  <!-- Workspace nav -->
+  <div style="position:absolute;top:52px;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:0 20px;z-index:11;">
+    <div style="font-size:13px;font-weight:500;color:rgba(245,222,179,0.6);">Cancel</div>
+    <div style="font-family:'Fraunces',serif;font-size:15px;font-weight:600;color:rgba(245,222,179,0.8);">Edit Caption</div>
+    <div style="font-size:13px;font-weight:700;color:var(--amber);">Done</div>
+  </div>
+
+  <!-- Caption in edit mode — draggable with handles -->
+  <div style="position:absolute;left:30px;top:260px;z-index:11;cursor:move;">
+    <div class="caption-drag-hint">drag to move · pinch to resize</div>
+    <div class="caption-edit-handle"></div>
+    <div class="caption-resize-dot"></div>
+    <div class="caption-text" style="font-size:30px;color:var(--wheat);">"She ran straight<br>into the water."</div>
+  </div>
+
+  <!-- Bottom edit toolbar -->
+  <div style="position:absolute;bottom:40px;left:0;right:0;padding:0 20px;z-index:11;">
+
+    <!-- Text size slider suggestion -->
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+      <span style="font-size:11px;color:rgba(245,222,179,0.4);font-weight:600;letter-spacing:0.1em;text-transform:uppercase;">Size</span>
+      <div style="flex:1;height:3px;background:rgba(245,222,179,0.15);border-radius:2px;position:relative;">
+        <div style="position:absolute;left:0;top:0;bottom:0;width:60%;background:var(--amber);border-radius:2px;"></div>
+        <div style="position:absolute;left:60%;top:50%;transform:translate(-50%,-50%);width:14px;height:14px;background:var(--wheat);border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.4);"></div>
+      </div>
+      <span style="font-size:11px;color:rgba(245,222,179,0.4);">Aa</span>
+    </div>
+
+    <!-- Caption text input -->
+    <div style="background:rgba(0,0,0,0.4);backdrop-filter:blur(12px);border:1px solid rgba(242,162,74,0.3);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:10px;">
+      <div style="flex:1;font-family:'Fraunces',serif;font-size:16px;color:var(--wheat);font-style:italic;">"She ran straight into the water."</div>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(242,162,74,0.6)" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    </div>
+
+  </div>
+
+  <div class="home-indicator" style="z-index:11;"><div class="home-bar"></div></div>
+</div>
+<div class="phone-label">Caption edit mode</div>
+</div>
+
+</body>
+</html>

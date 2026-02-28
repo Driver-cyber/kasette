@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cassette — Fraunces + Jakarta Sans</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,300;1,9..144,400;1,9..144,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --amber: #F2A24A;
+    --sienna: #E8855A;
+    --wheat: #F5DEB3;
+    --walnut: #2C1A0E;
+    --walnut-mid: #3D2410;
+    --walnut-light: #4A2E18;
+    --rust: #7A3B1E;
+  }
+  body {
+    background: var(--walnut);
+    color: var(--wheat);
+    padding: 48px 28px;
+    max-width: 680px;
+    margin: 0 auto;
+  }
+
+  /* ── Page header ── */
+  .page-eyebrow {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--rust);
+    margin-bottom: 8px;
+  }
+  .page-title {
+    font-family: 'Fraunces', serif;
+    font-size: 38px;
+    font-weight: 700;
+    color: var(--amber);
+    line-height: 1.05;
+    margin-bottom: 4px;
+  }
+  .page-title em {
+    font-style: italic;
+    font-weight: 400;
+    color: var(--sienna);
+  }
+  .page-sub {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    color: #7A5535;
+    margin-bottom: 52px;
+  }
+
+  /* ── Section label ── */
+  .section-label {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--rust);
+    margin-bottom: 16px;
+    margin-top: 40px;
+  }
+  .section-label:first-of-type { margin-top: 0; }
+
+  .divider {
+    height: 1px;
+    background: var(--walnut-light);
+    margin: 32px 0;
+  }
+
+  /* ── Logo mark ── */
+  .logo-block {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin-bottom: 8px;
+  }
+  .logo-large {
+    font-family: 'Fraunces', serif;
+    font-size: 64px;
+    font-weight: 700;
+    color: var(--amber);
+    line-height: 1;
+    letter-spacing: -0.01em;
+  }
+  .logo-large em {
+    font-style: italic;
+    font-weight: 300;
+    color: var(--sienna);
+  }
+  .logo-medium {
+    font-family: 'Fraunces', serif;
+    font-size: 32px;
+    font-weight: 600;
+    color: var(--amber);
+    letter-spacing: -0.01em;
+  }
+  .logo-small {
+    font-family: 'Fraunces', serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--amber);
+  }
+  .logo-tagline {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 300;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--wheat);
+    opacity: 0.5;
+  }
+
+  /* ── Type scale ── */
+  .type-row {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--walnut-light);
+  }
+  .type-row:last-child { border-bottom: none; }
+  .type-spec {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 9px;
+    font-weight: 500;
+    color: var(--rust);
+    width: 80px;
+    flex-shrink: 0;
+    letter-spacing: 0.05em;
+  }
+  .t-display { font-family: 'Fraunces', serif; font-size: 40px; font-weight: 700; color: var(--amber); line-height: 1; }
+  .t-h1 { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 600; color: var(--wheat); }
+  .t-h2 { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 600; color: var(--wheat); }
+  .t-h2-italic { font-family: 'Fraunces', serif; font-size: 20px; font-style: italic; font-weight: 400; color: var(--sienna); }
+  .t-body { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 400; color: var(--wheat); opacity: 0.8; line-height: 1.6; }
+  .t-small { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12px; font-weight: 400; color: var(--wheat); opacity: 0.6; }
+  .t-label { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase; color: var(--amber); }
+  .t-caption { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; font-weight: 300; color: var(--wheat); opacity: 0.5; }
+
+  /* ── UI mockups ── */
+  .mockup-card {
+    background: var(--walnut-mid);
+    border: 1px solid var(--walnut-light);
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+
+  /* Home screen */
+  .home-screen {
+    padding: 32px 24px 24px;
+  }
+  .home-greeting {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--rust);
+    margin-bottom: 4px;
+  }
+  .home-title {
+    font-family: 'Fraunces', serif;
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--amber);
+    margin-bottom: 24px;
+    line-height: 1.05;
+  }
+  .home-title em { font-style: italic; font-weight: 300; }
+  .scrapbook-list { display: flex; flex-direction: column; gap: 10px; }
+  .scrapbook-item {
+    background: rgba(0,0,0,0.2);
+    border: 1px solid var(--walnut-light);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .sb-thumb {
+    width: 44px;
+    height: 44px;
+    border-radius: 6px;
+    flex-shrink: 0;
+  }
+  .sb-thumb-1 { background: linear-gradient(135deg, #E8855A, #F2A24A); }
+  .sb-thumb-2 { background: linear-gradient(135deg, #7A3B1E, #E8855A); }
+  .sb-thumb-3 { background: linear-gradient(135deg, #F2A24A, #F5DEB3); }
+  .sb-info { flex: 1; }
+  .sb-name {
+    font-family: 'Fraunces', serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--wheat);
+    margin-bottom: 2px;
+  }
+  .sb-meta {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--rust);
+  }
+  .sb-arrow {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 18px;
+    color: var(--rust);
+    opacity: 0.6;
+  }
+
+  /* Playback screen */
+  .playback-screen {
+    background: #1A0F08;
+    padding: 28px 24px 24px;
+  }
+  .pb-caption-area {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+  .pb-clip-label {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--amber);
+    opacity: 0.7;
+  }
+  .pb-caption {
+    font-family: 'Fraunces', serif;
+    font-size: 26px;
+    font-weight: 400;
+    font-style: italic;
+    color: var(--wheat);
+    line-height: 1.2;
+  }
+  .pb-video-placeholder {
+    background: #0D0805;
+    border-radius: 10px;
+    height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+  .pb-play-btn {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: var(--amber);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pb-play-triangle {
+    width: 0;
+    height: 0;
+    border-left: 18px solid var(--walnut);
+    border-top: 11px solid transparent;
+    border-bottom: 11px solid transparent;
+    margin-left: 4px;
+  }
+  .pb-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .pb-counter {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--rust);
+    letter-spacing: 0.1em;
+  }
+  .pb-scrapbook-name {
+    font-family: 'Fraunces', serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--wheat);
+    opacity: 0.6;
+  }
+
+  /* Buttons */
+  .button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 4px;
+  }
+  .btn {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    border: none;
+    cursor: pointer;
+    border-radius: 100px;
+    letter-spacing: 0.03em;
+  }
+  .btn-primary {
+    background: var(--amber);
+    color: var(--walnut);
+    font-size: 14px;
+    font-weight: 700;
+    padding: 13px 28px;
+  }
+  .btn-secondary {
+    background: transparent;
+    border: 1.5px solid var(--rust);
+    color: var(--wheat);
+    font-size: 14px;
+    font-weight: 500;
+    padding: 12px 24px;
+    opacity: 0.8;
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--amber);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 0;
+    letter-spacing: 0.08em;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    border-radius: 0;
+  }
+  .btn-sm {
+    background: var(--walnut-light);
+    color: var(--wheat);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 8px 16px;
+    letter-spacing: 0.05em;
+  }
+
+</style>
+</head>
+<body>
+
+<div class="page-eyebrow">Cassette — Typography</div>
+<div class="page-title">Fraunces<em> +</em><br>Jakarta Sans</div>
+<div class="page-sub">Full brand type system in Golden Hour palette.</div>
+
+<!-- Logo -->
+<div class="section-label">Logo mark — sizes</div>
+<div class="logo-block">
+  <div>
+    <div class="logo-large">Cassette<em>.</em></div>
+    <div class="logo-tagline">Your family's moving pictures</div>
+  </div>
+  <div class="logo-medium">Cassette.</div>
+  <div class="logo-small">Cassette.</div>
+</div>
+
+<div class="divider"></div>
+
+<!-- Type scale -->
+<div class="section-label">Type scale</div>
+<div class="type-row">
+  <div class="type-spec">Display<br>Fraunces 40 Bold</div>
+  <div class="t-display">Memories</div>
+</div>
+<div class="type-row">
+  <div class="type-spec">Heading 1<br>Fraunces 28 SemiBold</div>
+  <div class="t-h1">Christmas Morning</div>
+</div>
+<div class="type-row">
+  <div class="type-spec">Heading 2<br>Fraunces 20 SemiBold</div>
+  <div class="t-h2">Summer at the Lake</div>
+</div>
+<div class="type-row">
+  <div class="type-spec">Heading 2 Alt<br>Fraunces 20 Italic</div>
+  <div class="t-h2-italic">She loved every second.</div>
+</div>
+<div class="type-row">
+  <div class="type-spec">Body<br>Jakarta 15 Regular</div>
+  <div class="t-body">Upload a batch of videos from your camera roll, pick your favourites, and turn them into something worth watching again.</div>
+</div>
+<div class="type-row">
+  <div class="type-spec">Small<br>Jakarta 12 Regular</div>
+  <div class="t-small">18 clips selected · 2 min 34 sec total</div>
+</div>
+<div class="type-row">
+  <div class="type-spec">Label<br>Jakarta 10 SemiBold Caps</div>
+  <div class="t-label">New Scrapbook</div>
+</div>
+<div class="type-row">
+  <div class="type-spec">Caption<br>Jakarta 11 Light</div>
+  <div class="t-caption">Added June 12, 2024 · 8 clips</div>
+</div>
+
+<div class="divider"></div>
+
+<!-- Buttons -->
+<div class="section-label">Buttons</div>
+<div class="button-row">
+  <button class="btn btn-primary">Start a Scrapbook</button>
+  <button class="btn btn-secondary">Edit</button>
+  <button class="btn btn-sm">Trim clip</button>
+  <button class="btn btn-ghost">Skip for now</button>
+</div>
+
+<div class="divider"></div>
+
+<!-- Home screen mockup -->
+<div class="section-label">UI mockup — Home screen</div>
+<div class="mockup-card">
+  <div class="home-screen">
+    <div class="home-greeting">Good evening</div>
+    <div class="home-title">Your<br><em>Scrapbooks.</em></div>
+    <div class="scrapbook-list">
+      <div class="scrapbook-item">
+        <div class="sb-thumb sb-thumb-1"></div>
+        <div class="sb-info">
+          <div class="sb-name">Christmas Morning</div>
+          <div class="sb-meta">14 clips · Dec 2024</div>
+        </div>
+        <div class="sb-arrow">›</div>
+      </div>
+      <div class="scrapbook-item">
+        <div class="sb-thumb sb-thumb-2"></div>
+        <div class="sb-info">
+          <div class="sb-name">Lake Weekend</div>
+          <div class="sb-meta">8 clips · Aug 2024</div>
+        </div>
+        <div class="sb-arrow">›</div>
+      </div>
+      <div class="scrapbook-item">
+        <div class="sb-thumb sb-thumb-3"></div>
+        <div class="sb-info">
+          <div class="sb-name">First Day of School</div>
+          <div class="sb-meta">5 clips · Sep 2024</div>
+        </div>
+        <div class="sb-arrow">›</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Playback screen mockup -->
+<div class="section-label">UI mockup — Playback view</div>
+<div class="mockup-card">
+  <div class="playback-screen">
+    <div class="pb-caption-area">
+      <div class="pb-clip-label">Clip 3 of 14</div>
+      <div class="pb-caption">"She ran straight into the water."</div>
+    </div>
+    <div class="pb-video-placeholder">
+      <div class="pb-play-btn">
+        <div class="pb-play-triangle"></div>
+      </div>
+    </div>
+    <div class="pb-controls">
+      <div class="pb-counter">3 / 14</div>
+      <div class="pb-scrapbook-name">Christmas Morning</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

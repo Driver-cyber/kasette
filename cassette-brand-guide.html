@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cassette — Brand Style Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,300;1,9..144,400;1,9..144,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --amber:        #F2A24A;
+  --sienna:       #E8855A;
+  --wheat:        #F5DEB3;
+  --walnut:       #2C1A0E;
+  --walnut-mid:   #3D2410;
+  --walnut-light: #4A2E18;
+  --rust:         #7A3B1E;
+  --rust-dim:     #5A3A20;
+  --sidebar-w:    240px;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--walnut);
+  color: var(--wheat);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  background: #1E0E06;
+  border-right: 1px solid var(--walnut-light);
+  overflow-y: auto;
+  z-index: 100;
+  padding: 36px 0 40px;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 24px 32px;
+  border-bottom: 1px solid var(--walnut-light);
+  margin-bottom: 24px;
+}
+.sidebar-wordmark {
+  font-family: 'Fraunces', serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--amber);
+  line-height: 1;
+}
+.sidebar-wordmark em {
+  font-style: italic;
+  font-weight: 300;
+  color: var(--sienna);
+}
+
+.sidebar-section-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--rust);
+  padding: 0 24px;
+  margin-bottom: 8px;
+  margin-top: 20px;
+}
+.sidebar-section-label:first-of-type { margin-top: 0; }
+
+.sidebar-link {
+  display: block;
+  padding: 8px 24px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--wheat);
+  opacity: 0.55;
+  text-decoration: none;
+  transition: opacity 0.15s, color 0.15s;
+  cursor: pointer;
+}
+.sidebar-link:hover, .sidebar-link.active {
+  opacity: 1;
+  color: var(--amber);
+}
+
+.sidebar-version {
+  margin-top: auto;
+  padding: 20px 24px 0;
+  border-top: 1px solid var(--walnut-light);
+  font-size: 10px;
+  color: var(--rust-dim);
+  line-height: 1.6;
+}
+
+/* ── Main content ── */
+.main {
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  max-width: 860px;
+  padding: 64px 56px 120px;
+}
+
+/* ── Section ── */
+.section {
+  padding-top: 80px;
+  margin-top: -40px;
+}
+.section:first-child { padding-top: 0; margin-top: 0; }
+
+.section-eyebrow {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--rust);
+  margin-bottom: 8px;
+}
+.section-title {
+  font-family: 'Fraunces', serif;
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--amber);
+  line-height: 1.05;
+  margin-bottom: 12px;
+}
+.section-title em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--sienna);
+}
+.section-desc {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--wheat);
+  opacity: 0.6;
+  line-height: 1.7;
+  max-width: 560px;
+  margin-bottom: 40px;
+}
+
+.divider { height: 1px; background: var(--walnut-light); margin: 60px 0; }
+.sub-divider { height: 1px; background: var(--walnut-light); opacity: 0.5; margin: 32px 0; }
+
+.sub-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--rust);
+  margin-bottom: 16px;
+}
+
+/* ── Cover / Hero ── */
+.cover {
+  min-height: 320px;
+  background: linear-gradient(160deg, #3D2410 0%, #2C1A0E 60%, #1A0F08 100%);
+  border: 1px solid var(--walnut-light);
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 40px 44px;
+  margin-bottom: 60px;
+  position: relative;
+  overflow: hidden;
+}
+.cover-grain {
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+}
+.cover-spool {
+  position: absolute;
+  top: 36px; right: 44px;
+  opacity: 0.12;
+}
+.cover-tag {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--rust);
+  margin-bottom: 12px;
+}
+.cover-headline {
+  font-family: 'Fraunces', serif;
+  font-size: 52px;
+  font-weight: 700;
+  color: var(--amber);
+  line-height: 1.0;
+  margin-bottom: 8px;
+}
+.cover-headline em {
+  font-style: italic;
+  font-weight: 300;
+  color: var(--sienna);
+}
+.cover-sub {
+  font-size: 13px;
+  font-weight: 300;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--wheat);
+  opacity: 0.4;
+}
+
+/* ── Color swatches ── */
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+.color-card {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--walnut-light);
+}
+.color-swatch {
+  height: 80px;
+}
+.color-info {
+  background: var(--walnut-mid);
+  padding: 12px 14px;
+}
+.color-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wheat);
+  margin-bottom: 2px;
+}
+.color-role {
+  font-size: 10px;
+  color: var(--rust);
+  margin-bottom: 6px;
+}
+.color-hex {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--wheat);
+  opacity: 0.45;
+}
+
+/* ── Type scale ── */
+.type-table { width: 100%; border-collapse: collapse; }
+.type-table tr { border-bottom: 1px solid var(--walnut-light); }
+.type-table tr:last-child { border-bottom: none; }
+.type-table td { padding: 16px 0; vertical-align: middle; }
+.type-spec-col { width: 160px; padding-right: 24px; }
+.type-spec-name { font-size: 11px; font-weight: 600; color: var(--amber); margin-bottom: 3px; }
+.type-spec-detail { font-size: 10px; color: var(--rust); line-height: 1.5; }
+
+/* ── Logo marks ── */
+.mark-grid { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 32px; }
+.mark-item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.mark-label { font-size: 9px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--rust); }
+
+/* ── Usage rules ── */
+.rule-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.rule-card {
+  border-radius: 12px;
+  border: 1px solid var(--walnut-light);
+  padding: 20px;
+  background: var(--walnut-mid);
+}
+.rule-card.do { border-color: rgba(242,162,74,0.3); }
+.rule-card.dont { border-color: rgba(232,133,90,0.3); }
+.rule-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.rule-badge.do { color: var(--amber); }
+.rule-badge.dont { color: var(--sienna); }
+.rule-text { font-size: 12px; color: var(--wheat); opacity: 0.7; line-height: 1.6; }
+
+/* ── Button specimens ── */
+.button-specimens { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.btn {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  border: none; cursor: pointer; border-radius: 100px;
+}
+.btn-primary { background: var(--amber); color: var(--walnut); font-size: 14px; font-weight: 700; padding: 14px 30px; }
+.btn-secondary { background: transparent; border: 1.5px solid var(--rust); color: var(--wheat); font-size: 14px; font-weight: 500; padding: 13px 26px; opacity: 0.85; }
+.btn-ghost { background: transparent; color: var(--amber); font-size: 13px; font-weight: 600; padding: 10px 0; letter-spacing: 0.06em; text-decoration: underline; text-underline-offset: 3px; border-radius: 0; }
+.btn-danger { background: transparent; border: 1.5px solid var(--sienna); color: var(--sienna); font-size: 14px; font-weight: 500; padding: 13px 26px; }
+.btn-sm { background: var(--walnut-light); color: var(--wheat); font-size: 11px; font-weight: 600; padding: 8px 18px; letter-spacing: 0.05em; }
+
+/* ── Icon grid ── */
+.icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 12px; }
+.icon-cell {
+  background: var(--walnut-mid);
+  border: 1px solid var(--walnut-light);
+  border-radius: 10px;
+  padding: 16px 8px 12px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.icon-name { font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--rust); text-align: center; line-height: 1.4; }
+
+/* ── Voice samples ── */
+.voice-card {
+  background: var(--walnut-mid);
+  border: 1px solid var(--walnut-light);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 12px;
+}
+.voice-context { font-size: 9px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--rust); margin-bottom: 8px; }
+.voice-text { font-size: 14px; color: var(--wheat); line-height: 1.6; }
+.voice-text em { font-family: 'Fraunces', serif; font-style: italic; color: var(--sienna); }
+
+/* ── Spacing tokens ── */
+.spacing-row { display: flex; align-items: center; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--walnut-light); }
+.spacing-bar { background: var(--amber); height: 8px; border-radius: 4px; flex-shrink: 0; opacity: 0.7; }
+.spacing-name { font-size: 11px; font-weight: 600; color: var(--amber); width: 60px; }
+.spacing-val { font-size: 11px; color: var(--wheat); opacity: 0.5; font-family: monospace; }
+
+/* ── Motion ── */
+.motion-card {
+  background: var(--walnut-mid);
+  border: 1px solid var(--walnut-light);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 12px;
+  display: flex; align-items: flex-start; gap: 20px;
+}
+.motion-name { font-size: 12px; font-weight: 600; color: var(--amber); margin-bottom: 4px; }
+.motion-detail { font-size: 11px; font-family: monospace; color: var(--rust); margin-bottom: 6px; }
+.motion-desc { font-size: 12px; color: var(--wheat); opacity: 0.6; line-height: 1.5; }
+
+/* ── Responsive ── */
+@media (max-width: 720px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding: 32px 20px 80px; }
+  .rule-grid { grid-template-columns: 1fr; }
+  .color-grid { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════ SIDEBAR ══════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
+      <rect width="48" height="48" rx="9" fill="#3D2410"/>
+      <circle cx="16" cy="22" r="8" stroke="#F2A24A" stroke-width="3.5" fill="none"/>
+      <circle cx="32" cy="22" r="8" stroke="#F2A24A" stroke-width="3.5" fill="none"/>
+      <circle cx="16" cy="22" r="2.5" fill="#F2A24A"/>
+      <circle cx="32" cy="22" r="2.5" fill="#F2A24A"/>
+      <rect x="14" y="31" width="20" height="3" rx="1.5" fill="#E8855A"/>
+    </svg>
+    <div class="sidebar-wordmark">Cassette<em>.</em></div>
+  </div>
+
+  <div class="sidebar-section-label">Foundation</div>
+  <a class="sidebar-link" href="#brand">Brand Story</a>
+  <a class="sidebar-link" href="#color">Color</a>
+  <a class="sidebar-link" href="#typography">Typography</a>
+  <a class="sidebar-link" href="#logo">Logo & Mark</a>
+
+  <div class="sidebar-section-label">Components</div>
+  <a class="sidebar-link" href="#buttons">Buttons</a>
+  <a class="sidebar-link" href="#icons">Icons</a>
+  <a class="sidebar-link" href="#spacing">Spacing</a>
+  <a class="sidebar-link" href="#motion">Motion</a>
+
+  <div class="sidebar-section-label">Voice</div>
+  <a class="sidebar-link" href="#voice">Tone & Voice</a>
+  <a class="sidebar-link" href="#usage">Usage Rules</a>
+
+  <div class="sidebar-section-label">Reference</div>
+  <a class="sidebar-link" href="#tokens">CSS Tokens</a>
+  <a class="sidebar-link" href="#assets">Asset Index</a>
+
+  <div class="sidebar-version">
+    Cassette Brand v1.0<br>
+    Locked Feb 27, 2026<br>
+    <span style="color:#3D2410;">——</span><br>
+    Golden Hour palette<br>
+    Fraunces + Jakarta Sans
+  </div>
+</aside>
+
+<!-- ══════════════ MAIN ══════════════ -->
+<main class="main">
+
+  <!-- Cover -->
+  <div class="cover">
+    <div class="cover-grain"></div>
+    <svg class="cover-spool" width="280" height="280" viewBox="0 0 48 48" fill="none">
+      <circle cx="16" cy="22" r="8" stroke="#F2A24A" stroke-width="3.5" fill="none"/>
+      <circle cx="32" cy="22" r="8" stroke="#F2A24A" stroke-width="3.5" fill="none"/>
+      <circle cx="16" cy="22" r="2.5" fill="#F2A24A"/>
+      <circle cx="32" cy="22" r="2.5" fill="#F2A24A"/>
+      <rect x="14" y="31" width="20" height="3" rx="1.5" fill="#E8855A"/>
+    </svg>
+    <div class="cover-tag">Brand Style Guide · v1.0</div>
+    <div class="cover-headline">Cassette<em>.</em></div>
+    <div class="cover-sub">Your family's moving pictures</div>
+  </div>
+
+  <!-- ── BRAND STORY ── -->
+  <div class="section" id="brand">
+    <div class="section-eyebrow">01 — Foundation</div>
+    <div class="section-title">Brand <em>Story</em></div>
+    <div class="section-desc">What Cassette is, who it's for, and the feeling it should always create.</div>
+
+    <div class="voice-card">
+      <div class="voice-context">The Product</div>
+      <div class="voice-text">Cassette is a private family video scrapbook app. It takes the chaos of an iPhone camera roll and turns it into something worth watching again — curated, beautiful, and yours alone. No algorithm. No audience. Just the moments that matter.</div>
+    </div>
+    <div class="voice-card">
+      <div class="voice-context">The Primary User</div>
+      <div class="voice-text">A mom with 800 videos on her phone she hasn't looked at since Christmas. She's uploading from the waiting room at dance class — one hand, 10 minutes, patchy WiFi. Cassette should feel like a gift, not a task.</div>
+    </div>
+    <div class="voice-card">
+      <div class="voice-context">The Feeling</div>
+      <div class="voice-text"><em>Ordo ab chao</em> — order from chaos. Cassette takes the raw, messy abundance of family life and creates something warm, cozy, and worth revisiting. Like finding an old shoebox of photos. Like the smell of a projector warming up. Like pressing play on something you almost forgot.</div>
+    </div>
+    <div class="voice-card">
+      <div class="voice-context">The Name</div>
+      <div class="voice-text">Cassette. Named for the cassette tape — the format of the home video era. Warm, analog, intimate. Deliberately pre-Instagram. The name carries the weight of recorded memory without carrying any existing brand baggage.</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── COLOR ── -->
+  <div class="section" id="color">
+    <div class="section-eyebrow">02 — Foundation</div>
+    <div class="section-title">Color <em>Palette</em></div>
+    <div class="section-desc">Golden Hour. Warm amber and burnt sienna on dark walnut brown. Feels like Super 8 film projected in a dark living room. Dark backgrounds are the default — never invert this without reason.</div>
+
+    <div class="color-grid">
+      <div class="color-card">
+        <div class="color-swatch" style="background:#F2A24A;"></div>
+        <div class="color-info">
+          <div class="color-name">Amber</div>
+          <div class="color-role">Primary Accent · CTA · Logo</div>
+          <div class="color-hex">#F2A24A</div>
+        </div>
+      </div>
+      <div class="color-card">
+        <div class="color-swatch" style="background:#E8855A;"></div>
+        <div class="color-info">
+          <div class="color-name">Sienna</div>
+          <div class="color-role">Secondary · Italic logo · Danger</div>
+          <div class="color-hex">#E8855A</div>
+        </div>
+      </div>
+      <div class="color-card">
+        <div class="color-swatch" style="background:#F5DEB3;"></div>
+        <div class="color-info">
+          <div class="color-name">Wheat</div>
+          <div class="color-role">Primary text · Headings</div>
+          <div class="color-hex">#F5DEB3</div>
+        </div>
+      </div>
+      <div class="color-card">
+        <div class="color-swatch" style="background:#2C1A0E;"></div>
+        <div class="color-info">
+          <div class="color-name">Walnut</div>
+          <div class="color-role">App background · Base</div>
+          <div class="color-hex">#2C1A0E</div>
+        </div>
+      </div>
+      <div class="color-card">
+        <div class="color-swatch" style="background:#3D2410;"></div>
+        <div class="color-info">
+          <div class="color-name">Walnut Mid</div>
+          <div class="color-role">Cards · Sheets · Surfaces</div>
+          <div class="color-hex">#3D2410</div>
+        </div>
+      </div>
+      <div class="color-card">
+        <div class="color-swatch" style="background:#4A2E18;"></div>
+        <div class="color-info">
+          <div class="color-name">Walnut Light</div>
+          <div class="color-role">Borders · Dividers · Outlines</div>
+          <div class="color-hex">#4A2E18</div>
+        </div>
+      </div>
+      <div class="color-card">
+        <div class="color-swatch" style="background:#7A3B1E;"></div>
+        <div class="color-info">
+          <div class="color-name">Rust</div>
+          <div class="color-role">Labels · Metadata · Muted text</div>
+          <div class="color-hex">#7A3B1E</div>
+        </div>
+      </div>
+      <div class="color-card">
+        <div class="color-swatch" style="background:#1A0F08;"></div>
+        <div class="color-info">
+          <div class="color-name">Deep Walnut</div>
+          <div class="color-role">Playback BG · Deepest dark</div>
+          <div class="color-hex">#1A0F08</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── TYPOGRAPHY ── -->
+  <div class="section" id="typography">
+    <div class="section-eyebrow">03 — Foundation</div>
+    <div class="section-title">Type <em>System</em></div>
+    <div class="section-desc">Fraunces carries the soul of the brand — warm, nostalgic, handcrafted. Plus Jakarta Sans handles all functional UI work. Never use system fonts, Inter, Roboto, or Arial anywhere in Cassette.</div>
+
+    <div class="sub-label">Display & Headings — Fraunces (Google Fonts)</div>
+    <table class="type-table">
+      <tr>
+        <td class="type-spec-col">
+          <div class="type-spec-name">Display</div>
+          <div class="type-spec-detail">Fraunces 700<br>40–64px</div>
+        </td>
+        <td><span style="font-family:'Fraunces',serif;font-size:48px;font-weight:700;color:var(--amber);line-height:1;">Memories</span></td>
+      </tr>
+      <tr>
+        <td class="type-spec-col">
+          <div class="type-spec-name">Heading 1</div>
+          <div class="type-spec-detail">Fraunces 600<br>28px</div>
+        </td>
+        <td><span style="font-family:'Fraunces',serif;font-size:28px;font-weight:600;color:var(--wheat);">Christmas Morning</span></td>
+      </tr>
+      <tr>
+        <td class="type-spec-col">
+          <div class="type-spec-name">Heading 2</div>
+          <div class="type-spec-detail">Fraunces 600<br>20px</div>
+        </td>
+        <td><span style="font-family:'Fraunces',serif;font-size:20px;font-weight:600;color:var(--wheat);">Lake Weekend, Aug 2024</span></td>
+      </tr>
+      <tr>
+        <td class="type-spec-col">
+          <div class="type-spec-name">Caption / Quote</div>
+          <div class="type-spec-detail">Fraunces 400 Italic<br>20–28px</div>
+        </td>
+        <td><span style="font-family:'Fraunces',serif;font-size:24px;font-style:italic;font-weight:400;color:var(--sienna);">"She ran straight into the water."</span></td>
+      </tr>
+    </table>
+
+    <div class="sub-divider"></div>
+    <div class="sub-label">UI Text — Plus Jakarta Sans (Google Fonts)</div>
+    <table class="type-table">
+      <tr>
+        <td class="type-spec-col">
+          <div class="type-spec-name">Body</div>
+          <div class="type-spec-detail">Jakarta 400<br>15px / 1.7</div>
+        </td>
+        <td><span style="font-size:15px;font-weight:400;color:var(--wheat);opacity:0.8;line-height:1.7;">Upload a batch of videos from your camera roll, pick your favourites, and turn them into something worth watching again.</span></td>
+      </tr>
+      <tr>
+        <td class="type-spec-col">
+          <div class="type-spec-name">Small</div>
+          <div class="type-spec-detail">Jakarta 400<br>12px</div>
+        </td>
+        <td><span style="font-size:12px;color:var(--wheat);opacity:0.55;">18 clips selected · 2 min 34 sec total</span></td>
+      </tr>
+      <tr>
+        <td class="type-spec-col">
+          <div class="type-spec-name">Label</div>
+          <div class="type-spec-detail">Jakarta 600 Caps<br>10px / 0.2em</div>
+        </td>
+        <td><span style="font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--amber);">New Scrapbook</span></td>
+      </tr>
+      <tr>
+        <td class="type-spec-col">
+          <div class="type-spec-name">Caption UI</div>
+          <div class="type-spec-detail">Jakarta 300<br>11px</div>
+        </td>
+        <td><span style="font-size:11px;font-weight:300;color:var(--wheat);opacity:0.45;">Added June 12, 2024 · 8 clips</span></td>
+      </tr>
+      <tr>
+        <td class="type-spec-col">
+          <div class="type-spec-name">Button</div>
+          <div class="type-spec-detail">Jakarta 700<br>14px / 0.03em</div>
+        </td>
+        <td><span style="font-size:14px;font-weight:700;color:var(--amber);">Start a Scrapbook</span></td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── LOGO ── -->
+  <div class="section" id="logo">
+    <div class="section-eyebrow">04 — Foundation</div>
+    <div class="section-title">Logo <em>& Mark</em></div>
+    <div class="section-desc">The Spool — two circles like cassette tape reels, connected by a base stripe. Clean, timeless, reads at 16px. The mark is always amber on walnut. Never recolor, rotate, or add effects.</div>
+
+    <div class="sub-label">The Spool — all sizes</div>
+    <div class="mark-grid">
+      <div class="mark-item">
+        <svg width="16" height="16" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="10" fill="#2C1A0E"/><circle cx="16" cy="22" r="8" stroke="#F2A24A" stroke-width="3.5" fill="none"/><circle cx="32" cy="22" r="8" stroke="#F2A24A" stroke-width="3.5" fill="none"/><circle cx="16" cy="22" r="2.5" fill="#F2A24A"/><circle cx="32" cy="22" r="2.5" fill="#F2A24A"/><rect x="14" y="31" width="20" height="3" rx="1.5" fill="#E8855A"/></svg>
+        <div class="mark-label">16</div>
+      </div>
+      <div class="mark-item">
+        <svg width="32" height="32" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="10" fill="#2C1A0E"/><circle cx="16" cy="22" r="8" stroke="#F2A24A" stroke-width="3.5" fill="none"/><circle cx="32" cy="22" r="8" stroke="#F2A24A" stroke-width="3.5" fill="none"/><circle cx="16" cy="22" r="2.5" fill="#F2A24A"/><circle cx="32" cy="22" r="2.5" fill="#F2A24A"/><rect x="14" y="31" width="20" height="3" rx="1.5" fill="#E8855A"/></svg>
+        <div class="mark-label">32</div>
+      </div>
+      <div class="mark-item">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="10" fill="#2C1A0E"/><circle cx="16" cy="22" r="8" stroke="#F2A24A" stroke-width="3.5" fill="none"/><circle cx="32" cy="22" r="8" stroke="#F2A24A" stroke-width="3.5" fill="none"/><circle cx="16" cy="22" r="2.5" fill="#F2A24A"/><circle cx="32" cy="22" r="2.5" fill="#F2A24A"/><rect x="14" y="31" width="20" height="3" rx="1.5" fill="#E8855A"/></svg>
+        <div class="mark-label">48</div>
+      </div>
+      <div class="mark-item">
+        <svg width="80" height="80" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="10" fill="#2C1A0E"/><circle cx="16" cy="22" r="8" stroke="#F2A24A" stroke-width="3.5" fill="none"/><circle cx="32" cy="22" r="8" stroke="#F2A24A" stroke-width="3.5" fill="none"/><circle cx="16" cy="22" r="2.5" fill="#F2A24A"/><circle cx="32" cy="22" r="2.5" fill="#F2A24A"/><rect x="14" y="31" width="20" height="3" rx="1.5" fill="#E8855A"/></svg>
+        <div class="mark-label">80</div>
+      </div>
+      <div class="mark-item">
+        <svg width="120" height="120" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="10" fill="#2C1A0E"/><circle cx="16" cy="22" r="8" stroke="#F2A24A" stroke-width="3.5" fill="none"/><circle cx="32" cy="22" r="8" stroke="#F2A24A" stroke-width="3.5" fill="none"/><circle cx="16" cy="22" r="2.5" fill="#F2A24A"/><circle cx="32" cy="22" r="2.5" fill="#F2A24A"/><rect x="14" y="31" width="20" height="3" rx="1.5" fill="#E8855A"/></svg>
+        <div class="mark-label">120</div>
+      </div>
+    </div>
+
+    <div class="sub-label">Wordmark lockups</div>
+    <div style="display:flex;flex-direction:column;gap:20px;margin-bottom:32px;">
+      <div style="display:flex;align-items:center;gap:16px;">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="10" fill="#2C1A0E"/><circle cx="16" cy="22" r="8" stroke="#F2A24A" stroke-width="3.5" fill="none"/><circle cx="32" cy="22" r="8" stroke="#F2A24A" stroke-width="3.5" fill="none"/><circle cx="16" cy="22" r="2.5" fill="#F2A24A"/><circle cx="32" cy="22" r="2.5" fill="#F2A24A"/><rect x="14" y="31" width="20" height="3" rx="1.5" fill="#E8855A"/></svg>
+        <span style="font-family:'Fraunces',serif;font-size:32px;font-weight:700;color:var(--amber);">Cassette<em style="font-style:italic;font-weight:300;color:var(--sienna);">.</em></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <svg width="32" height="32" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="10" fill="#2C1A0E"/><circle cx="16" cy="22" r="8" stroke="#F2A24A" stroke-width="3.5" fill="none"/><circle cx="32" cy="22" r="8" stroke="#F2A24A" stroke-width="3.5" fill="none"/><circle cx="16" cy="22" r="2.5" fill="#F2A24A"/><circle cx="32" cy="22" r="2.5" fill="#F2A24A"/><rect x="14" y="31" width="20" height="3" rx="1.5" fill="#E8855A"/></svg>
+        <span style="font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:var(--amber);">Cassette<em style="font-style:italic;font-weight:300;color:var(--sienna);">.</em></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <svg width="20" height="20" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="10" fill="#2C1A0E"/><circle cx="16" cy="22" r="8" stroke="#F2A24A" stroke-width="3.5" fill="none"/><circle cx="32" cy="22" r="8" stroke="#F2A24A" stroke-width="3.5" fill="none"/><circle cx="16" cy="22" r="2.5" fill="#F2A24A"/><circle cx="32" cy="22" r="2.5" fill="#F2A24A"/><rect x="14" y="31" width="20" height="3" rx="1.5" fill="#E8855A"/></svg>
+        <span style="font-family:'Fraunces',serif;font-size:15px;font-weight:700;color:var(--amber);">Cassette<em style="font-style:italic;font-weight:300;color:var(--sienna);">.</em></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── BUTTONS ── -->
+  <div class="section" id="buttons">
+    <div class="section-eyebrow">05 — Components</div>
+    <div class="section-title">Button <em>System</em></div>
+    <div class="section-desc">All buttons use Plus Jakarta Sans. Rounded pill shape throughout — no sharp corners. One primary action per screen. Destructive actions use Sienna, never Red.</div>
+
+    <div class="sub-label">Button variants</div>
+    <div class="button-specimens">
+      <button class="btn btn-primary">Start a Scrapbook</button>
+      <button class="btn btn-secondary">Edit</button>
+      <button class="btn btn-sm">Trim clip</button>
+      <button class="btn btn-danger">Delete</button>
+      <button class="btn btn-ghost">Skip for now</button>
+    </div>
+
+    <div class="sub-divider"></div>
+    <div class="rule-grid">
+      <div class="rule-card do">
+        <div class="rule-badge do">✓ Do</div>
+        <div class="rule-text">One Primary (amber) button per screen. It's the one thing you want them to do next.</div>
+      </div>
+      <div class="rule-card dont">
+        <div class="rule-badge dont">✗ Don't</div>
+        <div class="rule-text">Don't stack two Primary buttons. Don't use red for destructive actions — use Sienna.</div>
+      </div>
+      <div class="rule-card do">
+        <div class="rule-badge do">✓ Do</div>
+        <div class="rule-text">Minimum touch target 44×44pt on all interactive elements. She's using one thumb.</div>
+      </div>
+      <div class="rule-card dont">
+        <div class="rule-badge dont">✗ Don't</div>
+        <div class="rule-text">Don't use hover states as the primary interaction pattern. This is a touch-first app.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── ICONS ── -->
+  <div class="section" id="icons">
+    <div class="section-eyebrow">06 — Components</div>
+    <div class="section-title">Icon <em>System</em></div>
+    <div class="section-desc">Lucide React as the base library. Consistent 1.75px stroke weight, Amber (#F2A24A) on dark backgrounds. The New Scrapbook icon is a custom Cassette mark — The Spool with a plus badge. Delete uses Sienna.</div>
+
+    <div class="icon-grid">
+      <div class="icon-cell">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <div class="icon-name">Upload</div>
+      </div>
+      <div class="icon-cell">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="#F2A24A" stroke="none"/></svg>
+        <div class="icon-name">Play</div>
+      </div>
+      <div class="icon-cell">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+        <div class="icon-name">Trim</div>
+      </div>
+      <div class="icon-cell">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+        <div class="icon-name">Caption</div>
+      </div>
+      <div class="icon-cell">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        <div class="icon-name">Reorder</div>
+      </div>
+      <div class="icon-cell">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <div class="icon-name">Done</div>
+      </div>
+      <div class="icon-cell">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        <div class="icon-name">Preview</div>
+      </div>
+      <div class="icon-cell">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>
+        <div class="icon-name">Select</div>
+      </div>
+      <div class="icon-cell">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        <div class="icon-name">Back</div>
+      </div>
+      <div class="icon-cell">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        <div class="icon-name">Next</div>
+      </div>
+      <div class="icon-cell">
+        <!-- Custom: New Scrapbook -->
+        <svg width="26" height="26" viewBox="0 0 48 48" fill="none">
+          <circle cx="16" cy="22" r="9" stroke="#F2A24A" stroke-width="3.5" fill="none"/>
+          <circle cx="32" cy="22" r="9" stroke="#F2A24A" stroke-width="3.5" fill="none"/>
+          <circle cx="16" cy="22" r="3" fill="#F2A24A"/>
+          <circle cx="32" cy="22" r="3" fill="#F2A24A"/>
+          <rect x="14" y="32" width="20" height="3.5" rx="1.75" fill="#E8855A"/>
+          <circle cx="38" cy="10" r="8" fill="#2C1A0E"/>
+          <line x1="38" y1="6.5" x2="38" y2="13.5" stroke="#F2A24A" stroke-width="2" stroke-linecap="round"/>
+          <line x1="34.5" y1="10" x2="41.5" y2="10" stroke="#F2A24A" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <div class="icon-name">New Scrapbook ✦</div>
+      </div>
+      <div class="icon-cell">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#E8855A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        <div class="icon-name">Delete ✦</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--rust-dim);margin-top:12px;">✦ Custom or modified Cassette icons</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── SPACING ── -->
+  <div class="section" id="spacing">
+    <div class="section-eyebrow">07 — Components</div>
+    <div class="section-title">Spacing <em>Scale</em></div>
+    <div class="section-desc">4px base unit. Use multiples of 4 throughout. Generous padding on mobile — cramped layouts fail on one-handed use. Minimum 44px touch targets, always.</div>
+
+    <div class="spacing-row"><div class="spacing-bar" style="width:4px;"></div><div class="spacing-name">xs — 4px</div><div class="spacing-val">gap-1 / 0.25rem</div></div>
+    <div class="spacing-row"><div class="spacing-bar" style="width:8px;"></div><div class="spacing-name">sm — 8px</div><div class="spacing-val">gap-2 / 0.5rem</div></div>
+    <div class="spacing-row"><div class="spacing-bar" style="width:12px;"></div><div class="spacing-name">md — 12px</div><div class="spacing-val">gap-3 / 0.75rem</div></div>
+    <div class="spacing-row"><div class="spacing-bar" style="width:16px;"></div><div class="spacing-name">lg — 16px</div><div class="spacing-val">gap-4 / 1rem</div></div>
+    <div class="spacing-row"><div class="spacing-bar" style="width:24px;"></div><div class="spacing-name">xl — 24px</div><div class="spacing-val">gap-6 / 1.5rem</div></div>
+    <div class="spacing-row"><div class="spacing-bar" style="width:32px;"></div><div class="spacing-name">2xl — 32px</div><div class="spacing-val">gap-8 / 2rem</div></div>
+    <div class="spacing-row"><div class="spacing-bar" style="width:48px;"></div><div class="spacing-name">3xl — 48px</div><div class="spacing-val">gap-12 / 3rem</div></div>
+    <div class="spacing-row"><div class="spacing-bar" style="width:64px;"></div><div class="spacing-name">4xl — 64px</div><div class="spacing-val">gap-16 / 4rem</div></div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── MOTION ── -->
+  <div class="section" id="motion">
+    <div class="section-eyebrow">08 — Components</div>
+    <div class="section-title">Motion <em>Principles</em></div>
+    <div class="section-desc">Motion should feel warm and unhurried — like film, not software. Nothing snaps. Everything eases. Playback transitions are the most important animations in the product.</div>
+
+    <div class="motion-card">
+      <div>
+        <div class="motion-name">Default Ease</div>
+        <div class="motion-detail">cubic-bezier(0.4, 0, 0.2, 1) · 200ms</div>
+        <div class="motion-desc">Used for all standard UI transitions — show/hide, state changes, hover.</div>
+      </div>
+    </div>
+    <div class="motion-card">
+      <div>
+        <div class="motion-name">Gentle Enter</div>
+        <div class="motion-detail">cubic-bezier(0, 0, 0.2, 1) · 300ms</div>
+        <div class="motion-desc">Screens, sheets, and cards appearing. Starts fast, decelerates warmly.</div>
+      </div>
+    </div>
+    <div class="motion-card">
+      <div>
+        <div class="motion-name">Playback Swipe</div>
+        <div class="motion-detail">cubic-bezier(0.25, 0.46, 0.45, 0.94) · 380ms</div>
+        <div class="motion-desc">Clip-to-clip transition in the Reels viewer. Should feel like turning a page, not swiping a feed.</div>
+      </div>
+    </div>
+    <div class="motion-card">
+      <div>
+        <div class="motion-name">Caption Fade</div>
+        <div class="motion-detail">ease-in-out · 500ms · opacity 0→1</div>
+        <div class="motion-desc">Text captions fade in gently over video. Never slide. Never pop.</div>
+      </div>
+    </div>
+    <div class="motion-card">
+      <div>
+        <div class="motion-name">Micro-interactions</div>
+        <div class="motion-detail">ease · 120–150ms</div>
+        <div class="motion-desc">Button press states, selection checkmarks, icon taps. Fast but never instant.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── VOICE ── -->
+  <div class="section" id="voice">
+    <div class="section-eyebrow">09 — Voice</div>
+    <div class="section-title">Tone <em>& Voice</em></div>
+    <div class="section-desc">Cassette speaks like a thoughtful friend — warm, a little poetic, never technical. It never calls attention to itself. The product's job is to get out of the way and let the memories do the talking.</div>
+
+    <div class="voice-card">
+      <div class="voice-context">Onboarding — first time</div>
+      <div class="voice-text"><em>Let's make something worth watching.</em> Start by choosing some videos from your camera roll. Don't overthink it — you can always add more later.</div>
+    </div>
+    <div class="voice-card">
+      <div class="voice-context">Empty state — no scrapbooks yet</div>
+      <div class="voice-text">Your first scrapbook is waiting. Grab a batch of videos and let's turn them into something.</div>
+    </div>
+    <div class="voice-card">
+      <div class="voice-context">Upload progress</div>
+      <div class="voice-text">Gathering your videos… <em>almost there.</em></div>
+    </div>
+    <div class="voice-card">
+      <div class="voice-context">Scrapbook complete</div>
+      <div class="voice-text"><em>It's ready.</em> Tap to watch.</div>
+    </div>
+    <div class="voice-card">
+      <div class="voice-context">Error — upload failed</div>
+      <div class="voice-text">Something didn't upload right. Try again when you have a better connection — your selections are saved.</div>
+    </div>
+
+    <div class="sub-divider"></div>
+    <div class="rule-grid">
+      <div class="rule-card do">
+        <div class="rule-badge do">✓ Voice</div>
+        <div class="rule-text">Warm. Quiet. A little poetic. Uses short sentences. Occasionally uses italics for <em>emotional emphasis</em>.</div>
+      </div>
+      <div class="rule-card dont">
+        <div class="rule-badge dont">✗ Never</div>
+        <div class="rule-text">Technical jargon, exclamation points, emoji in UI copy, "upload successful!", corporate tone.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── USAGE RULES ── -->
+  <div class="section" id="usage">
+    <div class="section-eyebrow">10 — Voice</div>
+    <div class="section-title">Usage <em>Rules</em></div>
+    <div class="section-desc">What to always do, what to never do. These rules protect the brand from drift as the product grows.</div>
+
+    <div class="rule-grid">
+      <div class="rule-card do">
+        <div class="rule-badge do">✓ Always</div>
+        <div class="rule-text">Dark background (Walnut) as default. Light mode is not a Cassette experience.</div>
+      </div>
+      <div class="rule-card dont">
+        <div class="rule-badge dont">✗ Never</div>
+        <div class="rule-text">Never use the mark in any color other than Amber on Walnut. No white version, no dark version.</div>
+      </div>
+      <div class="rule-card do">
+        <div class="rule-badge do">✓ Always</div>
+        <div class="rule-text">Mobile-first layouts. Design the iPhone experience first, adapt to desktop second.</div>
+      </div>
+      <div class="rule-card dont">
+        <div class="rule-badge dont">✗ Never</div>
+        <div class="rule-text">Never use Inter, Roboto, Arial, or system fonts. Fraunces and Jakarta Sans, always.</div>
+      </div>
+      <div class="rule-card do">
+        <div class="rule-badge do">✓ Always</div>
+        <div class="rule-text">Italic Fraunces for emotional moments — captions, the logo, hero text. It carries the warmth.</div>
+      </div>
+      <div class="rule-card dont">
+        <div class="rule-badge dont">✗ Never</div>
+        <div class="rule-text">Never rotate, stretch, recolor, or add drop shadows to the Spool mark.</div>
+      </div>
+      <div class="rule-card do">
+        <div class="rule-badge do">✓ Always</div>
+        <div class="rule-text">44px minimum touch targets. One Primary button per screen. Generous padding.</div>
+      </div>
+      <div class="rule-card dont">
+        <div class="rule-badge dont">✗ Never</div>
+        <div class="rule-text">Never use red for destructive actions. Use Sienna (#E8855A) — it's warm, not alarming.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── CSS TOKENS ── -->
+  <div class="section" id="tokens">
+    <div class="section-eyebrow">11 — Reference</div>
+    <div class="section-title">CSS <em>Tokens</em></div>
+    <div class="section-desc">Copy these into your global CSS or Tailwind config. Every color in the app should reference a token, never a raw hex value in component code.</div>
+
+    <div style="background:#1A0F08;border:1px solid var(--walnut-light);border-radius:12px;padding:24px 28px;font-family:monospace;font-size:13px;line-height:2;color:var(--wheat);overflow-x:auto;">
+      <div style="color:var(--rust);">/* Cassette — CSS Custom Properties */</div>
+      <div><span style="color:var(--amber);">:root</span> {</div>
+      <div>&nbsp;&nbsp;<span style="color:var(--sienna);">--cassette-amber:</span>        <span style="color:var(--wheat);opacity:0.7;">#F2A24A;</span>  <span style="color:var(--rust);">/* Primary accent */</span></div>
+      <div>&nbsp;&nbsp;<span style="color:var(--sienna);">--cassette-sienna:</span>       <span style="color:var(--wheat);opacity:0.7;">#E8855A;</span>  <span style="color:var(--rust);">/* Secondary / danger */</span></div>
+      <div>&nbsp;&nbsp;<span style="color:var(--sienna);">--cassette-wheat:</span>        <span style="color:var(--wheat);opacity:0.7;">#F5DEB3;</span>  <span style="color:var(--rust);">/* Primary text */</span></div>
+      <div>&nbsp;&nbsp;<span style="color:var(--sienna);">--cassette-walnut:</span>       <span style="color:var(--wheat);opacity:0.7;">#2C1A0E;</span>  <span style="color:var(--rust);">/* App background */</span></div>
+      <div>&nbsp;&nbsp;<span style="color:var(--sienna);">--cassette-walnut-mid:</span>   <span style="color:var(--wheat);opacity:0.7;">#3D2410;</span>  <span style="color:var(--rust);">/* Cards / surfaces */</span></div>
+      <div>&nbsp;&nbsp;<span style="color:var(--sienna);">--cassette-walnut-light:</span> <span style="color:var(--wheat);opacity:0.7;">#4A2E18;</span>  <span style="color:var(--rust);">/* Borders / dividers */</span></div>
+      <div>&nbsp;&nbsp;<span style="color:var(--sienna);">--cassette-rust:</span>         <span style="color:var(--wheat);opacity:0.7;">#7A3B1E;</span>  <span style="color:var(--rust);">/* Labels / muted text */</span></div>
+      <div>&nbsp;&nbsp;<span style="color:var(--sienna);">--cassette-deep:</span>         <span style="color:var(--wheat);opacity:0.7;">#1A0F08;</span>  <span style="color:var(--rust);">/* Playback BG */</span></div>
+      <div style="margin-top:8px;">&nbsp;&nbsp;<span style="color:var(--rust);">/* Typography */</span></div>
+      <div>&nbsp;&nbsp;<span style="color:var(--sienna);">--cassette-font-display:</span> <span style="color:var(--wheat);opacity:0.7;">'Fraunces', serif;</span></div>
+      <div>&nbsp;&nbsp;<span style="color:var(--sienna);">--cassette-font-ui:</span>      <span style="color:var(--wheat);opacity:0.7;">'Plus Jakarta Sans', sans-serif;</span></div>
+      <div>}</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── ASSET INDEX ── -->
+  <div class="section" id="assets">
+    <div class="section-eyebrow">12 — Reference</div>
+    <div class="section-title">Asset <em>Index</em></div>
+    <div class="section-desc">All brand assets produced in this planning session. Reference files to hand off to Claude Code when building the app.</div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div class="voice-card">
+        <div class="voice-context">Foundation Documents</div>
+        <div class="voice-text" style="font-family:monospace;font-size:12px;line-height:2;opacity:0.8;">
+          CLAUDE.md — Project constitution & guiding principles<br>
+          DECISIONS.md — Decision log & current project context
+        </div>
+      </div>
+      <div class="voice-card">
+        <div class="voice-context">Brand Files (this session)</div>
+        <div class="voice-text" style="font-family:monospace;font-size:12px;line-height:2;opacity:0.8;">
+          cassette-palettes.html — 4 color palette options (Golden Hour chosen)<br>
+          cassette-typography.html — 3 type pairing options<br>
+          cassette-typography-final.html — Fraunces + Jakarta Sans full system<br>
+          cassette-logomarks.html — 3 mark options (The Spool chosen)<br>
+          cassette-icon-system.html — Favicon package + in-app icon set<br>
+          cassette-brand-guide.html — This document
+        </div>
+      </div>
+      <div class="voice-card">
+        <div class="voice-context">Favicon Sizes Required</div>
+        <div class="voice-text" style="font-family:monospace;font-size:12px;line-height:2;opacity:0.8;">
+          favicon.ico — 16×16 + 32×32 (multi-size)<br>
+          apple-touch-icon.png — 180×180<br>
+          icon-192.png — 192×192 (PWA Android)<br>
+          icon-512.png — 512×512 (PWA splash)<br>
+          favicon-32.png — 32×32 (retina browser tab)
+        </div>
+      </div>
+      <div class="voice-card">
+        <div class="voice-context">Still To Build</div>
+        <div class="voice-text" style="font-family:monospace;font-size:12px;line-height:2;opacity:0.8;">
+          UI screens — Home, Intake Session, Workspace, Playback<br>
+          Component library — full Tailwind config<br>
+          Actual favicon .png/.ico exports
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  // Sidebar active state on scroll
+  const links = document.querySelectorAll('.sidebar-link');
+  const sections = document.querySelectorAll('.section');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const id = entry.target.getAttribute('id');
+        const active = document.querySelector(`.sidebar-link[href="#${id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

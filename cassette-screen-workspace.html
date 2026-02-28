@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cassette — Workspace v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,300;1,9..144,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+:root {
+  --amber:        #F2A24A;
+  --sienna:       #E8855A;
+  --wheat:        #F5DEB3;
+  --walnut:       #2C1A0E;
+  --walnut-mid:   #3D2410;
+  --walnut-light: #4A2E18;
+  --rust:         #7A3B1E;
+  --deep:         #1A0F08;
+}
+
+body {
+  background: #0D0805;
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 32px;
+  padding: 40px 20px 80px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  flex-wrap: wrap;
+}
+
+/* ── Phone ── */
+.phone {
+  width: 390px;
+  height: 844px;
+  background: var(--walnut);
+  border-radius: 48px;
+  border: 1.5px solid var(--walnut-light);
+  box-shadow: 0 0 0 6px #0D0805, 0 40px 80px rgba(0,0,0,0.8);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: relative;
+}
+.phone-label {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #3A2010;
+  margin-top: 16px;
+}
+
+/* ── Status bar ── */
+.status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 28px 0;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+}
+.status-time { font-size: 15px; font-weight: 600; color: var(--wheat); opacity: 0.85; }
+.status-icons { display: flex; align-items: center; gap: 6px; }
+
+/* ── Nav ── */
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 20px 10px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+}
+.nav-back {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 500;
+  color: var(--wheat); opacity: 0.45;
+}
+.nav-title {
+  font-family: 'Fraunces', serif;
+  font-size: 16px; font-weight: 600;
+  color: var(--wheat);
+}
+.watch-btn {
+  background: var(--amber);
+  color: var(--walnut);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 12px; font-weight: 700;
+  padding: 7px 16px;
+  border-radius: 100px;
+  border: none; cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+}
+
+/* ══════════════════════════════
+   PREVIEW — top ~38% of screen
+══════════════════════════════ */
+.preview-zone {
+  flex-shrink: 0;
+  height: 234px;
+  position: relative;
+  margin: 0 16px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--deep);
+}
+.preview-fill {
+  position: absolute; inset: 0;
+  background: linear-gradient(160deg, #3A1A08 0%, #1A0A04 40%, #2A1008 100%);
+}
+.preview-fill::before {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(circle 90px at 38% 42%, rgba(242,162,74,0.22) 0%, transparent 70%),
+    radial-gradient(circle 50px at 68% 28%, rgba(242,162,74,0.12) 0%, transparent 70%);
+}
+.preview-grain {
+  position: absolute; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+.preview-vignette {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.5) 100%);
+}
+/* Clip info overlay — top left */
+.preview-clip-label {
+  position: absolute;
+  top: 12px; left: 12px;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(242,162,74,0.2);
+  border-radius: 100px;
+  padding: 4px 10px;
+  font-size: 10px; font-weight: 600;
+  color: var(--amber);
+  letter-spacing: 0.08em;
+}
+/* Duration — top right */
+.preview-duration {
+  position: absolute;
+  top: 12px; right: 12px;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(6px);
+  border-radius: 100px;
+  padding: 4px 10px;
+  font-size: 10px; font-weight: 600;
+  color: rgba(245,222,179,0.6);
+  letter-spacing: 0.04em;
+}
+/* Caption overlay on preview */
+.preview-caption {
+  position: absolute;
+  bottom: 20px; left: 18px;
+  font-family: 'Fraunces', serif;
+  font-style: italic; font-size: 18px;
+  color: var(--wheat);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.6);
+  line-height: 1.3;
+  max-width: 260px;
+}
+/* Play button */
+.preview-play {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: rgba(242,162,74,0.8);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+
+/* ══════════════════════════════
+   TRIM ZONE — ~18% of screen
+══════════════════════════════ */
+.trim-zone {
+  flex-shrink: 0;
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid var(--walnut-light);
+}
+.trim-zone-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.trim-zone-label {
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--rust);
+}
+.trim-inout-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.trim-point-pill {
+  font-size: 10px; font-weight: 700;
+  color: var(--amber);
+  background: rgba(242,162,74,0.1);
+  border: 1px solid rgba(242,162,74,0.2);
+  border-radius: 100px;
+  padding: 3px 9px;
+  letter-spacing: 0.04em;
+}
+.trim-point-divider {
+  font-size: 9px; color: var(--rust); opacity: 0.5;
+}
+.trim-duration-pill {
+  font-size: 10px; font-weight: 600;
+  color: rgba(245,222,179,0.4);
+  letter-spacing: 0.04em;
+}
+
+/* Filmstrip */
+.trim-filmstrip {
+  position: relative;
+  height: 40px;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  gap: 1px;
+  margin-bottom: 4px;
+}
+.tf { flex: 1; height: 100%; }
+.tf1 { background: linear-gradient(160deg,#4A2010,#2C1008); }
+.tf2 { background: linear-gradient(160deg,#3C1808,#241008); }
+.tf3 { background: linear-gradient(160deg,#542210,#361408); }
+.tf4 { background: linear-gradient(160deg,#3A1C0E,#261008); }
+.tf5 { background: linear-gradient(160deg,#4E1C08,#301008); }
+.tf6 { background: linear-gradient(160deg,#562810,#381808); }
+.tf7 { background: linear-gradient(160deg,#3C1C0E,#281008); }
+.tf8 { background: linear-gradient(160deg,#4A2010,#2E1008); }
+.tf9 { background: linear-gradient(160deg,#401A08,#2A0E04); }
+.tf10 { background: linear-gradient(160deg,#502210,#321208); }
+
+.trim-handles-layer {
+  position: absolute; inset: 0;
+  pointer-events: none;
+}
+.trim-dim {
+  position: absolute;
+  top: 0; bottom: 0;
+  background: rgba(0,0,0,0.62);
+}
+.trim-dim.left { left: 0; width: 16%; border-radius: 8px 0 0 8px; }
+.trim-dim.right { right: 0; width: 18%; border-radius: 0 8px 8px 0; }
+
+.trim-handle {
+  position: absolute; top: 0; bottom: 0; width: 3px;
+  background: var(--amber);
+}
+.trim-handle.left { left: 16%; }
+.trim-handle.right { right: 18%; }
+.trim-handle::after {
+  content: '';
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 13px; height: 24px;
+  background: var(--amber);
+  border-radius: 3px;
+}
+
+.trim-active-top {
+  position: absolute;
+  top: 0; height: 3px;
+  left: 16%; right: 18%;
+  background: var(--amber);
+}
+.trim-active-bottom {
+  position: absolute;
+  bottom: 0; height: 3px;
+  left: 16%; right: 18%;
+  background: var(--amber);
+}
+
+.playhead {
+  position: absolute;
+  left: 44%; top: -3px; bottom: -3px;
+  width: 2px;
+  background: rgba(255,255,255,0.75);
+  border-radius: 1px;
+}
+.playhead::before {
+  content: '';
+  position: absolute;
+  top: 3px; left: 50%;
+  transform: translateX(-50%);
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid rgba(255,255,255,0.75);
+}
+
+.trim-timestamps {
+  display: flex; justify-content: space-between;
+  font-size: 8px; font-weight: 600;
+  color: var(--rust); letter-spacing: 0.04em;
+}
+
+/* ══════════════════════════════
+   TOOL ROW
+══════════════════════════════ */
+.tool-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--walnut-light);
+  flex-shrink: 0;
+}
+.tool-btn {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 5px;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 10px;
+  transition: background 0.15s;
+}
+.tool-btn:active { background: var(--walnut-mid); }
+.tool-icon-wrap {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+}
+.tool-icon-wrap.default { background: var(--walnut-mid); border: 1px solid var(--walnut-light); }
+.tool-icon-wrap.active-tool { background: rgba(242,162,74,0.12); border: 1px solid rgba(242,162,74,0.3); }
+.tool-icon-wrap.danger { background: rgba(232,133,90,0.08); border: 1px solid rgba(232,133,90,0.2); }
+.tool-label {
+  font-size: 9px; font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rust);
+}
+.tool-label.active-label { color: var(--amber); }
+.tool-label.danger-label { color: var(--sienna); opacity: 0.7; }
+
+/* ══════════════════════════════
+   CLIP LIST — scrollable
+══════════════════════════════ */
+.clip-list-header {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px 6px;
+  flex-shrink: 0;
+}
+.clip-list-label {
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--rust);
+}
+.clip-list-meta {
+  font-size: 10px; font-weight: 500;
+  color: var(--wheat); opacity: 0.3;
+}
+
+.clip-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Clip row */
+.clip-row {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--walnut-mid);
+  border: 1.5px solid var(--walnut-light);
+  border-radius: 11px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: border-color 0.12s;
+  flex-shrink: 0;
+}
+.clip-row:active { opacity: 0.8; }
+.clip-row.active-clip { border-color: var(--amber); }
+.clip-row.active-clip .clip-num { color: var(--amber); }
+
+.clip-num {
+  font-size: 10px; font-weight: 700;
+  color: var(--walnut-light);
+  width: 14px; text-align: center; flex-shrink: 0;
+}
+.clip-thumb {
+  width: 48px; height: 36px;
+  border-radius: 6px; flex-shrink: 0;
+  overflow: hidden; position: relative;
+}
+.clip-thumb-fill { position: absolute; inset: 0; }
+.t1 { background: linear-gradient(160deg,#5C2A10,#3D1A0A); }
+.t2 { background: linear-gradient(160deg,#1A3828,#0E2018); }
+.t3 { background: linear-gradient(160deg,#3A2A0E,#5C4018); }
+.t4 { background: linear-gradient(160deg,#2A1A3A,#1A0E28); }
+.t5 { background: linear-gradient(160deg,#3A1A10,#6B2A18); }
+.t6 { background: linear-gradient(160deg,#1A2A3A,#0E1A28); }
+.t7 { background: linear-gradient(160deg,#3A2A18,#6B4A28); }
+.t8 { background: linear-gradient(160deg,#2A3A18,#183010); }
+
+.clip-info { flex: 1; min-width: 0; }
+.clip-time {
+  font-size: 12px; font-weight: 600;
+  color: var(--wheat); opacity: 0.75;
+  margin-bottom: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.clip-badges { display: flex; align-items: center; gap: 5px; }
+.badge {
+  font-size: 8px; font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 6px; border-radius: 100px;
+}
+.b-dur { background: var(--walnut-light); color: var(--wheat); opacity: 0.55; }
+.b-trim { background: rgba(242,162,74,0.1); color: var(--amber); border: 1px solid rgba(242,162,74,0.22); }
+.b-cap { background: rgba(232,133,90,0.1); color: var(--sienna); border: 1px solid rgba(232,133,90,0.2); }
+
+.clip-status { flex-shrink: 0; }
+
+/* ── Home indicator ── */
+.home-indicator {
+  height: 28px;
+  display: flex; align-items: flex-end; justify-content: center;
+  padding-bottom: 7px; flex-shrink: 0;
+}
+.home-bar {
+  width: 134px; height: 5px;
+  background: var(--wheat); opacity: 0.12; border-radius: 3px;
+}
+
+/* ══════════════════════════════
+   PHONE 2 — Reorder mode
+══════════════════════════════ */
+.reorder-banner {
+  background: rgba(242,162,74,0.07);
+  border-bottom: 1px solid rgba(242,162,74,0.18);
+  padding: 9px 20px;
+  display: flex; align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.reorder-hint {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; font-weight: 600; color: var(--amber);
+}
+.reorder-done {
+  font-size: 13px; font-weight: 700;
+  color: var(--amber); cursor: pointer;
+}
+.drag-handle {
+  display: flex; flex-direction: column;
+  gap: 3px; padding: 2px 4px;
+  flex-shrink: 0; opacity: 0.4;
+}
+.drag-handle span {
+  display: block; width: 14px; height: 2px;
+  background: var(--wheat); border-radius: 1px;
+}
+.clip-row.lifted {
+  border-color: var(--amber);
+  background: rgba(242,162,74,0.06);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.45);
+  transform: scale(1.015);
+}
+.clip-row.placeholder {
+  background: transparent;
+  border: 1.5px dashed rgba(242,162,74,0.2);
+  height: 54px;
+}
+.clip-row.lifted .drag-handle { opacity: 0.85; }
+</style>
+</head>
+<body>
+
+<!-- ══ PHONE 1: Main Workspace ══ -->
+<div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
+<div class="phone">
+
+  <div class="status-bar">
+    <div class="status-time">9:41</div>
+    <div class="status-icons">
+      <svg width="17" height="12" viewBox="0 0 17 12" fill="none"><rect x="0" y="7" width="3" height="5" rx="1" fill="#F5DEB3"/><rect x="4.5" y="5" width="3" height="7" rx="1" fill="#F5DEB3"/><rect x="9" y="2.5" width="3" height="9.5" rx="1" fill="#F5DEB3"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="#F5DEB3"/></svg>
+      <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x="0.5" y="0.5" width="21" height="11" rx="3.5" stroke="#F5DEB3" stroke-opacity="0.35"/><rect x="2" y="2" width="16" height="8" rx="2" fill="#F5DEB3"/><path d="M23 4V8" stroke="#F5DEB3" stroke-opacity="0.4" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </div>
+  </div>
+
+  <!-- Nav -->
+  <div class="nav">
+    <div class="nav-back">
+      <svg width="7" height="13" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7L7 13" stroke="#F5DEB3" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Library
+    </div>
+    <div class="nav-title">Christmas Morning</div>
+    <button class="watch-btn">
+      <svg width="9" height="10" viewBox="0 0 10 11" fill="none"><polygon points="1,1 9,5.5 1,10" fill="#2C1A0E"/></svg>
+      Watch
+    </button>
+  </div>
+
+  <!-- Preview zone -->
+  <div class="preview-zone">
+    <div class="preview-fill"></div>
+    <div class="preview-grain"></div>
+    <div class="preview-vignette"></div>
+    <div class="preview-clip-label">Clip 4 of 13</div>
+    <div class="preview-duration">2:03</div>
+    <div class="preview-play">
+      <svg width="13" height="15" viewBox="0 0 13 15" fill="none"><polygon points="1,1 12,7.5 1,14" fill="#2C1A0E"/></svg>
+    </div>
+    <div class="preview-caption">"She ran straight into the water."</div>
+  </div>
+
+  <!-- Trim zone -->
+  <div class="trim-zone">
+    <div class="trim-zone-header">
+      <div class="trim-zone-label">Trim</div>
+      <div class="trim-inout-display">
+        <div class="trim-point-pill">0:18</div>
+        <div class="trim-point-divider">→</div>
+        <div class="trim-point-pill">1:54</div>
+        <div class="trim-point-divider">·</div>
+        <div class="trim-duration-pill">1:36 kept</div>
+      </div>
+    </div>
+    <div class="trim-filmstrip">
+      <div class="tf tf1"></div><div class="tf tf2"></div><div class="tf tf3"></div>
+      <div class="tf tf4"></div><div class="tf tf5"></div><div class="tf tf6"></div>
+      <div class="tf tf7"></div><div class="tf tf8"></div><div class="tf tf9"></div>
+      <div class="tf tf10"></div>
+      <div class="trim-handles-layer">
+        <div class="trim-dim left"></div>
+        <div class="trim-dim right"></div>
+        <div class="trim-active-top"></div>
+        <div class="trim-active-bottom"></div>
+        <div class="trim-handle left"></div>
+        <div class="trim-handle right"></div>
+        <div class="playhead"></div>
+      </div>
+    </div>
+    <div class="trim-timestamps">
+      <span>0:00</span><span>0:31</span><span>1:01</span><span>1:32</span><span>2:03</span>
+    </div>
+  </div>
+
+  <!-- Tool row -->
+  <div class="tool-row">
+    <div class="tool-btn">
+      <div class="tool-icon-wrap active-tool">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+      </div>
+      <div class="tool-label active-label">Caption</div>
+    </div>
+    <div class="tool-btn">
+      <div class="tool-icon-wrap default">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7A3B1E" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      </div>
+      <div class="tool-label">Reorder</div>
+    </div>
+    <div class="tool-btn">
+      <div class="tool-icon-wrap default">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7A3B1E" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      </div>
+      <div class="tool-label">Preview</div>
+    </div>
+    <div class="tool-btn">
+      <div class="tool-icon-wrap danger">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E8855A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      </div>
+      <div class="tool-label danger-label">Remove</div>
+    </div>
+  </div>
+
+  <!-- Clip list header -->
+  <div class="clip-list-header">
+    <div class="clip-list-label">All clips</div>
+    <div class="clip-list-meta">5 of 13 edited</div>
+  </div>
+
+  <!-- Clip list -->
+  <div class="clip-scroll">
+
+    <div class="clip-row">
+      <div class="clip-num" style="color:#5A3A20;">1</div>
+      <div class="clip-thumb"><div class="clip-thumb-fill t1"></div></div>
+      <div class="clip-info">
+        <div class="clip-time">Dec 25 · 9:14am</div>
+        <div class="clip-badges"><div class="badge b-trim">trimmed</div><div class="badge b-cap">caption</div></div>
+      </div>
+      <div class="clip-status"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="rgba(242,162,74,0.15)"/><polyline points="4.5,8 7,10.5 11.5,5.5" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    </div>
+
+    <div class="clip-row">
+      <div class="clip-num" style="color:#5A3A20;">2</div>
+      <div class="clip-thumb"><div class="clip-thumb-fill t3"></div></div>
+      <div class="clip-info">
+        <div class="clip-time">Dec 25 · 9:31am</div>
+        <div class="clip-badges"><div class="badge b-cap">caption</div></div>
+      </div>
+      <div class="clip-status"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="rgba(242,162,74,0.15)"/><polyline points="4.5,8 7,10.5 11.5,5.5" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    </div>
+
+    <div class="clip-row">
+      <div class="clip-num" style="color:#5A3A20;">3</div>
+      <div class="clip-thumb"><div class="clip-thumb-fill t5"></div></div>
+      <div class="clip-info">
+        <div class="clip-time">Dec 25 · 10:02am</div>
+        <div class="clip-badges"><div class="badge b-trim">trimmed</div></div>
+      </div>
+      <div class="clip-status"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="rgba(242,162,74,0.15)"/><polyline points="4.5,8 7,10.5 11.5,5.5" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    </div>
+
+    <!-- ACTIVE CLIP -->
+    <div class="clip-row active-clip">
+      <div class="clip-num">4</div>
+      <div class="clip-thumb"><div class="clip-thumb-fill t7"></div></div>
+      <div class="clip-info">
+        <div class="clip-time">Dec 25 · 10:48am</div>
+        <div class="clip-badges"><div class="badge b-dur">2:03</div></div>
+      </div>
+      <div class="clip-status"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="#F2A24A" stroke-width="1.5" fill="none"/></svg></div>
+    </div>
+
+    <div class="clip-row">
+      <div class="clip-num" style="color:#5A3A20;">5</div>
+      <div class="clip-thumb"><div class="clip-thumb-fill t2"></div></div>
+      <div class="clip-info">
+        <div class="clip-time">Dec 25 · 11:20am</div>
+        <div class="clip-badges"><div class="badge b-trim">trimmed</div><div class="badge b-cap">caption</div></div>
+      </div>
+      <div class="clip-status"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="rgba(242,162,74,0.15)"/><polyline points="4.5,8 7,10.5 11.5,5.5" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    </div>
+
+    <div class="clip-row">
+      <div class="clip-num">6</div>
+      <div class="clip-thumb"><div class="clip-thumb-fill t4"></div></div>
+      <div class="clip-info">
+        <div class="clip-time">Dec 26 · 8:55am</div>
+        <div class="clip-badges"><div class="badge b-dur">1:28</div></div>
+      </div>
+      <div class="clip-status"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="rgba(74,46,24,0.8)" stroke-width="1.5" fill="none"/></svg></div>
+    </div>
+
+    <div class="clip-row">
+      <div class="clip-num">7</div>
+      <div class="clip-thumb"><div class="clip-thumb-fill t6"></div></div>
+      <div class="clip-info">
+        <div class="clip-time">Dec 26 · 9:14am</div>
+        <div class="clip-badges"><div class="badge b-dur">0:18</div></div>
+      </div>
+      <div class="clip-status"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="rgba(74,46,24,0.8)" stroke-width="1.5" fill="none"/></svg></div>
+    </div>
+
+    <div class="clip-row">
+      <div class="clip-num">8</div>
+      <div class="clip-thumb"><div class="clip-thumb-fill t8"></div></div>
+      <div class="clip-info">
+        <div class="clip-time">Dec 26 · 10:03am</div>
+        <div class="clip-badges"><div class="badge b-dur">0:47</div></div>
+      </div>
+      <div class="clip-status"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="rgba(74,46,24,0.8)" stroke-width="1.5" fill="none"/></svg></div>
+    </div>
+
+  </div>
+
+  <div class="home-indicator"><div class="home-bar"></div></div>
+</div>
+<div class="phone-label">Main Workspace</div>
+</div>
+
+
+<!-- ══ PHONE 2: Reorder mode ══ -->
+<div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
+<div class="phone">
+
+  <div class="status-bar">
+    <div class="status-time">9:41</div>
+    <div class="status-icons">
+      <svg width="17" height="12" viewBox="0 0 17 12" fill="none"><rect x="0" y="7" width="3" height="5" rx="1" fill="#F5DEB3"/><rect x="4.5" y="5" width="3" height="7" rx="1" fill="#F5DEB3"/><rect x="9" y="2.5" width="3" height="9.5" rx="1" fill="#F5DEB3"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="#F5DEB3"/></svg>
+      <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x="0.5" y="0.5" width="21" height="11" rx="3.5" stroke="#F5DEB3" stroke-opacity="0.35"/><rect x="2" y="2" width="16" height="8" rx="2" fill="#F5DEB3"/><path d="M23 4V8" stroke="#F5DEB3" stroke-opacity="0.4" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </div>
+  </div>
+
+  <div class="nav">
+    <div class="nav-back" style="opacity:0.25;">Library</div>
+    <div class="nav-title">Christmas Morning</div>
+    <button class="watch-btn" style="opacity:0.25;">
+      <svg width="9" height="10" viewBox="0 0 10 11" fill="none"><polygon points="1,1 9,5.5 1,10" fill="#2C1A0E"/></svg>
+      Watch
+    </button>
+  </div>
+
+  <!-- Preview dimmed -->
+  <div class="preview-zone" style="opacity:0.25;">
+    <div class="preview-fill"></div>
+    <div class="preview-vignette"></div>
+  </div>
+
+  <!-- Trim zone dimmed -->
+  <div class="trim-zone" style="opacity:0.2;">
+    <div class="trim-zone-header">
+      <div class="trim-zone-label">Trim</div>
+      <div class="trim-inout-display">
+        <div class="trim-point-pill">0:18</div>
+        <div class="trim-point-divider">→</div>
+        <div class="trim-point-pill">1:54</div>
+      </div>
+    </div>
+    <div class="trim-filmstrip">
+      <div class="tf tf1"></div><div class="tf tf2"></div><div class="tf tf3"></div>
+      <div class="tf tf4"></div><div class="tf tf5"></div><div class="tf tf6"></div>
+      <div class="tf tf7"></div><div class="tf tf8"></div><div class="tf tf9"></div><div class="tf tf10"></div>
+      <div class="trim-handles-layer">
+        <div class="trim-dim left"></div><div class="trim-dim right"></div>
+        <div class="trim-handle left"></div><div class="trim-handle right"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reorder banner -->
+  <div class="reorder-banner">
+    <div class="reorder-hint">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#F2A24A" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      Drag clips to reorder
+    </div>
+    <div class="reorder-done">Done</div>
+  </div>
+
+  <!-- Tool row dimmed in reorder -->
+  <div class="tool-row" style="opacity:0.2;">
+    <div class="tool-btn"><div class="tool-icon-wrap active-tool"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg></div><div class="tool-label active-label">Caption</div></div>
+    <div class="tool-btn"><div class="tool-icon-wrap default" style="background:rgba(242,162,74,0.12);border-color:rgba(242,162,74,0.3);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div><div class="tool-label" style="color:var(--amber);">Reorder</div></div>
+    <div class="tool-btn"><div class="tool-icon-wrap default"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7A3B1E" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div><div class="tool-label">Preview</div></div>
+    <div class="tool-btn"><div class="tool-icon-wrap danger"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E8855A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></div><div class="tool-label danger-label">Remove</div></div>
+  </div>
+
+  <div class="clip-list-header">
+    <div class="clip-list-label">Reordering</div>
+    <div class="clip-list-meta">13 clips</div>
+  </div>
+
+  <div class="clip-scroll">
+    <div class="clip-row">
+      <div class="drag-handle"><span></span><span></span><span></span></div>
+      <div class="clip-num" style="color:#5A3A20;">1</div>
+      <div class="clip-thumb"><div class="clip-thumb-fill t1"></div></div>
+      <div class="clip-info"><div class="clip-time">Dec 25 · 9:14am</div><div class="clip-badges"><div class="badge b-trim">trimmed</div></div></div>
+      <div class="clip-status"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="rgba(242,162,74,0.15)"/><polyline points="4.5,8 7,10.5 11.5,5.5" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    </div>
+    <div class="clip-row">
+      <div class="drag-handle"><span></span><span></span><span></span></div>
+      <div class="clip-num" style="color:#5A3A20;">2</div>
+      <div class="clip-thumb"><div class="clip-thumb-fill t3"></div></div>
+      <div class="clip-info"><div class="clip-time">Dec 25 · 9:31am</div><div class="clip-badges"><div class="badge b-cap">caption</div></div></div>
+      <div class="clip-status"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="rgba(242,162,74,0.15)"/><polyline points="4.5,8 7,10.5 11.5,5.5" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    </div>
+    <!-- Being dragged -->
+    <div class="clip-row lifted">
+      <div class="drag-handle" style="opacity:0.9;"><span></span><span></span><span></span></div>
+      <div class="clip-num" style="color:var(--amber);">4</div>
+      <div class="clip-thumb"><div class="clip-thumb-fill t7"></div></div>
+      <div class="clip-info"><div class="clip-time">Dec 25 · 10:48am</div><div class="clip-badges"><div class="badge b-dur">2:03</div></div></div>
+      <div class="clip-status"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="rgba(74,46,24,0.8)" stroke-width="1.5" fill="none"/></svg></div>
+    </div>
+    <!-- Placeholder -->
+    <div class="clip-row placeholder"></div>
+    <div class="clip-row">
+      <div class="drag-handle"><span></span><span></span><span></span></div>
+      <div class="clip-num" style="color:#5A3A20;">3</div>
+      <div class="clip-thumb"><div class="clip-thumb-fill t5"></div></div>
+      <div class="clip-info"><div class="clip-time">Dec 25 · 10:02am</div><div class="clip-badges"><div class="badge b-trim">trimmed</div></div></div>
+      <div class="clip-status"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="rgba(242,162,74,0.15)"/><polyline points="4.5,8 7,10.5 11.5,5.5" stroke="#F2A24A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    </div>
+    <div class="clip-row">
+      <div class="drag-handle"><span></span><span></span><span></span></div>
+      <div class="clip-num">5</div>
+      <div class="clip-thumb"><div class="clip-thumb-fill t2"></div></div>
+      <div class="clip-info"><div class="clip-time">Dec 25 · 11:20am</div><div class="clip-badges"><div class="badge b-dur">0:34</div></div></div>
+      <div class="clip-status"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="rgba(74,46,24,0.8)" stroke-width="1.5" fill="none"/></svg></div>
+    </div>
+    <div class="clip-row">
+      <div class="drag-handle"><span></span><span></span><span></span></div>
+      <div class="clip-num">6</div>
+      <div class="clip-thumb"><div class="clip-thumb-fill t4"></div></div>
+      <div class="clip-info"><div class="clip-time">Dec 26 · 8:55am</div><div class="clip-badges"><div class="badge b-dur">1:28</div></div></div>
+      <div class="clip-status"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="rgba(74,46,24,0.8)" stroke-width="1.5" fill="none"/></svg></div>
+    </div>
+  </div>
+
+  <div class="home-indicator"><div class="home-bar"></div></div>
+</div>
+<div class="phone-label">Reorder Mode</div>
+</div>
+
+</body>
+</html>

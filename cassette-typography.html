@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cassette — Typography: Fraunces + Jakarta Sans</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,300;1,9..144,400;1,9..144,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --amber: #F2A24A;
+    --sienna: #E8855A;
+    --wheat: #F5DEB3;
+    --walnut: #2C1A0E;
+    --rust: #7A3B1E;
+    --walnut-mid: #3D2410;
+  }
+
+  body {
+    background: var(--walnut);
+    padding: 48px 28px;
+    color: var(--wheat);
+  }
+
+  .page-label {
+    font-family: 'Outfit', sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--rust);
+    margin-bottom: 6px;
+  }
+  .page-heading {
+    font-family: 'Fraunces', serif;
+    font-size: 32px;
+    color: var(--amber);
+    margin-bottom: 4px;
+  }
+  .page-sub {
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    color: #7A5535;
+    margin-bottom: 48px;
+  }
+
+  .pairings {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  .pairing-card {
+    background: var(--walnut-mid);
+    border: 1px solid #4A2E18;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .pairing-header {
+    padding: 28px 28px 0;
+  }
+
+  .pairing-number {
+    font-family: 'Outfit', sans-serif;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--rust);
+    margin-bottom: 16px;
+  }
+
+  .pairing-demo {
+    margin-bottom: 20px;
+  }
+
+  /* Pairing 1: Playfair Display + Libre Franklin */
+  .p1-display {
+    font-family: 'Playfair Display', serif;
+    font-size: 42px;
+    color: var(--amber);
+    line-height: 1.1;
+    margin-bottom: 8px;
+  }
+  .p1-display em {
+    font-style: italic;
+    color: var(--sienna);
+  }
+  .p1-ui {
+    font-family: 'Libre Franklin', sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--wheat);
+    opacity: 0.75;
+    line-height: 1.6;
+    margin-bottom: 16px;
+  }
+  .p1-label {
+    font-family: 'Libre Franklin', sans-serif;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--amber);
+  }
+
+  /* Pairing 2: Cormorant Garamond + Plus Jakarta Sans */
+  .p2-display {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 52px;
+    font-weight: 600;
+    color: var(--amber);
+    line-height: 1.0;
+    margin-bottom: 8px;
+  }
+  .p2-display em {
+    font-style: italic;
+    color: var(--wheat);
+  }
+  .p2-ui {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--wheat);
+    opacity: 0.7;
+    line-height: 1.6;
+    margin-bottom: 16px;
+  }
+  .p2-label {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--amber);
+  }
+
+  /* Pairing 3: Fraunces + Outfit */
+  .p3-display {
+    font-family: 'Fraunces', serif;
+    font-size: 46px;
+    font-weight: 700;
+    color: var(--amber);
+    line-height: 1.05;
+    margin-bottom: 8px;
+  }
+  .p3-display em {
+    font-style: italic;
+    font-weight: 400;
+    color: var(--sienna);
+  }
+  .p3-ui {
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    font-weight: 300;
+    color: var(--wheat);
+    opacity: 0.75;
+    line-height: 1.6;
+    margin-bottom: 16px;
+  }
+  .p3-label {
+    font-family: 'Outfit', sans-serif;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--amber);
+  }
+
+  .pairing-ui-strip {
+    border-top: 1px solid #4A2E18;
+    padding: 20px 28px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(0,0,0,0.15);
+  }
+
+  .ui-scrapbook-title {
+    flex: 1;
+  }
+
+  .ui-caption {
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--rust);
+    margin-bottom: 3px;
+  }
+
+  .ui-pill {
+    padding: 7px 18px;
+    border-radius: 100px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .ui-pill-primary {
+    background: var(--amber);
+    color: var(--walnut);
+    font-weight: 600;
+  }
+  .ui-pill-ghost {
+    border: 1px solid var(--rust);
+    color: var(--wheat);
+    opacity: 0.7;
+  }
+
+  .font-credits {
+    font-size: 10px;
+    color: #5A3A20;
+    margin-top: 6px;
+    padding: 0 28px 20px;
+  }
+
+  .divider {
+    height: 1px;
+    background: #3D2410;
+    margin: 40px 0;
+  }
+
+  .recommendation {
+    background: #3D2410;
+    border: 1px solid var(--amber);
+    border-radius: 12px;
+    padding: 20px 24px;
+    font-size: 13px;
+    color: var(--wheat);
+    line-height: 1.6;
+    opacity: 0.9;
+  }
+  .recommendation strong {
+    color: var(--amber);
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-label">Cassette — Branding</div>
+<div class="page-heading">Typography Pairings</div>
+<div class="page-sub">Three display + UI font combinations. All shown in Golden Hour palette.</div>
+
+<div class="pairings">
+
+  <!-- Pairing 1 -->
+  <div class="pairing-card">
+    <div class="pairing-header">
+      <div class="pairing-number">Pairing 01 — Playfair Display + Libre Franklin</div>
+      <div class="pairing-demo">
+        <div class="p1-display">Cassette<em>.</em></div>
+        <div class="p1-ui">Your memories, gathered and kept. Tap a scrapbook to begin watching, or start a new one from your camera roll.</div>
+        <div class="p1-label">12 clips · Summer 2024</div>
+      </div>
+    </div>
+    <div class="pairing-ui-strip">
+      <div class="ui-scrapbook-title">
+        <div class="ui-caption p1-label" style="font-family:'Libre Franklin',sans-serif;">New Scrapbook</div>
+        <div style="font-family:'Playfair Display',serif; font-size:18px; color:var(--wheat);">Christmas Morning</div>
+      </div>
+      <div class="ui-pill ui-pill-ghost" style="font-family:'Libre Franklin',sans-serif;">Edit</div>
+      <div class="ui-pill ui-pill-primary" style="font-family:'Libre Franklin',sans-serif;">Watch</div>
+    </div>
+    <div class="font-credits">Classic pairing. Playfair is elegant, editorial, slightly formal. Franklin is workhorse-reliable. Very readable, slightly expected.</div>
+  </div>
+
+  <!-- Pairing 2 -->
+  <div class="pairing-card">
+    <div class="pairing-header">
+      <div class="pairing-number">Pairing 02 — Cormorant Garamond + Plus Jakarta Sans</div>
+      <div class="pairing-demo">
+        <div class="p2-display">Cassette<em>.</em></div>
+        <div class="p2-ui">Your memories, gathered and kept. Tap a scrapbook to begin watching, or start a new one from your camera roll.</div>
+        <div class="p2-label">12 clips · Summer 2024</div>
+      </div>
+    </div>
+    <div class="pairing-ui-strip">
+      <div class="ui-scrapbook-title">
+        <div class="ui-caption p2-label" style="font-family:'Plus Jakarta Sans',sans-serif;">New Scrapbook</div>
+        <div style="font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:600; color:var(--wheat);">Christmas Morning</div>
+      </div>
+      <div class="ui-pill ui-pill-ghost" style="font-family:'Plus Jakarta Sans',sans-serif;">Edit</div>
+      <div class="ui-pill ui-pill-primary" style="font-family:'Plus Jakarta Sans',sans-serif;">Watch</div>
+    </div>
+    <div class="font-credits">Most refined and high-fashion. Cormorant is tall, delicate, aristocratic. Jakarta Sans is sharp and contemporary. Highest contrast pairing.</div>
+  </div>
+
+  <!-- Pairing 3 -->
+  <div class="pairing-card">
+    <div class="pairing-header">
+      <div class="pairing-number">Pairing 03 — Fraunces + Outfit</div>
+      <div class="pairing-demo">
+        <div class="p3-display">Cassette<em>.</em></div>
+        <div class="p3-ui">Your memories, gathered and kept. Tap a scrapbook to begin watching, or start a new one from your camera roll.</div>
+        <div class="p3-label">12 clips · Summer 2024</div>
+      </div>
+    </div>
+    <div class="pairing-ui-strip">
+      <div class="ui-scrapbook-title">
+        <div class="ui-caption p3-label" style="font-family:'Outfit',sans-serif;">New Scrapbook</div>
+        <div style="font-family:'Fraunces',serif; font-size:20px; font-weight:600; color:var(--wheat);">Christmas Morning</div>
+      </div>
+      <div class="ui-pill ui-pill-ghost" style="font-family:'Outfit',sans-serif;">Edit</div>
+      <div class="ui-pill ui-pill-primary" style="font-family:'Outfit',sans-serif;">Watch</div>
+    </div>
+    <div class="font-credits">The warmest and most distinctive pairing. Fraunces has optical quirks and ink-trap details that feel handcrafted. Outfit is friendly and geometric. The most "Cassette" of the three.</div>
+  </div>
+
+</div>
+
+<div class="divider"></div>
+
+<div class="recommendation">
+  <strong>My lean: Pairing 03</strong><br>
+  Fraunces was designed specifically to evoke warmth, nostalgia, and a sense of the handmade — it even has optical size variants that get more quirky and expressive at display sizes. It's distinctive without being precious. Outfit as the UI font keeps everything readable and modern on small mobile screens. Together they feel cozy and considered, which is exactly what Cassette should feel like.
+</div>
+
+</body>
+</html>

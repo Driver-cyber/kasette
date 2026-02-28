@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cassette — Color Palette Options</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #111;
+    font-family: 'DM Sans', sans-serif;
+    padding: 48px 32px;
+    color: #fff;
+  }
+  .page-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #666;
+    margin-bottom: 8px;
+  }
+  .page-heading {
+    font-family: 'DM Serif Display', serif;
+    font-size: 36px;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+  .page-sub {
+    font-size: 14px;
+    color: #555;
+    margin-bottom: 56px;
+  }
+  .palettes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+  @media (max-width: 700px) {
+    .palettes { grid-template-columns: 1fr; }
+  }
+  .palette-card {
+    border-radius: 16px;
+    overflow: hidden;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+  }
+  .palette-preview {
+    height: 180px;
+    display: flex;
+    position: relative;
+    overflow: hidden;
+  }
+  .palette-swatch {
+    flex: 1;
+    transition: flex 0.3s ease;
+  }
+  .palette-preview:hover .palette-swatch:hover {
+    flex: 2;
+  }
+  .palette-info {
+    padding: 24px;
+  }
+  .palette-number {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #444;
+    margin-bottom: 6px;
+  }
+  .palette-name {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+  .palette-tagline {
+    font-size: 13px;
+    color: #666;
+    line-height: 1.5;
+    margin-bottom: 20px;
+  }
+  .swatches-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .swatch-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+  }
+  .swatch-circle {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .swatch-label {
+    font-size: 9px;
+    color: #555;
+    letter-spacing: 0.05em;
+    text-align: center;
+    line-height: 1.3;
+  }
+  .swatch-hex {
+    font-size: 9px;
+    color: #444;
+    font-family: monospace;
+  }
+  .palette-ui-preview {
+    margin-top: 20px;
+    border-radius: 10px;
+    overflow: hidden;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    gap: 10px;
+    font-size: 12px;
+  }
+  .ui-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .ui-title {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .ui-btn {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+  }
+
+  /* Palette A — Golden Hour */
+  .pa-bg { background: linear-gradient(135deg, #2C1A0E 0%, #3D2410 50%, #1A0F08 100%); }
+  .pa-s1 { background: #F2A24A; }
+  .pa-s2 { background: #E8855A; }
+  .pa-s3 { background: #F5DEB3; }
+  .pa-s4 { background: #2C1A0E; }
+  .pa-s5 { background: #7A3B1E; }
+  .pa-ui { background: #2C1A0E; color: #F5DEB3; }
+  .pa-dot { background: #F2A24A; }
+  .pa-btn { background: #F2A24A; color: #2C1A0E; }
+
+  /* Palette B — Midnight Screen */
+  .pb-bg { background: linear-gradient(135deg, #0D1B2A 0%, #1B2A3B 50%, #0A1520 100%); }
+  .pb-s1 { background: #1B2A3B; }
+  .pb-s2 { background: #C9A96E; }
+  .pb-s3 { background: #E8D5B0; }
+  .pb-s4 { background: #4A6FA5; }
+  .pb-s5 { background: #0D1B2A; }
+  .pb-ui { background: #1B2A3B; color: #E8D5B0; }
+  .pb-dot { background: #C9A96E; }
+  .pb-btn { background: #C9A96E; color: #0D1B2A; }
+
+  /* Palette C — Faded Linen */
+  .pc-bg { background: linear-gradient(135deg, #F5EFE6 0%, #EDE4D8 50%, #E8DFCF 100%); }
+  .pc-s1 { background: #F5EFE6; }
+  .pc-s2 { background: #C4773B; }
+  .pc-s3 { background: #8B5E3C; }
+  .pc-s4 { background: #3D2B1F; }
+  .pc-s5 { background: #A8B89A; }
+  .pc-ui { background: #F5EFE6; color: #3D2B1F; }
+  .pc-dot { background: #C4773B; }
+  .pc-btn { background: #3D2B1F; color: #F5EFE6; }
+
+  /* Palette D — VHS Dusk */
+  .pd-bg { background: linear-gradient(135deg, #1C1228 0%, #2A1A3E 50%, #150E20 100%); }
+  .pd-s1 { background: #2A1A3E; }
+  .pd-s2 { background: #E8845A; }
+  .pd-s3 { background: #F5C87A; }
+  .pd-s4 { background: #9B7FA6; }
+  .pd-s5 { background: #F0EAE2; }
+  .pd-ui { background: #2A1A3E; color: #F0EAE2; }
+  .pd-dot { background: #E8845A; }
+  .pd-btn { background: #E8845A; color: #1C1228; }
+
+  .divider {
+    height: 1px;
+    background: #222;
+    margin: 48px 0;
+  }
+  .note {
+    font-size: 12px;
+    color: #444;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-title">Cassette — Branding</div>
+<div class="page-heading">Color Palette Options</div>
+<div class="page-sub">Four distinct directions. React to what feels right.</div>
+
+<div class="palettes">
+
+  <!-- A: Golden Hour -->
+  <div class="palette-card">
+    <div class="palette-preview pa-bg">
+      <div class="palette-swatch pa-s1"></div>
+      <div class="palette-swatch pa-s2"></div>
+      <div class="palette-swatch pa-s3"></div>
+      <div class="palette-swatch pa-s4"></div>
+      <div class="palette-swatch pa-s5"></div>
+    </div>
+    <div class="palette-info">
+      <div class="palette-number">Option A</div>
+      <div class="palette-name">Golden Hour</div>
+      <div class="palette-tagline">Warm amber and burnt sienna on dark walnut brown. Feels like Super 8 film projected in a dark living room.</div>
+      <div class="swatches-row">
+        <div class="swatch-item"><div class="swatch-circle pa-s1"></div><div class="swatch-label">Amber</div><div class="swatch-hex">#F2A24A</div></div>
+        <div class="swatch-item"><div class="swatch-circle pa-s2"></div><div class="swatch-label">Sienna</div><div class="swatch-hex">#E8855A</div></div>
+        <div class="swatch-item"><div class="swatch-circle pa-s3"></div><div class="swatch-label">Wheat</div><div class="swatch-hex">#F5DEB3</div></div>
+        <div class="swatch-item"><div class="swatch-circle pa-s4"></div><div class="swatch-label">Walnut</div><div class="swatch-hex">#2C1A0E</div></div>
+        <div class="swatch-item"><div class="swatch-circle pa-s5"></div><div class="swatch-label">Rust</div><div class="swatch-hex">#7A3B1E</div></div>
+      </div>
+      <div class="palette-ui-preview pa-ui">
+        <div class="ui-dot pa-dot"></div>
+        <div class="ui-title">Summer 2024</div>
+        <div class="ui-btn pa-btn">Play</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- B: Midnight Screen -->
+  <div class="palette-card">
+    <div class="palette-preview pb-bg">
+      <div class="palette-swatch pb-s1"></div>
+      <div class="palette-swatch pb-s2"></div>
+      <div class="palette-swatch pb-s3"></div>
+      <div class="palette-swatch pb-s4"></div>
+      <div class="palette-swatch pb-s5"></div>
+    </div>
+    <div class="palette-info">
+      <div class="palette-number">Option B</div>
+      <div class="palette-name">Midnight Screen</div>
+      <div class="palette-tagline">Deep navy and gold on near-black. Like watching home movies late at night with the lights off and a warm drink.</div>
+      <div class="swatches-row">
+        <div class="swatch-item"><div class="swatch-circle pb-s1"></div><div class="swatch-label">Navy</div><div class="swatch-hex">#1B2A3B</div></div>
+        <div class="swatch-item"><div class="swatch-circle pb-s2"></div><div class="swatch-label">Gold</div><div class="swatch-hex">#C9A96E</div></div>
+        <div class="swatch-item"><div class="swatch-circle pb-s3"></div><div class="swatch-label">Parchment</div><div class="swatch-hex">#E8D5B0</div></div>
+        <div class="swatch-item"><div class="swatch-circle pb-s4"></div><div class="swatch-label">Slate</div><div class="swatch-hex">#4A6FA5</div></div>
+        <div class="swatch-item"><div class="swatch-circle pb-s5"></div><div class="swatch-label">Abyss</div><div class="swatch-hex">#0D1B2A</div></div>
+      </div>
+      <div class="palette-ui-preview pb-ui">
+        <div class="ui-dot pb-dot"></div>
+        <div class="ui-title">Summer 2024</div>
+        <div class="ui-btn pb-btn">Play</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- C: Faded Linen -->
+  <div class="palette-card">
+    <div class="palette-preview pc-bg">
+      <div class="palette-swatch pc-s1"></div>
+      <div class="palette-swatch pc-s2"></div>
+      <div class="palette-swatch pc-s3"></div>
+      <div class="palette-swatch pc-s4"></div>
+      <div class="palette-swatch pc-s5"></div>
+    </div>
+    <div class="palette-info">
+      <div class="palette-number">Option C</div>
+      <div class="palette-name">Faded Linen</div>
+      <div class="palette-tagline">Warm off-whites with terracotta and sage. Feels like a physical scrapbook — tactile, handmade, bright and airy.</div>
+      <div class="swatches-row">
+        <div class="swatch-item"><div class="swatch-circle pc-s1"></div><div class="swatch-label">Linen</div><div class="swatch-hex">#F5EFE6</div></div>
+        <div class="swatch-item"><div class="swatch-circle pc-s2"></div><div class="swatch-label">Terracotta</div><div class="swatch-hex">#C4773B</div></div>
+        <div class="swatch-item"><div class="swatch-circle pc-s3"></div><div class="swatch-label">Umber</div><div class="swatch-hex">#8B5E3C</div></div>
+        <div class="swatch-item"><div class="swatch-circle pc-s4"></div><div class="swatch-label">Espresso</div><div class="swatch-hex">#3D2B1F</div></div>
+        <div class="swatch-item"><div class="swatch-circle pc-s5"></div><div class="swatch-label">Sage</div><div class="swatch-hex">#A8B89A</div></div>
+      </div>
+      <div class="palette-ui-preview pc-ui">
+        <div class="ui-dot pc-dot"></div>
+        <div class="ui-title" style="color:#3D2B1F;">Summer 2024</div>
+        <div class="ui-btn pc-btn">Play</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- D: VHS Dusk -->
+  <div class="palette-card">
+    <div class="palette-preview pd-bg">
+      <div class="palette-swatch pd-s1"></div>
+      <div class="palette-swatch pd-s2"></div>
+      <div class="palette-swatch pd-s3"></div>
+      <div class="palette-swatch pd-s4"></div>
+      <div class="palette-swatch pd-s5"></div>
+    </div>
+    <div class="palette-info">
+      <div class="palette-number">Option D</div>
+      <div class="palette-name">VHS Dusk</div>
+      <div class="palette-tagline">Deep purple-black with warm coral and gold pops. The most cinematic option — VHS nostalgia with a modern edge.</div>
+      <div class="swatches-row">
+        <div class="swatch-item"><div class="swatch-circle pd-s1"></div><div class="swatch-label">Plum</div><div class="swatch-hex">#2A1A3E</div></div>
+        <div class="swatch-item"><div class="swatch-circle pd-s2"></div><div class="swatch-label">Coral</div><div class="swatch-hex">#E8845A</div></div>
+        <div class="swatch-item"><div class="swatch-circle pd-s3"></div><div class="swatch-label">Honey</div><div class="swatch-hex">#F5C87A</div></div>
+        <div class="swatch-item"><div class="swatch-circle pd-s4"></div><div class="swatch-label">Mauve</div><div class="swatch-hex">#9B7FA6</div></div>
+        <div class="swatch-item"><div class="swatch-circle pd-s5"></div><div class="swatch-label">Cream</div><div class="swatch-hex">#F0EAE2</div></div>
+      </div>
+      <div class="palette-ui-preview pd-ui">
+        <div class="ui-dot pd-dot"></div>
+        <div class="ui-title">Summer 2024</div>
+        <div class="ui-btn pd-btn">Play</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="divider"></div>
+<div class="note">Each palette shown with a sample UI element at the bottom. Hover swatches to explore. Pick one, or tell me what to mix.</div>
+
+</body>
+</html>

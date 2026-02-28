@@ -522,7 +522,7 @@ export default function WorkspaceScreen() {
         {clips.map((clip, i) => {
           const active = clip.id === activeClipId
           const edited = isEdited(clip)
-          const isDragging = dragFromIndex !== null && clipsRef.current[dragFromIndex]?.id === clip.id
+          const isDragging = ghostClip !== null && ghostClip.id === clip.id
 
           // While dragging this item, render a dashed placeholder
           if (isReordering && isDragging) {

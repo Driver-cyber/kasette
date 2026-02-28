@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Play, Search, X, MoreHorizontal } from 'lucide-react'
+import { Plus, Play, Search, X, MoreHorizontal, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
@@ -40,6 +40,15 @@ function formatCardDate(clips, createdAt) {
     ? new Date(Math.min(...dates.map(d => d.getTime())))
     : new Date(createdAt)
   return ref.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+}
+
+function getScrapbookYear(scrapbook) {
+  const clips = scrapbook.clips ?? []
+  const dates = clips.map(c => c.recorded_at ? new Date(c.recorded_at) : null).filter(Boolean)
+  const ref = dates.length > 0
+    ? new Date(Math.min(...dates.map(d => d.getTime())))
+    : new Date(scrapbook.created_at)
+  return ref.getFullYear()
 }
 
 function extractStoragePath(url) {
@@ -158,11 +167,29 @@ export default function HomeScreen() {
     setSearchQuery('')
   }
 
+  const [collapsedYears, setCollapsedYears] = useState(new Set())
+
+  function toggleYear(year) {
+    setCollapsedYears(prev => {
+      const next = new Set(prev)
+      next.has(year) ? next.delete(year) : next.add(year)
+      return next
+    })
+  }
+
   const filteredScrapbooks = searchQuery.trim()
     ? scrapbooks.filter(sb =>
         sb.name.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : scrapbooks
+
+  // Group by year, sorted newest first
+  const groupedByYear = filteredScrapbooks.reduce((acc, sb) => {
+    const y = getScrapbookYear(sb)
+    ;(acc[y] ??= []).push(sb)
+    return acc
+  }, {})
+  const years = Object.keys(groupedByYear).map(Number).sort((a, b) => b - a)
 
   const confirmDeleteScrapbook = scrapbooks.find(sb => sb.id === confirmDeleteId)
 
@@ -299,14 +326,43 @@ export default function HomeScreen() {
             )}
           </div>
         ) : (
-          <div className="flex flex-col gap-3.5">
-            {filteredScrapbooks.map((sb) => (
-              <ScrapbookCard
-                key={sb.id}
-                scrapbook={sb}
-                onClick={() => navigate(`/scrapbook/${sb.id}`)}
-                onOptionsPress={() => setConfirmDeleteId(sb.id)}
-              />
+          <div className="flex flex-col">
+            {years.map((year, yi) => (
+              <div key={year}>
+                {/* Year header */}
+                <button
+                  onClick={() => toggleYear(year)}
+                  className="w-full flex items-center justify-between py-3 active:opacity-70"
+                  style={{ paddingTop: yi === 0 ? 4 : 20 }}
+                >
+                  <div className="flex items-baseline gap-2.5">
+                    <span className="font-display font-bold text-[26px] text-wheat leading-none">{year}</span>
+                    <span className="text-rust text-[11px] font-semibold">
+                      {groupedByYear[year].length} {groupedByYear[year].length === 1 ? 'scrapbook' : 'scrapbooks'}
+                    </span>
+                  </div>
+                  <ChevronDown
+                    size={16}
+                    strokeWidth={2}
+                    className="text-wheat/30 transition-transform duration-200"
+                    style={{ transform: collapsedYears.has(year) ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+                  />
+                </button>
+
+                {/* Cards */}
+                {!collapsedYears.has(year) && (
+                  <div className="flex flex-col gap-3.5 pb-2">
+                    {groupedByYear[year].map((sb) => (
+                      <ScrapbookCard
+                        key={sb.id}
+                        scrapbook={sb}
+                        onClick={() => navigate(`/scrapbook/${sb.id}`)}
+                        onOptionsPress={() => setConfirmDeleteId(sb.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}

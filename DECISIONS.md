@@ -276,6 +276,19 @@ All screens are built and confirmed working in the browser:
 
 ---
 
+## 🔨 Feature Backlog (Approved, Not Yet Built)
+
+These were requested by the user after first live testing. Prioritised by effort.
+
+| # | Feature | Screen | Notes |
+|---|---|---|---|
+| 1 | **Year grouping on Home** | Home | Group scrapbooks by year (e.g. "2024", "2023"). Tap year to expand/collapse. Low data change — just UI grouping. |
+| 2 | **Cover photo for scrapbook** | Home / Intake | Set a thumbnail image on the card. Options: pick from camera roll, or extract a frame from a clip. Shown as the card's rich background. |
+| 3 | **Caption drag placement** | Workspace | In the caption tool, allow dragging the caption to any position on the preview frame. x/y already stored in the data model. Currently captions render at a fixed position. |
+| 4 | **Reorder 2-step → 1-step UX** | Workspace | Current: tap to select, drag to lift, drag to place (3 gestures). Goal: tap to select, drag to place (2 gestures). Ghost should appear immediately on tap and be draggable in the same touch gesture that follows the tap. Tracked here for revisiting. |
+
+---
+
 ## 💡 Parking Lot (Good Ideas, Not Yet)
 
 - **Cover image extraction** — auto-pull first frame on upload. Needs server-side processing or canvas extraction. v1 stretch goal.

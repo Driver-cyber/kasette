@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Play, Pause, MoreHorizontal, Edit, Share2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -7,8 +7,6 @@ export default function PlaybackScreen() {
   const navigate = useNavigate()
   const { id } = useParams()
   const videoRef = useRef(null)
-  const touchStartY = useRef(null)
-  const touchStartX = useRef(null)
 
   const [scrapbook, setScrapbook] = useState(null)
   const [clips, setClips] = useState([])
@@ -16,8 +14,16 @@ export default function PlaybackScreen() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [showPauseOverlay, setShowPauseOverlay] = useState(false)
   const [showActionSheet, setShowActionSheet] = useState(false)
-  const [progress, setProgress] = useState(0) // 0–1 for current clip segment
+  const [progress, setProgress] = useState(0)
   const [loading, setLoading] = useState(true)
+
+  // Swipe drag state
+  const [dragOffset, setDragOffset] = useState(0)
+  const [dragTransitioning, setDragTransitioning] = useState(false)
+  const dragOffsetRef = useRef(0)
+  const dragActiveRef = useRef(false)
+  const dragStartY = useRef(0)
+  const dragStartX = useRef(0)
 
   // Fetch scrapbook + clips
   useEffect(() => {
@@ -39,6 +45,10 @@ export default function PlaybackScreen() {
     if (!video || !currentClip) return
     setProgress(0)
     setShowPauseOverlay(false)
+    // Reset drag state on clip change
+    setDragOffset(0)
+    dragOffsetRef.current = 0
+    setDragTransitioning(false)
     video.src = currentClip.video_url
     video.currentTime = currentClip.trim_in || 0
     video.load()
@@ -59,21 +69,18 @@ export default function PlaybackScreen() {
     const total = (trimOut - trimIn) || 1
     const pct = Math.min(elapsed / total, 1)
     setProgress(pct)
-
-    // Auto-advance at trim_out
     if (trimOut && video.currentTime >= trimOut) {
       goToClip(currentIndex + 1)
     }
   }
 
   function handleTap(e) {
-    // Don't toggle play if tapping a button
     if (e.target.closest('button')) return
     if (showActionSheet) { setShowActionSheet(false); return }
-
+    // Ignore taps that were actually swipes
+    if (Math.abs(dragOffsetRef.current) > 8) return
     const video = videoRef.current
     if (!video) return
-
     if (video.paused) {
       video.play().catch(() => {})
       setShowPauseOverlay(false)
@@ -96,22 +103,58 @@ export default function PlaybackScreen() {
     }
   }
 
+  // ── Swipe drag handlers ──────────────────────────────────────────────
   function handleTouchStart(e) {
-    touchStartY.current = e.touches[0].clientY
-    touchStartX.current = e.touches[0].clientX
+    if (showActionSheet) return
+    dragActiveRef.current = true
+    dragStartY.current = e.touches[0].clientY
+    dragStartX.current = e.touches[0].clientX
+    setDragTransitioning(false)
   }
 
-  function handleTouchEnd(e) {
-    if (touchStartY.current === null) return
-    const deltaY = touchStartY.current - e.changedTouches[0].clientY
-    const deltaX = Math.abs(touchStartX.current - e.changedTouches[0].clientX)
-    touchStartY.current = null
-    touchStartX.current = null
+  function handleTouchMove(e) {
+    if (!dragActiveRef.current) return
+    const dy = dragStartY.current - e.touches[0].clientY   // positive = swipe up
+    const dx = Math.abs(dragStartX.current - e.touches[0].clientX)
 
-    // Only count as a swipe if mostly vertical
-    if (Math.abs(deltaY) < 60 || deltaX > Math.abs(deltaY) * 0.7) return
-    if (deltaY > 0) goToClip(currentIndex + 1) // swipe up → next
-    else goToClip(currentIndex - 1)             // swipe down → prev
+    // Ignore mostly-horizontal gestures early on
+    if (dx > Math.abs(dy) * 0.8 && Math.abs(dy) < 24) return
+
+    // Rubber-band resistance at the first and last clip
+    const atBoundary =
+      (dy > 0 && currentIndex >= clips.length - 1) ||
+      (dy < 0 && currentIndex <= 0)
+    const offset = atBoundary
+      ? Math.sign(dy) * Math.min(Math.abs(dy) * 0.15, 50)
+      : dy
+
+    dragOffsetRef.current = offset
+    setDragOffset(offset)
+  }
+
+  function handleTouchEnd() {
+    if (!dragActiveRef.current) return
+    dragActiveRef.current = false
+
+    const THRESHOLD = window.innerHeight * 0.35
+    const offset = dragOffsetRef.current
+
+    if (offset > THRESHOLD && currentIndex < clips.length - 1) {
+      // Committed — next clip (instant cut, new video loads naturally)
+      dragOffsetRef.current = 0
+      setDragOffset(0)
+      goToClip(currentIndex + 1)
+    } else if (offset < -THRESHOLD && currentIndex > 0) {
+      // Committed — prev clip
+      dragOffsetRef.current = 0
+      setDragOffset(0)
+      goToClip(currentIndex - 1)
+    } else {
+      // Spring back
+      setDragTransitioning(true)
+      dragOffsetRef.current = 0
+      setDragOffset(0)
+    }
   }
 
   // ── Loading ─────────────────────────────────────────────────
@@ -140,33 +183,100 @@ export default function PlaybackScreen() {
       className="relative h-screen bg-deep overflow-hidden select-none"
       onClick={handleTap}
       onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Video element */}
-      <video
-        ref={videoRef}
-        className="absolute inset-0 w-full h-full object-cover"
-        onTimeUpdate={handleTimeUpdate}
-        onEnded={() => goToClip(currentIndex + 1)}
-        onPlay={() => { setIsPlaying(true); setShowPauseOverlay(false) }}
-        onPause={() => setIsPlaying(false)}
-        playsInline
-        preload="auto"
-      />
-
-      {/* Top vignette */}
+      {/* ── Moving layer — slides with swipe ── */}
       <div
-        className="absolute inset-x-0 top-0 h-44 pointer-events-none z-10"
-        style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%)' }}
-      />
+        className="absolute inset-0"
+        style={{
+          transform: `translateY(${-dragOffset}px)`,
+          transition: dragTransitioning
+            ? 'transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+            : 'none',
+          willChange: 'transform',
+        }}
+        onTransitionEnd={() => setDragTransitioning(false)}
+      >
+        {/* Video */}
+        <video
+          ref={videoRef}
+          className="absolute inset-0 w-full h-full object-cover"
+          onTimeUpdate={handleTimeUpdate}
+          onEnded={() => goToClip(currentIndex + 1)}
+          onPlay={() => { setIsPlaying(true); setShowPauseOverlay(false) }}
+          onPause={() => setIsPlaying(false)}
+          playsInline
+          preload="auto"
+        />
 
-      {/* Bottom vignette */}
-      <div
-        className="absolute inset-x-0 bottom-0 h-56 pointer-events-none z-10"
-        style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)' }}
-      />
+        {/* Top vignette */}
+        <div
+          className="absolute inset-x-0 top-0 h-44 pointer-events-none"
+          style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%)' }}
+        />
 
-      {/* ── Top controls ── */}
+        {/* Bottom vignette */}
+        <div
+          className="absolute inset-x-0 bottom-0 h-56 pointer-events-none"
+          style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)' }}
+        />
+
+        {/* Caption overlay */}
+        {currentClip?.caption_text && (
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              left: `${currentClip.caption_x ?? 50}%`,
+              top: `${currentClip.caption_y ?? 85}%`,
+              transform: 'translate(-50%, -50%)',
+              maxWidth: '80vw',
+            }}
+          >
+            <p
+              className="font-display italic text-wheat text-center leading-snug"
+              style={{
+                fontSize: `${currentClip.caption_size || 24}px`,
+                textShadow: '0 2px 12px rgba(0,0,0,0.6), 0 0 40px rgba(0,0,0,0.4)',
+              }}
+            >
+              {currentClip.caption_text}
+            </p>
+          </div>
+        )}
+
+        {/* Pause overlay */}
+        {showPauseOverlay && (
+          <div className="absolute inset-0 bg-black/35 flex items-center justify-center pointer-events-none">
+            <div
+              className="w-[72px] h-[72px] rounded-full flex items-center justify-center"
+              style={{ background: 'rgba(242,162,74,0.9)', boxShadow: '0 0 40px rgba(242,162,74,0.3)' }}
+            >
+              <Play size={28} fill="#2C1A0E" strokeWidth={0} className="ml-1" />
+            </div>
+          </div>
+        )}
+
+        {/* Swipe hint arrows — subtle, fade with movement */}
+        {Math.abs(dragOffset) > 12 && (
+          <div
+            className="absolute inset-x-0 pointer-events-none flex justify-center"
+            style={{
+              top: dragOffset > 0 ? 'auto' : '1.5rem',
+              bottom: dragOffset > 0 ? '1.5rem' : 'auto',
+              opacity: Math.min(Math.abs(dragOffset) / 80, 0.6),
+            }}
+          >
+            <div className="text-wheat/60 text-xs font-semibold tracking-widest uppercase">
+              {dragOffset > 0 ? '↑ Next' : '↓ Previous'}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Static chrome — stays in place ── */}
+
+      {/* Top controls */}
       <div className="absolute top-14 left-0 right-0 flex items-center justify-between px-5 z-20">
         <button
           onClick={(e) => { e.stopPropagation(); navigate('/') }}
@@ -189,7 +299,7 @@ export default function PlaybackScreen() {
         </button>
       </div>
 
-      {/* ── Segmented progress bar ── */}
+      {/* Segmented progress bar */}
       <div className="absolute top-[96px] left-5 right-5 flex gap-1 z-20">
         {clips.map((clip, i) => (
           <div
@@ -210,42 +320,7 @@ export default function PlaybackScreen() {
         ))}
       </div>
 
-      {/* ── Caption overlay ── */}
-      {currentClip?.caption_text && (
-        <div
-          className="absolute z-20 pointer-events-none"
-          style={{
-            left: `${currentClip.caption_x ?? 50}%`,
-            top: `${currentClip.caption_y ?? 85}%`,
-            transform: 'translate(-50%, -50%)',
-            maxWidth: '80vw',
-          }}
-        >
-          <p
-            className="font-display italic text-wheat text-center leading-snug"
-            style={{
-              fontSize: `${currentClip.caption_size || 24}px`,
-              textShadow: '0 2px 12px rgba(0,0,0,0.6), 0 0 40px rgba(0,0,0,0.4)',
-            }}
-          >
-            {currentClip.caption_text}
-          </p>
-        </div>
-      )}
-
-      {/* ── Pause overlay ── */}
-      {showPauseOverlay && (
-        <div className="absolute inset-0 bg-black/35 z-[15] flex items-center justify-center pointer-events-none">
-          <div
-            className="w-[72px] h-[72px] rounded-full flex items-center justify-center"
-            style={{ background: 'rgba(242,162,74,0.9)', boxShadow: '0 0 40px rgba(242,162,74,0.3)' }}
-          >
-            <Play size={28} fill="#2C1A0E" strokeWidth={0} className="ml-1" />
-          </div>
-        </div>
-      )}
-
-      {/* ── Bottom info ── */}
+      {/* Bottom info + play button */}
       <div className="absolute bottom-10 left-0 right-0 px-6 flex items-end justify-between z-20">
         <div>
           <p className="text-amber/50 text-[10px] font-semibold tracking-[0.15em] uppercase mb-1">
@@ -268,7 +343,7 @@ export default function PlaybackScreen() {
         </button>
       </div>
 
-      {/* ── Action sheet ── */}
+      {/* Action sheet */}
       {showActionSheet && (
         <>
           <div
@@ -283,7 +358,6 @@ export default function PlaybackScreen() {
           >
             <div className="w-10 h-1 rounded-full bg-walnut-light mx-auto mt-3.5 mb-5" />
 
-            {/* Edit Scrapbook */}
             <button
               onClick={() => navigate(`/scrapbook/${id}/edit`)}
               className="w-full flex items-center gap-3.5 px-2 py-4 border-b border-walnut-light active:opacity-70 text-left"
@@ -295,7 +369,6 @@ export default function PlaybackScreen() {
               </div>
             </button>
 
-            {/* Share — coming soon */}
             <div className="w-full flex items-center gap-3.5 px-2 py-4 border-b border-walnut-light opacity-35">
               <Share2 size={20} strokeWidth={1.75} className="text-amber flex-shrink-0" />
               <div>

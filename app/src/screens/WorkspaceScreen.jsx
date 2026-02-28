@@ -62,6 +62,17 @@ export default function WorkspaceScreen() {
   const [ghostInitialY, setGhostInitialY] = useState(0) // only used for initial render position
   const ghostRef = useRef(null) // direct DOM updates for smooth tracking
   const ghostOffsetRef = useRef(0) // touch Y offset from item top
+  const [isActiveDragging, setIsActiveDragging] = useState(false) // true only while finger is moving
+
+  // Clear ghost when leaving reorder mode
+  useEffect(() => {
+    if (!isReordering) {
+      setGhostClip(null)
+      setDragFromIndex(null)
+      setIsActiveDragging(false)
+      dragState.current = null
+    }
+  }, [isReordering])
 
   // Fetch
   useEffect(() => {
@@ -203,15 +214,19 @@ export default function WorkspaceScreen() {
     }
   }
 
-  // ── Reorder drag — whole-row target with movement threshold ───────────
-  // isSelected: already-active clip gets a 1px threshold (essentially immediate)
-  function startReorderDrag(fromIndex, e, isSelected) {
+  // ── Reorder drag ──────────────────────────────────────────────────────
+  // If a clip was pre-lifted by a tap, any movement starts the drag immediately.
+  // If not lifted yet, 8px vertical threshold applies.
+  function startReorderDrag(fromIndex, e) {
     const startY = e.touches ? e.touches[0].clientY : e.clientY
     const startX = e.touches ? e.touches[0].clientX : e.clientX
 
-    // Pre-calculate offset so the ghost stays anchored to where the finger landed
+    // Anchor offset: where on the row the finger landed
     const rowEl = e.currentTarget.closest('[data-clip-row]') ?? e.currentTarget
     ghostOffsetRef.current = startY - rowEl.getBoundingClientRect().top
+
+    // Was this clip already lifted by a previous tap?
+    const alreadyLifted = ghostClip !== null
 
     let dragStarted = false
 
@@ -222,18 +237,31 @@ export default function WorkspaceScreen() {
       const dx = clientX - startX
 
       if (!dragStarted) {
-        // Selected clip: 1px threshold (any movement starts drag)
-        // Unselected clip: 8px threshold (requires deliberate intent)
-        const threshold = isSelected ? 1 : 8
-        if (Math.abs(dy) < threshold || Math.abs(dx) > Math.abs(dy) * 1.2) return
+        if (alreadyLifted) {
+          // Clip is already in hand — any vertical movement drags it
+          if (Math.abs(dy) < 2) return
+        } else {
+          // Cold drag — require deliberate vertical intent
+          if (Math.abs(dy) < 8 || Math.abs(dx) > Math.abs(dy) * 1.2) return
+        }
+
         dragStarted = true
-        dragState.current = { fromIndex, currentIndex: fromIndex, startY }
-        setDragFromIndex(fromIndex)
-        setGhostInitialY(clientY - ghostOffsetRef.current)
-        setGhostClip(clipsRef.current[fromIndex])
+        setIsActiveDragging(true)
+
+        if (alreadyLifted) {
+          // Use the clip's actual current position (may have shifted from a previous drag)
+          const liftedIdx = clipsRef.current.findIndex(c => c.id === ghostClip.id)
+          dragState.current = { fromIndex: liftedIdx, currentIndex: liftedIdx, startY }
+          setDragFromIndex(liftedIdx)
+          // Ghost is already rendered — just start moving it
+        } else {
+          dragState.current = { fromIndex, currentIndex: fromIndex, startY }
+          setDragFromIndex(fromIndex)
+          setGhostInitialY(clientY - ghostOffsetRef.current)
+          setGhostClip(clipsRef.current[fromIndex])
+        }
       }
 
-      // Only prevent scroll/click after we've confirmed it's a drag
       ev.preventDefault()
 
       if (ghostRef.current) {
@@ -241,7 +269,8 @@ export default function WorkspaceScreen() {
       }
 
       const delta = Math.round(dy / ROW_H)
-      const to = Math.max(0, Math.min(clipsRef.current.length - 1, fromIndex + delta))
+      const from = dragState.current.fromIndex
+      const to = Math.max(0, Math.min(clipsRef.current.length - 1, from + delta))
       if (dragState.current && to !== dragState.current.currentIndex) {
         const spliceFrom = dragState.current.currentIndex
         dragState.current.currentIndex = to
@@ -259,10 +288,12 @@ export default function WorkspaceScreen() {
       document.removeEventListener('touchend', onEnd)
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onEnd)
-      if (!dragState.current) return
+      // If no drag happened (just a tap on the already-lifted clip), leave the ghost up
+      if (!dragStarted) return
       dragState.current = null
       setDragFromIndex(null)
       setGhostClip(null)
+      setIsActiveDragging(false)
       const current = clipsRef.current
       for (let i = 0; i < current.length; i++) {
         await supabase.from('clips').update({ order: i }).eq('id', current[i].id)
@@ -528,7 +559,7 @@ export default function WorkspaceScreen() {
         {clips.map((clip, i) => {
           const active = clip.id === activeClipId
           const edited = isEdited(clip)
-          const isDragging = ghostClip !== null && ghostClip.id === clip.id
+          const isDragging = isActiveDragging && ghostClip !== null && ghostClip.id === clip.id
 
           // While dragging this item, render a dashed placeholder
           if (isReordering && isDragging) {
@@ -549,9 +580,18 @@ export default function WorkspaceScreen() {
             <button
               key={clip.id}
               data-clip-row
-              onClick={() => setActiveClipId(clip.id)}
-              onTouchStart={isReordering ? (e) => startReorderDrag(i, e, active) : undefined}
-              onMouseDown={isReordering ? (e) => startReorderDrag(i, e, active) : undefined}
+              onClick={(e) => {
+                setActiveClipId(clip.id)
+                if (isReordering) {
+                  // Lift the clip immediately so the next drag starts without a threshold
+                  const rowRect = e.currentTarget.getBoundingClientRect()
+                  ghostOffsetRef.current = ROW_H / 2
+                  setGhostInitialY(rowRect.top)
+                  setGhostClip(clip)
+                }
+              }}
+              onTouchStart={isReordering ? (e) => startReorderDrag(i, e) : undefined}
+              onMouseDown={isReordering ? (e) => startReorderDrag(i, e) : undefined}
               className="w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 border text-left active:opacity-75 flex-shrink-0"
               style={{
                 background: '#3D2410',

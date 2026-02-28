@@ -64,6 +64,8 @@ export default function WorkspaceScreen() {
   const ghostOffsetRef = useRef(0) // touch Y offset from item top
   const [isActiveDragging, setIsActiveDragging] = useState(false) // true only while finger is moving
 
+  const isReordering = activeTool === 'reorder'
+
   // Clear ghost when leaving reorder mode
   useEffect(() => {
     if (!isReordering) {
@@ -324,7 +326,6 @@ export default function WorkspaceScreen() {
   const trimOutPct = duration > 0 ? (trimOut / duration) * 100 : 100
   const keptDuration = Math.max(0, trimOut - trimIn)
   const editedCount = clips.filter(isEdited).length
-  const isReordering = activeTool === 'reorder'
 
   // ── Loading ────────────────────────────────────────────────────────────
   if (loading) {

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Play, Search, X, MoreHorizontal, ChevronDown } from 'lucide-react'
+import { Plus, Play, Search, X, MoreHorizontal, ChevronDown, Image } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
@@ -128,9 +128,11 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true)
   const [showSearch, setShowSearch] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [optionsId, setOptionsId] = useState(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const searchInputRef = useRef(null)
+  const coverChangeInputRef = useRef(null)
 
   useEffect(() => {
     if (!session) return
@@ -182,7 +184,41 @@ export default function HomeScreen() {
   }, {})
   const years = Object.keys(groupedByYear).map(Number).sort((a, b) => b - a)
 
+  const optionsScrapbook = scrapbooks.find(sb => sb.id === optionsId)
   const confirmDeleteScrapbook = scrapbooks.find(sb => sb.id === confirmDeleteId)
+
+  async function handleCoverChange(e) {
+    const file = e.target.files?.[0]
+    if (!file || !optionsId) return
+    const sbId = optionsId
+    setOptionsId(null)
+    e.target.value = ''
+
+    // Optimistic preview while uploading
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      setScrapbooks(prev => prev.map(sb =>
+        sb.id === sbId ? { ...sb, cover_image_url: ev.target.result } : sb
+      ))
+    }
+    reader.readAsDataURL(file)
+
+    // Upload to storage (upsert — overwrites existing cover)
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+    const coverPath = `${session.user.id}/covers/${sbId}.${ext}`
+    const { error } = await supabase.storage
+      .from('cassette-media')
+      .upload(coverPath, file, { cacheControl: '3600', upsert: true })
+    if (!error) {
+      const { data: { publicUrl } } = supabase.storage
+        .from('cassette-media')
+        .getPublicUrl(coverPath)
+      await supabase.from('scrapbooks').update({ cover_image_url: publicUrl }).eq('id', sbId)
+      setScrapbooks(prev => prev.map(sb =>
+        sb.id === sbId ? { ...sb, cover_image_url: publicUrl } : sb
+      ))
+    }
+  }
 
   async function deleteScrapbook() {
     if (!confirmDeleteId || deleting) return
@@ -348,7 +384,7 @@ export default function HomeScreen() {
                         key={sb.id}
                         scrapbook={sb}
                         onClick={() => navigate(`/scrapbook/${sb.id}`)}
-                        onOptionsPress={() => setConfirmDeleteId(sb.id)}
+                        onOptionsPress={() => setOptionsId(sb.id)}
                       />
                     ))}
                   </div>
@@ -393,6 +429,71 @@ export default function HomeScreen() {
           </div>
         </>
       )}
+      {/* Options sheet */}
+      {optionsId && (
+        <>
+          <div
+            className="absolute inset-0 bg-black/50 z-10"
+            onClick={() => setOptionsId(null)}
+          />
+          <div
+            className="absolute bottom-0 left-0 right-0 z-20 rounded-t-3xl border-t border-walnut-light px-5 pb-10 pt-1"
+            style={{ background: '#3D2410' }}
+          >
+            <div className="w-10 h-1 rounded-full bg-walnut-light mx-auto mt-3 mb-5" />
+            <p className="font-display font-semibold text-lg text-wheat mb-5 px-1">
+              {optionsScrapbook?.name}
+            </p>
+
+            {/* Change cover */}
+            <button
+              onClick={() => coverChangeInputRef.current?.click()}
+              className="w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl mb-2 active:opacity-75"
+              style={{ background: '#2C1A0E' }}
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(242,162,74,0.1)' }}>
+                <Image size={16} strokeWidth={1.75} className="text-amber" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-wheat text-[14px] font-semibold leading-none mb-0.5">
+                  {optionsScrapbook?.cover_image_url ? 'Change cover' : 'Add cover image'}
+                </p>
+                <p className="text-rust text-[11px]">Pick a photo from your camera roll</p>
+              </div>
+            </button>
+
+            {/* Delete */}
+            <button
+              onClick={() => { setOptionsId(null); setConfirmDeleteId(optionsId) }}
+              className="w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl mb-4 active:opacity-75"
+              style={{ background: '#2C1A0E' }}
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(232,133,90,0.1)' }}>
+                <X size={16} strokeWidth={2} className="text-sienna" />
+              </div>
+              <p className="text-sienna text-[14px] font-semibold">Delete Scrapbook</p>
+            </button>
+
+            <button
+              onClick={() => setOptionsId(null)}
+              className="w-full py-3 text-center text-rust font-semibold text-[15px] active:opacity-70"
+            >
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Hidden cover image input */}
+      <input
+        ref={coverChangeInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleCoverChange}
+      />
     </div>
   )
 }

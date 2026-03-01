@@ -369,6 +369,7 @@ export default function WorkspaceScreen() {
   const trimOutPct = duration > 0 ? (trimOut / duration) * 100 : 100
   const keptDuration = Math.max(0, trimOut - trimIn)
   const editedCount = clips.filter(isEdited).length
+  const isCaption = activeTool === 'caption'
 
   // ── Loading ────────────────────────────────────────────────────────────
   if (loading) {
@@ -407,8 +408,15 @@ export default function WorkspaceScreen() {
       {/* ── Preview zone ── */}
       <div
         ref={previewRef}
-        className="mx-4 rounded-2xl overflow-hidden flex-shrink-0 relative bg-deep"
-        style={{ height: isReordering ? 0 : 220, transition: 'height 0.3s ease', opacity: isReordering ? 0 : 1 }}
+        className="mx-4 rounded-2xl overflow-hidden relative bg-deep"
+        style={{
+          flexGrow: isCaption && !isReordering ? 1 : 0,
+          flexShrink: isCaption ? 1 : 0,
+          minHeight: isCaption ? 0 : undefined,
+          height: isReordering ? 0 : isCaption ? undefined : 220,
+          opacity: isReordering ? 0 : 1,
+          transition: 'height 0.3s ease',
+        }}
       >
         <video
           ref={videoRef}
@@ -490,7 +498,7 @@ export default function WorkspaceScreen() {
       {/* ── Trim zone ── */}
       <div
         className="px-4 pt-3 pb-2.5 border-b border-walnut-light flex-shrink-0 overflow-hidden"
-        style={{ maxHeight: isReordering ? 0 : 200, transition: 'max-height 0.3s ease', opacity: isReordering ? 0 : 1 }}
+        style={{ maxHeight: (isReordering || isCaption) ? 0 : 200, transition: 'max-height 0.3s ease', opacity: (isReordering || isCaption) ? 0 : 1 }}
       >
         <div className="flex items-center justify-between mb-2">
           <span className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase">Trim</span>
@@ -554,7 +562,7 @@ export default function WorkspaceScreen() {
       </div>
 
       {/* ── Tool row ── */}
-      <div className="flex items-center justify-around px-5 py-2 border-b border-walnut-light flex-shrink-0">
+      {!isCaption && <div className="flex items-center justify-around px-5 py-2 border-b border-walnut-light flex-shrink-0">
         {[
           { key: 'caption', Icon: Type, label: 'Caption', danger: false },
           { key: 'reorder', Icon: AlignJustify, label: 'Reorder', danger: false },
@@ -589,7 +597,7 @@ export default function WorkspaceScreen() {
             </button>
           )
         })}
-      </div>
+      </div>}
 
       {/* ── Reorder banner ── */}
       {isReordering && (
@@ -606,17 +614,17 @@ export default function WorkspaceScreen() {
       )}
 
       {/* ── Clip list header ── */}
-      <div className="flex items-center justify-between px-5 py-2.5 flex-shrink-0">
+      {!isCaption && <div className="flex items-center justify-between px-5 py-2.5 flex-shrink-0">
         <span className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase">
           {isReordering ? 'Reordering' : 'All clips'}
         </span>
         <span className="text-wheat/30 text-[10px] font-medium">
           {isReordering ? `${clips.length} clips` : `${editedCount} of ${clips.length} edited`}
         </span>
-      </div>
+      </div>}
 
       {/* ── Clip list ── */}
-      <div className="flex-1 overflow-y-auto px-4 pb-6 flex flex-col gap-1.5">
+      {!isCaption && <div className="flex-1 overflow-y-auto px-4 pb-6 flex flex-col gap-1.5">
         {clips.map((clip, i) => {
           const active = clip.id === activeClipId
           const edited = isEdited(clip)
@@ -705,7 +713,7 @@ export default function WorkspaceScreen() {
             </button>
           )
         })}
-      </div>
+      </div>}
 
       {/* ── Ghost drag card — floats with finger ── */}
       {ghostClip && (
@@ -739,45 +747,47 @@ export default function WorkspaceScreen() {
         </div>
       )}
 
-      {/* ── Caption sheet ── */}
-      {activeTool === 'caption' && (
-        <>
-          <div className="absolute inset-0 bg-black/40 z-10" onClick={saveCaptionDraft} />
-          <div
-            className="absolute bottom-0 left-0 right-0 z-20 rounded-t-3xl border-t border-walnut-light px-5 pb-10 pt-1"
-            style={{ background: '#3D2410' }}
-          >
-            <div className="w-10 h-1 rounded-full bg-walnut-light mx-auto mt-3 mb-5" />
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase">Caption</p>
-              <button onClick={saveCaptionDraft} className="text-amber font-bold text-sm active:opacity-70">Done</button>
-            </div>
-            <input
-              ref={captionInputRef}
-              type="text"
-              value={captionDraft}
-              onChange={e => setCaptionDraft(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && saveCaptionDraft()}
-              placeholder="Type your caption…"
-              className="w-full bg-walnut border border-walnut-light rounded-xl px-4 py-3 font-display italic text-[16px] text-wheat placeholder:text-rust/50 outline-none focus:border-amber caret-amber mb-4"
-            />
-            <div className="flex items-center gap-3">
-              <span className="text-wheat/40 text-[11px] font-semibold tracking-wide uppercase">Size</span>
-              <input
-                type="range" min={14} max={42} value={captionSizeDraft}
-                onChange={e => setCaptionSizeDraft(Number(e.target.value))}
-                className="flex-1 accent-amber"
-              />
-              <span className="text-wheat/40 text-sm font-semibold">Aa</span>
-            </div>
-            {captionDraft && (
-              <button onClick={() => setCaptionDraft('')}
-                className="mt-4 w-full py-2 text-center text-rust/60 text-sm active:opacity-70">
-                Remove caption
-              </button>
-            )}
+      {/* ── Caption controls panel (inline, not an overlay) ── */}
+      {isCaption && (
+        <div
+          className="flex-shrink-0 border-t border-walnut-light px-5 pt-3.5 pb-8"
+          style={{ background: '#3D2410' }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase">
+              Caption · drag on preview to reposition
+            </p>
+            <button onClick={saveCaptionDraft} className="text-amber font-bold text-sm active:opacity-70">
+              Done
+            </button>
           </div>
-        </>
+          <input
+            ref={captionInputRef}
+            type="text"
+            value={captionDraft}
+            onChange={e => setCaptionDraft(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && captionInputRef.current?.blur()}
+            placeholder="Type your caption…"
+            className="w-full bg-walnut border border-walnut-light rounded-xl px-4 py-3 font-display italic text-[16px] text-wheat placeholder:text-rust/50 outline-none focus:border-amber caret-amber mb-3"
+          />
+          <div className="flex items-center gap-3">
+            <span className="text-wheat/40 text-[10px] font-bold tracking-widest uppercase">Size</span>
+            <input
+              type="range" min={14} max={42} value={captionSizeDraft}
+              onChange={e => setCaptionSizeDraft(Number(e.target.value))}
+              className="flex-1 accent-amber"
+            />
+            <span className="text-wheat/40 text-sm font-semibold w-4 text-right">Aa</span>
+          </div>
+          {captionDraft && (
+            <button
+              onClick={() => setCaptionDraft('')}
+              className="mt-3 w-full py-1.5 text-center text-rust/60 text-[13px] active:opacity-70"
+            >
+              Remove caption
+            </button>
+          )}
+        </div>
       )}
 
       {/* ── Remove confirm ── */}

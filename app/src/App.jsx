@@ -1,11 +1,21 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import LoginScreen from './screens/LoginScreen'
-import HomeScreen from './screens/HomeScreen'
-import IntakeScreen from './screens/IntakeScreen'
-import PlaybackScreen from './screens/PlaybackScreen'
-import WorkspaceScreen from './screens/WorkspaceScreen'
-import DiscoveryScreen from './screens/DiscoveryScreen'
+
+const HomeScreen      = lazy(() => import('./screens/HomeScreen'))
+const IntakeScreen    = lazy(() => import('./screens/IntakeScreen'))
+const PlaybackScreen  = lazy(() => import('./screens/PlaybackScreen'))
+const WorkspaceScreen = lazy(() => import('./screens/WorkspaceScreen'))
+const DiscoveryScreen = lazy(() => import('./screens/DiscoveryScreen'))
+
+function ScreenLoader() {
+  return (
+    <div className="flex items-center justify-center bg-walnut" style={{ height: '100dvh' }}>
+      <div className="w-8 h-8 rounded-full border-2 border-amber border-t-transparent animate-spin" />
+    </div>
+  )
+}
 
 function AuthGate({ children }) {
   const { session } = useAuth()
@@ -27,6 +37,7 @@ function AuthGate({ children }) {
 function AppRoutes() {
   return (
     <AuthGate>
+      <Suspense fallback={<ScreenLoader />}>
       <Routes>
         <Route path="/" element={<HomeScreen />} />
         <Route path="/intake" element={<IntakeScreen />} />
@@ -35,6 +46,7 @@ function AppRoutes() {
         <Route path="/discover" element={<DiscoveryScreen />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
     </AuthGate>
   )
 }

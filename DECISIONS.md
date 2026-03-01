@@ -276,26 +276,34 @@ All screens are built and confirmed working in the browser:
 
 ---
 
+## ✅ Completed Feature Backlog
+
+| Feature | Notes |
+|---|---|
+| Year tag on Home | User sets year at intake (← YEAR →), collapsible year groups on Home. SQL: `ALTER TABLE scrapbooks ADD COLUMN year integer;` |
+| Cover photo | Intake step 2 picker + Home card "Change cover" option. Uploads to `cassette-media/{userId}/covers/{scrapbookId}.ext` |
+| Caption drag placement | Caption mode expands preview full-screen. Caption draggable on frame, saves caption_x/caption_y. |
+| Discovery screen | `/discover` — shuffled playlist of all clips. Swipe up/down, tap for scrapbook info + "Watch scrapbook →". Reshuffle button. |
+
+---
+
 ## 🔨 Feature Backlog (Approved, Not Yet Built)
 
-These were requested by the user after first live testing. Prioritised by effort.
-
-| # | Feature | Screen | Notes |
-|---|---|---|---|
-| 1 | **Year grouping on Home** | Home | Group scrapbooks by year (e.g. "2024", "2023"). Tap year to expand/collapse. Low data change — just UI grouping. |
-| 2 | **Cover photo for scrapbook** | Home / Intake | Set a thumbnail image on the card. Options: pick from camera roll, or extract a frame from a clip. Shown as the card's rich background. |
-| 3 | **Caption drag placement** | Workspace | In the caption tool, allow dragging the caption to any position on the preview frame. x/y already stored in the data model. Currently captions render at a fixed position. |
-| 4 | **Reorder 2-step → 1-step UX** | Workspace | Current: tap to select, drag to lift, drag to place (3 gestures). Goal: tap to select, drag to place (2 gestures). Ghost should appear immediately on tap and be draggable in the same touch gesture that follows the tap. Tracked here for revisiting. |
+| # | Feature | Notes |
+|---|---|---|
+| 1 | **Reorder 2-step → 1-step UX** | Tap to select + same gesture drags. Hard: `onClick` fires after `touchend`. Parked. |
+| 2 | **Rename scrapbook** | From Home card options menu or Playback action sheet. Simple text input sheet. |
+| 3 | **Delete clip storage on remove** | When a clip is removed in Workspace, also delete its file from `cassette-media`. Currently only DB row is deleted. |
 
 ---
 
 ## 💡 Parking Lot (Good Ideas, Not Yet)
 
-- **Cover image extraction** — auto-pull first frame on upload. Needs server-side processing or canvas extraction. v1 stretch goal.
-- **Export as single video file** — FFmpeg on Supabase Edge Functions or worker. v2.
-- **Background music / audio track** — v2. Adds processing complexity.
+- **Video compression on upload** — iPhone videos are large (100MB+). Client-side canvas re-encode or server-side worker would dramatically improve load speed. Biggest real-world performance lever.
+- **Cover image extraction** — auto-pull first frame. Needs canvas extraction or server processing.
+- **Export as single video file** — FFmpeg on Supabase Edge Functions. v2.
+- **Background music / audio track** — v2.
 - **Multi-user / shared scrapbooks** — requires data model rethink. v2.
 - **Public share links (grandparent view)** — read-only link. High value, v2.
 - **Native iOS app** — if PWA proves too limiting for video handling.
 - **Light mode** — not a Cassette experience. Maybe never.
-- **Brand guide v2** — add light mode tokens if the above changes.

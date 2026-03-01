@@ -17,6 +17,10 @@ function getVideoMeta(file) {
     function finish(thumbnail) {
       if (settled) return
       settled = true
+      video.onloadedmetadata = null
+      video.onseeked = null
+      video.onerror = null
+      video.src = ''
       URL.revokeObjectURL(url)
       resolve({ duration, thumbnail })
     }

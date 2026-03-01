@@ -82,7 +82,7 @@ export default function WorkspaceScreen() {
   // Fetch
   useEffect(() => {
     Promise.all([
-      supabase.from('scrapbooks').select('*').eq('id', id).single(),
+      supabase.from('scrapbooks').select('id, name').eq('id', id).single(),
       supabase.from('clips').select('*').eq('scrapbook_id', id).order('order', { ascending: true }),
     ]).then(([{ data: sb }, { data: cl }]) => {
       if (sb) setScrapbook(sb)
@@ -425,7 +425,7 @@ export default function WorkspaceScreen() {
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
           playsInline
-          preload="auto"
+          preload="metadata"
         />
         <div
           className="absolute inset-0 pointer-events-none"

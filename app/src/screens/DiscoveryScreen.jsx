@@ -33,7 +33,7 @@ export default function DiscoveryScreen() {
     setLoading(true)
     const { data } = await supabase
       .from('scrapbooks')
-      .select('id, name, year, created_at, clips(*)')
+      .select('id, name, year, created_at, clips(id, video_url, duration, trim_in, trim_out, caption_text, caption_x, caption_y, caption_size)')
       .eq('user_id', session.user.id)
 
     if (data) {
@@ -170,7 +170,7 @@ export default function DiscoveryScreen() {
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         playsInline
-        preload="auto"
+        preload="metadata"
         muted={false}
       />
 

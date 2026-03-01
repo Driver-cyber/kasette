@@ -28,8 +28,8 @@ export default function PlaybackScreen() {
   // Fetch scrapbook + clips
   useEffect(() => {
     Promise.all([
-      supabase.from('scrapbooks').select('*').eq('id', id).single(),
-      supabase.from('clips').select('*').eq('scrapbook_id', id).order('order', { ascending: true }),
+      supabase.from('scrapbooks').select('id, name').eq('id', id).single(),
+      supabase.from('clips').select('id, video_url, duration, trim_in, trim_out, caption_text, caption_x, caption_y, caption_size, order').eq('scrapbook_id', id).order('order', { ascending: true }),
     ]).then(([{ data: sb }, { data: cl }]) => {
       if (sb) setScrapbook(sb)
       if (cl) setClips(cl)
@@ -207,7 +207,7 @@ export default function PlaybackScreen() {
           onPlay={() => { setIsPlaying(true); setShowPauseOverlay(false) }}
           onPause={() => setIsPlaying(false)}
           playsInline
-          preload="auto"
+          preload="metadata"
         />
 
         {/* Top vignette */}

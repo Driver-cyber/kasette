@@ -382,7 +382,7 @@ export default function WorkspaceScreen() {
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-screen bg-walnut overflow-hidden select-none">
+    <div className="flex flex-col bg-walnut overflow-hidden select-none" style={{ height: '100dvh' }}>
 
       {/* ── Nav ── */}
       <header className="flex items-center justify-between px-5 pt-12 pb-2.5 flex-shrink-0">
@@ -750,8 +750,8 @@ export default function WorkspaceScreen() {
       {/* ── Caption controls panel (inline, not an overlay) ── */}
       {isCaption && (
         <div
-          className="flex-shrink-0 border-t border-walnut-light px-5 pt-3.5 pb-8"
-          style={{ background: '#3D2410' }}
+          className="flex-shrink-0 border-t border-walnut-light px-5 pt-3.5"
+          style={{ background: '#3D2410', paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}
         >
           <div className="flex items-center justify-between mb-3">
             <p className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase">
@@ -768,7 +768,8 @@ export default function WorkspaceScreen() {
             onChange={e => setCaptionDraft(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && captionInputRef.current?.blur()}
             placeholder="Type your caption…"
-            className="w-full bg-walnut border border-walnut-light rounded-xl px-4 py-3 font-display italic text-[16px] text-wheat placeholder:text-rust/50 outline-none focus:border-amber caret-amber mb-3"
+            className="w-full bg-walnut border border-walnut-light rounded-xl px-4 py-3 font-display italic text-wheat placeholder:text-rust/50 outline-none focus:border-amber caret-amber mb-3"
+            style={{ fontSize: '16px' }}
           />
           <div className="flex items-center gap-3">
             <span className="text-wheat/40 text-[10px] font-bold tracking-widest uppercase">Size</span>

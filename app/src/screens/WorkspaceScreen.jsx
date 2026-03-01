@@ -38,7 +38,9 @@ export default function WorkspaceScreen() {
   const { id } = useParams()
   const videoRef = useRef(null)
   const filmstripRef = useRef(null)
+  const previewRef = useRef(null)
   const captionInputRef = useRef(null)
+  const captionRef = useRef(null)
 
   const [scrapbook, setScrapbook] = useState(null)
   const [clips, setClips] = useState([])
@@ -48,6 +50,7 @@ export default function WorkspaceScreen() {
   const [playheadPct, setPlayheadPct] = useState(0)
   const [captionDraft, setCaptionDraft] = useState('')
   const [captionSizeDraft, setCaptionSizeDraft] = useState(24)
+  const [captionPosDraft, setCaptionPosDraft] = useState({ x: 50, y: 85 })
   const [loading, setLoading] = useState(true)
   const [confirmRemoveId, setConfirmRemoveId] = useState(null)
 
@@ -109,6 +112,7 @@ export default function WorkspaceScreen() {
     if (activeClip) {
       setCaptionDraft(activeClip.caption_text || '')
       setCaptionSizeDraft(activeClip.caption_size || 24)
+      setCaptionPosDraft({ x: activeClip.caption_x ?? 50, y: activeClip.caption_y ?? 85 })
     }
   }, [activeClip?.id])
 
@@ -194,12 +198,51 @@ export default function WorkspaceScreen() {
     document.addEventListener('mouseup', onEnd)
   }
 
+  // ── Caption drag ───────────────────────────────────────────────────────
+  function startCaptionDrag(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    const preview = previewRef.current
+    if (!preview || !activeClip) return
+    const rect = preview.getBoundingClientRect()
+    let currentX = captionPosDraft.x
+    let currentY = captionPosDraft.y
+
+    function onMove(ev) {
+      ev.preventDefault()
+      const clientX = ev.touches ? ev.touches[0].clientX : ev.clientX
+      const clientY = ev.touches ? ev.touches[0].clientY : ev.clientY
+      currentX = Math.max(5, Math.min(95, ((clientX - rect.left) / rect.width) * 100))
+      currentY = Math.max(5, Math.min(95, ((clientY - rect.top) / rect.height) * 100))
+      if (captionRef.current) {
+        captionRef.current.style.left = `${currentX}%`
+        captionRef.current.style.top = `${currentY}%`
+      }
+    }
+
+    async function onEnd() {
+      document.removeEventListener('touchmove', onMove)
+      document.removeEventListener('touchend', onEnd)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onEnd)
+      setCaptionPosDraft({ x: currentX, y: currentY })
+      await supabase.from('clips').update({ caption_x: currentX, caption_y: currentY }).eq('id', activeClip.id)
+    }
+
+    document.addEventListener('touchmove', onMove, { passive: false })
+    document.addEventListener('touchend', onEnd)
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onEnd)
+  }
+
   // ── Caption save ───────────────────────────────────────────────────────
   async function saveCaptionDraft() {
     if (!activeClip) return
     await saveClipChanges(activeClip.id, {
       caption_text: captionDraft.trim() || null,
       caption_size: captionSizeDraft,
+      caption_x: captionPosDraft.x,
+      caption_y: captionPosDraft.y,
     })
     setActiveTool(null)
   }
@@ -363,6 +406,7 @@ export default function WorkspaceScreen() {
 
       {/* ── Preview zone ── */}
       <div
+        ref={previewRef}
         className="mx-4 rounded-2xl overflow-hidden flex-shrink-0 relative bg-deep"
         style={{ height: isReordering ? 0 : 220, transition: 'height 0.3s ease', opacity: isReordering ? 0 : 1 }}
       >
@@ -397,31 +441,47 @@ export default function WorkspaceScreen() {
           </div>
         )}
 
-        <button
-          onClick={togglePlay}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center active:opacity-70"
-          style={{ background: 'rgba(242,162,74,0.8)', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}
-        >
-          {isPlaying
-            ? <Pause size={16} fill="#2C1A0E" strokeWidth={0} />
-            : <Play size={16} fill="#2C1A0E" strokeWidth={0} className="ml-0.5" />
-          }
-        </button>
-
-        {activeClip?.caption_text && (
-          <div
-            className="absolute pointer-events-none"
-            style={{
-              left: `${activeClip.caption_x ?? 50}%`,
-              top: `${activeClip.caption_y ?? 85}%`,
-              transform: 'translate(-50%, -50%)',
-            }}
+        {activeTool !== 'caption' && (
+          <button
+            onClick={togglePlay}
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center active:opacity-70"
+            style={{ background: 'rgba(242,162,74,0.8)', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}
           >
+            {isPlaying
+              ? <Pause size={16} fill="#2C1A0E" strokeWidth={0} />
+              : <Play size={16} fill="#2C1A0E" strokeWidth={0} className="ml-0.5" />
+            }
+          </button>
+        )}
+
+        {/* Caption — draggable when caption tool is active */}
+        {(activeTool === 'caption' ? captionDraft : activeClip?.caption_text) && (
+          <div
+            ref={activeTool === 'caption' ? captionRef : null}
+            className="absolute"
+            style={{
+              left: `${activeTool === 'caption' ? captionPosDraft.x : (activeClip.caption_x ?? 50)}%`,
+              top: `${activeTool === 'caption' ? captionPosDraft.y : (activeClip.caption_y ?? 85)}%`,
+              transform: 'translate(-50%, -50%)',
+              cursor: activeTool === 'caption' ? 'grab' : 'default',
+              touchAction: activeTool === 'caption' ? 'none' : 'auto',
+            }}
+            onTouchStart={activeTool === 'caption' ? startCaptionDrag : undefined}
+            onMouseDown={activeTool === 'caption' ? startCaptionDrag : undefined}
+          >
+            {activeTool === 'caption' && (
+              <div className="absolute -inset-3 rounded-xl border border-dashed pointer-events-none"
+                style={{ borderColor: 'rgba(242,162,74,0.5)' }} />
+            )}
             <p
-              className="font-display italic text-wheat text-center leading-snug"
-              style={{ fontSize: `${activeClip.caption_size || 24}px`, textShadow: '0 2px 10px rgba(0,0,0,0.6)', maxWidth: '80%' }}
+              className="font-display italic text-wheat text-center leading-snug select-none"
+              style={{
+                fontSize: `${activeTool === 'caption' ? captionSizeDraft : (activeClip?.caption_size || 24)}px`,
+                textShadow: '0 2px 10px rgba(0,0,0,0.6)',
+                maxWidth: '80%',
+              }}
             >
-              {activeClip.caption_text}
+              {activeTool === 'caption' ? captionDraft : activeClip?.caption_text}
             </p>
           </div>
         )}

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Play, Search, X, MoreHorizontal, ChevronDown, Image } from 'lucide-react'
+import { Plus, Play, Search, X, MoreHorizontal, ChevronDown, Image, Shuffle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
@@ -267,6 +267,13 @@ export default function HomeScreen() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/discover')}
+            className="w-9 h-9 flex items-center justify-center rounded-full active:opacity-70"
+          >
+            <Shuffle size={16} strokeWidth={1.75} className="text-wheat/50" />
+          </button>
+
           <button
             onClick={() => showSearch ? closeSearch() : setShowSearch(true)}
             className="w-9 h-9 flex items-center justify-center rounded-full active:opacity-70"

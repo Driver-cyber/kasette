@@ -5,6 +5,7 @@ import HomeScreen from './screens/HomeScreen'
 import IntakeScreen from './screens/IntakeScreen'
 import PlaybackScreen from './screens/PlaybackScreen'
 import WorkspaceScreen from './screens/WorkspaceScreen'
+import DiscoveryScreen from './screens/DiscoveryScreen'
 
 function AuthGate({ children }) {
   const { session } = useAuth()
@@ -31,6 +32,7 @@ function AppRoutes() {
         <Route path="/intake" element={<IntakeScreen />} />
         <Route path="/scrapbook/:id" element={<PlaybackScreen />} />
         <Route path="/scrapbook/:id/edit" element={<WorkspaceScreen />} />
+        <Route path="/discover" element={<DiscoveryScreen />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AuthGate>

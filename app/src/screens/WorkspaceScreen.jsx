@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Play, Pause, Type, AlignJustify, Eye, Trash2, Check } from 'lucide-react'
+import { ArrowLeft, Play, Pause, Type, Eye, Trash2, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -29,7 +29,8 @@ const STRIP_COLORS = [
   '#562810','#3C1C0E','#4A2010','#401A08','#502210',
 ]
 
-const ROW_H = 52 // approximate height of each clip row in px
+const ROW_H = 52
+const LONG_PRESS_MS = 400
 
 // ── Main component ─────────────────────────────────────────────────────────
 
@@ -60,26 +61,19 @@ export default function WorkspaceScreen() {
   const clipsRef = useRef(clips)
   useEffect(() => { clipsRef.current = clips }, [clips])
 
-  // Ghost drag state — the floating card that follows your finger
+  // Ghost drag card state
   const [ghostClip, setGhostClip] = useState(null)
-  const [ghostInitialY, setGhostInitialY] = useState(0) // only used for initial render position
-  const ghostRef = useRef(null) // direct DOM updates for smooth tracking
-  const ghostOffsetRef = useRef(0) // touch Y offset from item top
-  const [isActiveDragging, setIsActiveDragging] = useState(false) // true only while finger is moving
+  const [ghostInitialY, setGhostInitialY] = useState(0)
+  const ghostRef = useRef(null)
+  const ghostOffsetRef = useRef(0)
+  const [isActiveDragging, setIsActiveDragging] = useState(false)
 
-  const isReordering = activeTool === 'reorder'
+  // Long-press detection refs
+  const longPressTimer = useRef(null)
+  const longPressData = useRef(null) // { index, rowEl, startY, clientY }
+  const wasReorderDrag = useRef(false) // blocks onClick from selecting after a drag
 
-  // Clear ghost when leaving reorder mode
-  useEffect(() => {
-    if (!isReordering) {
-      setGhostClip(null)
-      setDragFromIndex(null)
-      setIsActiveDragging(false)
-      dragState.current = null
-    }
-  }, [isReordering])
-
-  // Fetch
+  // ── Fetch ──────────────────────────────────────────────────────────────
   useEffect(() => {
     Promise.all([
       supabase.from('scrapbooks').select('id, name').eq('id', id).single(),
@@ -259,60 +253,57 @@ export default function WorkspaceScreen() {
     }
   }
 
-  // ── Reorder drag ──────────────────────────────────────────────────────
-  // If a clip was pre-lifted by a tap, any movement starts the drag immediately.
-  // If not lifted yet, 8px vertical threshold applies.
-  function startReorderDrag(fromIndex, e) {
-    const startY = e.touches ? e.touches[0].clientY : e.clientY
-    const startX = e.touches ? e.touches[0].clientX : e.clientX
+  // ── Long-press to reorder (touch) ──────────────────────────────────────
+  function handleClipTouchStart(e, index) {
+    const touch = e.touches[0]
+    wasReorderDrag.current = false
+    const rowEl = e.currentTarget
+    longPressData.current = { index, rowEl, startY: touch.clientY, clientY: touch.clientY }
+    longPressTimer.current = setTimeout(() => {
+      const data = longPressData.current
+      if (!data) return
+      longPressTimer.current = null
+      wasReorderDrag.current = true
+      startDragFromTouch(data.index, data.rowEl, data.clientY)
+    }, LONG_PRESS_MS)
+  }
 
-    // Anchor offset: where on the row the finger landed
-    const rowEl = e.currentTarget.closest('[data-clip-row]') ?? e.currentTarget
-    ghostOffsetRef.current = startY - rowEl.getBoundingClientRect().top
+  function handleClipTouchMove(e) {
+    // Cancel long press if finger moves before timer fires
+    if (!longPressTimer.current || !longPressData.current) return
+    const dy = Math.abs(e.touches[0].clientY - longPressData.current.startY)
+    if (dy > 10) cancelLongPress()
+  }
 
-    // Was this clip already lifted by a previous tap?
-    const alreadyLifted = ghostClip !== null
+  function handleClipTouchEnd() {
+    cancelLongPress()
+  }
 
-    let dragStarted = false
+  function cancelLongPress() {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+    longPressData.current = null
+  }
+
+  // Called when the long press timer fires — finger is still down
+  function startDragFromTouch(fromIndex, rowEl, startClientY) {
+    const rowRect = rowEl.getBoundingClientRect()
+    ghostOffsetRef.current = startClientY - rowRect.top
+    dragState.current = { fromIndex, currentIndex: fromIndex }
+    setDragFromIndex(fromIndex)
+    setGhostInitialY(startClientY - ghostOffsetRef.current)
+    setGhostClip(clipsRef.current[fromIndex])
+    setIsActiveDragging(true)
 
     function onMove(ev) {
-      const clientY = ev.touches ? ev.touches[0].clientY : ev.clientY
-      const clientX = ev.touches ? ev.touches[0].clientX : ev.clientX
-      const dy = clientY - startY
-      const dx = clientX - startX
-
-      if (!dragStarted) {
-        if (alreadyLifted) {
-          // Clip is already in hand — any vertical movement drags it
-          if (Math.abs(dy) < 2) return
-        } else {
-          // Cold drag — require deliberate vertical intent
-          if (Math.abs(dy) < 8 || Math.abs(dx) > Math.abs(dy) * 1.2) return
-        }
-
-        dragStarted = true
-        setIsActiveDragging(true)
-
-        if (alreadyLifted) {
-          // Use the clip's actual current position (may have shifted from a previous drag)
-          const liftedIdx = clipsRef.current.findIndex(c => c.id === ghostClip.id)
-          dragState.current = { fromIndex: liftedIdx, currentIndex: liftedIdx, startY }
-          setDragFromIndex(liftedIdx)
-          // Ghost is already rendered — just start moving it
-        } else {
-          dragState.current = { fromIndex, currentIndex: fromIndex, startY }
-          setDragFromIndex(fromIndex)
-          setGhostInitialY(clientY - ghostOffsetRef.current)
-          setGhostClip(clipsRef.current[fromIndex])
-        }
-      }
-
       ev.preventDefault()
-
+      const y = ev.touches[0].clientY
       if (ghostRef.current) {
-        ghostRef.current.style.top = (clientY - ghostOffsetRef.current) + 'px'
+        ghostRef.current.style.top = (y - ghostOffsetRef.current) + 'px'
       }
-
+      const dy = y - startClientY
       const delta = Math.round(dy / ROW_H)
       const from = dragState.current.fromIndex
       const to = Math.max(0, Math.min(clipsRef.current.length - 1, from + delta))
@@ -331,10 +322,6 @@ export default function WorkspaceScreen() {
     async function onEnd() {
       document.removeEventListener('touchmove', onMove)
       document.removeEventListener('touchend', onEnd)
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onEnd)
-      // If no drag happened (just a tap on the already-lifted clip), leave the ghost up
-      if (!dragStarted) return
       dragState.current = null
       setDragFromIndex(null)
       setGhostClip(null)
@@ -347,6 +334,56 @@ export default function WorkspaceScreen() {
 
     document.addEventListener('touchmove', onMove, { passive: false })
     document.addEventListener('touchend', onEnd)
+  }
+
+  // ── Mouse drag to reorder (desktop) — mousedown on drag handle ─────────
+  function startDragFromMouse(fromIndex, e) {
+    e.preventDefault()
+    e.stopPropagation() // prevent onClick on parent button
+    const rowEl = e.currentTarget.closest('[data-clip-row]')
+    const rowRect = rowEl.getBoundingClientRect()
+    ghostOffsetRef.current = e.clientY - rowRect.top
+    const startClientY = e.clientY
+    dragState.current = { fromIndex, currentIndex: fromIndex }
+    setDragFromIndex(fromIndex)
+    setGhostInitialY(startClientY - ghostOffsetRef.current)
+    setGhostClip(clipsRef.current[fromIndex])
+    setIsActiveDragging(true)
+
+    function onMove(ev) {
+      const y = ev.clientY
+      if (ghostRef.current) {
+        ghostRef.current.style.top = (y - ghostOffsetRef.current) + 'px'
+      }
+      const dy = y - startClientY
+      const delta = Math.round(dy / ROW_H)
+      const from = dragState.current.fromIndex
+      const to = Math.max(0, Math.min(clipsRef.current.length - 1, from + delta))
+      if (dragState.current && to !== dragState.current.currentIndex) {
+        const spliceFrom = dragState.current.currentIndex
+        dragState.current.currentIndex = to
+        setClips(prev => {
+          const next = [...prev]
+          const [item] = next.splice(spliceFrom, 1)
+          next.splice(to, 0, item)
+          return next
+        })
+      }
+    }
+
+    async function onEnd() {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onEnd)
+      dragState.current = null
+      setDragFromIndex(null)
+      setGhostClip(null)
+      setIsActiveDragging(false)
+      const current = clipsRef.current
+      for (let i = 0; i < current.length; i++) {
+        await supabase.from('clips').update({ order: i }).eq('id', current[i].id)
+      }
+    }
+
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onEnd)
   }
@@ -410,11 +447,10 @@ export default function WorkspaceScreen() {
         ref={previewRef}
         className="mx-4 rounded-2xl overflow-hidden relative bg-deep"
         style={{
-          flexGrow: isCaption && !isReordering ? 1 : 0,
+          flexGrow: isCaption ? 1 : 0,
           flexShrink: isCaption ? 1 : 0,
           minHeight: isCaption ? 0 : undefined,
-          height: isReordering ? 0 : isCaption ? undefined : 220,
-          opacity: isReordering ? 0 : 1,
+          height: isCaption ? undefined : 220,
           transition: 'height 0.3s ease',
         }}
       >
@@ -449,7 +485,7 @@ export default function WorkspaceScreen() {
           </div>
         )}
 
-        {activeTool !== 'caption' && (
+        {!isCaption && (
           <button
             onClick={togglePlay}
             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center active:opacity-70"
@@ -463,33 +499,33 @@ export default function WorkspaceScreen() {
         )}
 
         {/* Caption — draggable when caption tool is active */}
-        {(activeTool === 'caption' ? captionDraft : activeClip?.caption_text) && (
+        {(isCaption ? captionDraft : activeClip?.caption_text) && (
           <div
-            ref={activeTool === 'caption' ? captionRef : null}
+            ref={isCaption ? captionRef : null}
             className="absolute"
             style={{
-              left: `${activeTool === 'caption' ? captionPosDraft.x : (activeClip.caption_x ?? 50)}%`,
-              top: `${activeTool === 'caption' ? captionPosDraft.y : (activeClip.caption_y ?? 85)}%`,
+              left: `${isCaption ? captionPosDraft.x : (activeClip.caption_x ?? 50)}%`,
+              top: `${isCaption ? captionPosDraft.y : (activeClip.caption_y ?? 85)}%`,
               transform: 'translate(-50%, -50%)',
-              cursor: activeTool === 'caption' ? 'grab' : 'default',
-              touchAction: activeTool === 'caption' ? 'none' : 'auto',
+              cursor: isCaption ? 'grab' : 'default',
+              touchAction: isCaption ? 'none' : 'auto',
             }}
-            onTouchStart={activeTool === 'caption' ? startCaptionDrag : undefined}
-            onMouseDown={activeTool === 'caption' ? startCaptionDrag : undefined}
+            onTouchStart={isCaption ? startCaptionDrag : undefined}
+            onMouseDown={isCaption ? startCaptionDrag : undefined}
           >
-            {activeTool === 'caption' && (
+            {isCaption && (
               <div className="absolute -inset-3 rounded-xl border border-dashed pointer-events-none"
                 style={{ borderColor: 'rgba(242,162,74,0.5)' }} />
             )}
             <p
               className="font-display italic text-wheat text-center leading-snug select-none"
               style={{
-                fontSize: `${activeTool === 'caption' ? captionSizeDraft : (activeClip?.caption_size || 24)}px`,
+                fontSize: `${isCaption ? captionSizeDraft : (activeClip?.caption_size || 24)}px`,
                 textShadow: '0 2px 10px rgba(0,0,0,0.6)',
                 maxWidth: '80%',
               }}
             >
-              {activeTool === 'caption' ? captionDraft : activeClip?.caption_text}
+              {isCaption ? captionDraft : activeClip?.caption_text}
             </p>
           </div>
         )}
@@ -498,7 +534,7 @@ export default function WorkspaceScreen() {
       {/* ── Trim zone ── */}
       <div
         className="px-4 pt-3 pb-2.5 border-b border-walnut-light flex-shrink-0 overflow-hidden"
-        style={{ maxHeight: (isReordering || isCaption) ? 0 : 200, transition: 'max-height 0.3s ease', opacity: (isReordering || isCaption) ? 0 : 1 }}
+        style={{ maxHeight: isCaption ? 0 : 200, transition: 'max-height 0.3s ease', opacity: isCaption ? 0 : 1 }}
       >
         <div className="flex items-center justify-between mb-2">
           <span className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase">Trim</span>
@@ -562,160 +598,150 @@ export default function WorkspaceScreen() {
       </div>
 
       {/* ── Tool row ── */}
-      {!isCaption && <div className="flex items-center justify-around px-5 py-2 border-b border-walnut-light flex-shrink-0">
-        {[
-          { key: 'caption', Icon: Type, label: 'Caption', danger: false },
-          { key: 'reorder', Icon: AlignJustify, label: 'Reorder', danger: false },
-          { key: 'preview', Icon: Eye, label: 'Preview', danger: false },
-          { key: 'remove', Icon: Trash2, label: 'Remove', danger: true },
-        ].map(({ key, Icon, label, danger }) => {
-          const active = activeTool === key
-          return (
-            <button
-              key={key}
-              onClick={() => {
-                if (key === 'preview') navigate(`/scrapbook/${id}`)
-                else if (key === 'remove') setConfirmRemoveId(activeClipId)
-                else toggleTool(key)
-              }}
-              className="flex flex-col items-center gap-1.5 px-3 py-1.5 rounded-xl active:opacity-70"
-            >
-              <div
-                className="w-9 h-9 rounded-xl flex items-center justify-center border"
-                style={{
-                  background: active ? 'rgba(242,162,74,0.12)' : danger ? 'rgba(232,133,90,0.08)' : '#3D2410',
-                  borderColor: active ? 'rgba(242,162,74,0.3)' : danger ? 'rgba(232,133,90,0.2)' : '#4A2E18',
+      {!isCaption && (
+        <div className="flex items-center justify-around px-5 py-2 border-b border-walnut-light flex-shrink-0">
+          {[
+            { key: 'caption', Icon: Type, label: 'Caption', danger: false },
+            { key: 'preview', Icon: Eye, label: 'Preview', danger: false },
+            { key: 'remove', Icon: Trash2, label: 'Remove', danger: true },
+          ].map(({ key, Icon, label, danger }) => {
+            const active = activeTool === key
+            return (
+              <button
+                key={key}
+                onClick={() => {
+                  if (key === 'preview') navigate(`/scrapbook/${id}`)
+                  else if (key === 'remove') setConfirmRemoveId(activeClipId)
+                  else toggleTool(key)
                 }}
+                className="flex flex-col items-center gap-1.5 px-3 py-1.5 rounded-xl active:opacity-70"
               >
-                <Icon size={17} strokeWidth={1.75}
-                  style={{ color: active ? '#F2A24A' : danger ? '#E8855A' : '#7A3B1E' }} />
-              </div>
-              <span className="text-[9px] font-bold tracking-[0.1em] uppercase"
-                style={{ color: active ? '#F2A24A' : danger ? 'rgba(232,133,90,0.7)' : '#7A3B1E' }}>
-                {label}
-              </span>
-            </button>
-          )
-        })}
-      </div>}
-
-      {/* ── Reorder banner ── */}
-      {isReordering && (
-        <div className="flex items-center justify-between px-5 py-2.5 border-b flex-shrink-0"
-          style={{ background: 'rgba(242,162,74,0.07)', borderColor: 'rgba(242,162,74,0.18)' }}>
-          <div className="flex items-center gap-2 text-amber text-[11px] font-semibold">
-            <AlignJustify size={13} strokeWidth={2} className="text-amber" />
-            Drag clips to reorder
-          </div>
-          <button onClick={() => setActiveTool(null)} className="text-amber font-bold text-[13px] active:opacity-70">
-            Done
-          </button>
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center border"
+                  style={{
+                    background: active ? 'rgba(242,162,74,0.12)' : danger ? 'rgba(232,133,90,0.08)' : '#3D2410',
+                    borderColor: active ? 'rgba(242,162,74,0.3)' : danger ? 'rgba(232,133,90,0.2)' : '#4A2E18',
+                  }}
+                >
+                  <Icon size={17} strokeWidth={1.75}
+                    style={{ color: active ? '#F2A24A' : danger ? '#E8855A' : '#7A3B1E' }} />
+                </div>
+                <span className="text-[9px] font-bold tracking-[0.1em] uppercase"
+                  style={{ color: active ? '#F2A24A' : danger ? 'rgba(232,133,90,0.7)' : '#7A3B1E' }}>
+                  {label}
+                </span>
+              </button>
+            )
+          })}
         </div>
       )}
 
       {/* ── Clip list header ── */}
-      {!isCaption && <div className="flex items-center justify-between px-5 py-2.5 flex-shrink-0">
-        <span className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase">
-          {isReordering ? 'Reordering' : 'All clips'}
-        </span>
-        <span className="text-wheat/30 text-[10px] font-medium">
-          {isReordering ? `${clips.length} clips` : `${editedCount} of ${clips.length} edited`}
-        </span>
-      </div>}
+      {!isCaption && (
+        <div className="flex items-center justify-between px-5 py-2.5 flex-shrink-0">
+          <span className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase">All clips</span>
+          <span className="text-wheat/30 text-[10px] font-medium">
+            {editedCount > 0
+              ? `${editedCount} of ${clips.length} edited`
+              : `${clips.length} clips · hold to reorder`
+            }
+          </span>
+        </div>
+      )}
 
       {/* ── Clip list ── */}
-      {!isCaption && <div className="flex-1 overflow-y-auto px-4 pb-6 flex flex-col gap-1.5">
-        {clips.map((clip, i) => {
-          const active = clip.id === activeClipId
-          const edited = isEdited(clip)
-          const isDragging = isActiveDragging && ghostClip !== null && ghostClip.id === clip.id
+      {!isCaption && (
+        <div className="flex-1 overflow-y-auto px-4 pb-6 flex flex-col gap-1.5">
+          {clips.map((clip, i) => {
+            const active = clip.id === activeClipId
+            const edited = isEdited(clip)
+            const isDragging = isActiveDragging && ghostClip?.id === clip.id
 
-          // While dragging this item, render a dashed placeholder
-          if (isReordering && isDragging) {
+            // While this item is being dragged, show a dashed placeholder in its place
+            if (isDragging) {
+              return (
+                <div
+                  key={clip.id}
+                  className="rounded-xl border-2 border-dashed flex-shrink-0"
+                  style={{
+                    height: ROW_H,
+                    borderColor: 'rgba(242,162,74,0.3)',
+                    background: 'rgba(242,162,74,0.04)',
+                  }}
+                />
+              )
+            }
+
             return (
-              <div
+              <button
                 key={clip.id}
-                className="rounded-xl border-2 border-dashed flex-shrink-0"
-                style={{
-                  height: ROW_H,
-                  borderColor: 'rgba(242,162,74,0.3)',
-                  background: 'rgba(242,162,74,0.04)',
+                data-clip-row
+                type="button"
+                onClick={() => {
+                  // Guard: if touch action ended in a drag, don't also select
+                  if (!wasReorderDrag.current) setActiveClipId(clip.id)
                 }}
-              />
-            )
-          }
-
-          return (
-            <button
-              key={clip.id}
-              data-clip-row
-              onClick={(e) => {
-                setActiveClipId(clip.id)
-                if (isReordering) {
-                  // Lift the clip immediately so the next drag starts without a threshold
-                  const rowRect = e.currentTarget.getBoundingClientRect()
-                  ghostOffsetRef.current = ROW_H / 2
-                  setGhostInitialY(rowRect.top)
-                  setGhostClip(clip)
-                }
-              }}
-              onTouchStart={isReordering ? (e) => startReorderDrag(i, e) : undefined}
-              onMouseDown={isReordering ? (e) => startReorderDrag(i, e) : undefined}
-              className="w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 border text-left active:opacity-75 flex-shrink-0"
-              style={{
-                background: '#3D2410',
-                borderColor: active ? '#F2A24A' : '#4A2E18',
-                minHeight: ROW_H,
-              }}
-            >
-              {/* Drag handle — visual affordance only, whole row is the drag target */}
-              {isReordering && (
-                <div className="flex flex-col gap-[4px] px-3 py-3 opacity-50 flex-shrink-0 cursor-grab">
-                  {[0,1,2].map(n => (
+                onTouchStart={(e) => handleClipTouchStart(e, i)}
+                onTouchMove={handleClipTouchMove}
+                onTouchEnd={handleClipTouchEnd}
+                className="w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 border text-left flex-shrink-0 active:opacity-80"
+                style={{
+                  background: '#3D2410',
+                  borderColor: active ? '#F2A24A' : '#4A2E18',
+                  minHeight: ROW_H,
+                }}
+              >
+                {/* Drag handle — always visible, subtle. Mouse drag target. */}
+                <div
+                  className="flex flex-col gap-[4px] px-1 py-3 flex-shrink-0 cursor-grab"
+                  style={{ opacity: isActiveDragging ? 0.55 : 0.22 }}
+                  onMouseDown={(e) => startDragFromMouse(i, e)}
+                >
+                  {[0, 1, 2].map(n => (
                     <span key={n} className="block w-4 h-0.5 bg-wheat rounded" />
                   ))}
                 </div>
-              )}
 
-              <span className="text-[10px] font-bold w-3.5 text-center flex-shrink-0"
-                style={{ color: active ? '#F2A24A' : '#5A3A20' }}>
-                {i + 1}
-              </span>
+                <span className="text-[10px] font-bold w-3.5 text-center flex-shrink-0"
+                  style={{ color: active ? '#F2A24A' : '#5A3A20' }}>
+                  {i + 1}
+                </span>
 
-              <div className="w-12 h-9 rounded-md flex-shrink-0 overflow-hidden"
-                style={{ background: STRIP_COLORS[i % STRIP_COLORS.length] }} />
+                <div className="w-12 h-9 rounded-md flex-shrink-0 overflow-hidden"
+                  style={{ background: STRIP_COLORS[i % STRIP_COLORS.length] }} />
 
-              <div className="flex-1 min-w-0">
-                <p className="text-wheat/75 text-[12px] font-semibold truncate mb-1">
-                  {fmtClipDate(clip.recorded_at) || fmt(clip.duration)}
-                </p>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {(!clip.trim_in || clip.trim_in === 0) && (!clip.trim_out || clip.trim_out >= (clip.duration || Infinity))
-                    ? <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-walnut-light text-wheat/55">{fmt(clip.duration)}</span>
-                    : <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full border text-amber" style={{ background: 'rgba(242,162,74,0.1)', borderColor: 'rgba(242,162,74,0.22)' }}>trimmed</span>
-                  }
-                  {clip.caption_text && (
-                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full border text-sienna" style={{ background: 'rgba(232,133,90,0.1)', borderColor: 'rgba(232,133,90,0.2)' }}>caption</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-wheat/75 text-[12px] font-semibold truncate mb-1">
+                    {fmtClipDate(clip.recorded_at) || fmt(clip.duration)}
+                  </p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {(!clip.trim_in || clip.trim_in === 0) && (!clip.trim_out || clip.trim_out >= (clip.duration || Infinity))
+                      ? <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-walnut-light text-wheat/55">{fmt(clip.duration)}</span>
+                      : <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full border text-amber" style={{ background: 'rgba(242,162,74,0.1)', borderColor: 'rgba(242,162,74,0.22)' }}>trimmed</span>
+                    }
+                    {clip.caption_text && (
+                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full border text-sienna" style={{ background: 'rgba(232,133,90,0.1)', borderColor: 'rgba(232,133,90,0.2)' }}>caption</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex-shrink-0">
+                  {edited ? (
+                    <div className="w-[15px] h-[15px] rounded-full flex items-center justify-center" style={{ background: 'rgba(242,162,74,0.15)' }}>
+                      <Check size={9} strokeWidth={2.5} className="text-amber" />
+                    </div>
+                  ) : (
+                    <div className="w-[15px] h-[15px] rounded-full border"
+                      style={{ borderColor: active ? '#F2A24A' : 'rgba(74,46,24,0.8)' }} />
                   )}
                 </div>
-              </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
 
-              <div className="flex-shrink-0">
-                {edited ? (
-                  <div className="w-[15px] h-[15px] rounded-full flex items-center justify-center" style={{ background: 'rgba(242,162,74,0.15)' }}>
-                    <Check size={9} strokeWidth={2.5} className="text-amber" />
-                  </div>
-                ) : (
-                  <div className="w-[15px] h-[15px] rounded-full border"
-                    style={{ borderColor: active ? '#F2A24A' : 'rgba(74,46,24,0.8)' }} />
-                )}
-              </div>
-            </button>
-          )
-        })}
-      </div>}
-
-      {/* ── Ghost drag card — floats with finger ── */}
+      {/* ── Ghost drag card — floats with finger during active drag ── */}
       {ghostClip && (
         <div
           ref={ghostRef}
@@ -729,8 +755,8 @@ export default function WorkspaceScreen() {
             opacity: 0.97,
           }}
         >
-          <div className="flex flex-col gap-[4px] px-3 py-3 opacity-50 flex-shrink-0">
-            {[0,1,2].map(n => (
+          <div className="flex flex-col gap-[4px] px-1 py-3 opacity-60 flex-shrink-0">
+            {[0, 1, 2].map(n => (
               <span key={n} className="block w-4 h-0.5 bg-wheat rounded" />
             ))}
           </div>

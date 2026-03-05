@@ -715,7 +715,6 @@ export default function WorkspaceScreen() {
                 <div className="w-1 h-1 bg-walnut rounded-full" />
               </div>
             </div>
-            </div>
           </div>
         </div>
 

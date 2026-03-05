@@ -485,7 +485,7 @@ export default function WorkspaceScreen() {
     <div className="flex flex-col bg-walnut overflow-hidden select-none" style={{ height: '100dvh' }}>
 
       {/* ── Nav ── */}
-      <header className="flex items-center justify-between px-5 pt-10 pb-2 flex-shrink-0">
+      <header className="flex items-center justify-between px-5 pt-12 pb-2 flex-shrink-0">
         <button
           onClick={() => navigate('/')}
           className="flex items-center gap-1.5 text-wheat/45 font-sans text-[15px] font-semibold active:opacity-60"
@@ -619,18 +619,17 @@ export default function WorkspaceScreen() {
           </div>
         </div>
 
-        {/* 🔧 FIX: Added px-6 wrapper to create grabbable space for handles */}
+        {/* Filmstrip wrapper with padding for edge safety */}
         <div className="px-6">
-          {/* Container with extra vertical padding to prevent handle clipping */}
-          {/* Tap anywhere on filmstrip to activate handles */}
+          {/* Tap-to-activate container */}
           <div 
-            className="relative py-5 mb-1 cursor-pointer"
+            className="relative mb-1 cursor-pointer"
             onClick={() => {
               setTrimHandlesActive(true)
               setTimeout(() => setTrimHandlesActive(false), 3000)
             }}
           >
-            {/* Filmstrip visual - BIGGER for easier interaction (h-14 instead of h-10) */}
+            {/* Filmstrip visual - h-14 with handles INSIDE */}
             <div ref={filmstripRef} className="relative h-14 rounded-lg overflow-hidden">
               <div className="absolute inset-0 flex gap-px">
                 {STRIP_COLORS.map((c, i) => (
@@ -647,72 +646,66 @@ export default function WorkspaceScreen() {
                 style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%` }} />
               <div className="absolute top-0 bottom-0 w-px bg-white/75 pointer-events-none"
                 style={{ left: `${playheadPct}%` }} />
-            </div>
 
-            {/* Handles positioned at filmstrip edges - cozy pillows */}
-            {/* Trim IN handle - left edge */}
-            <div
-              className="absolute top-1/2 -translate-y-1/2 cursor-ew-resize touch-none z-10 transition-all"
-              style={{ 
-                left: `${trimInPct}%`,
-                width: '48px',
-                height: '56px', // Same as filmstrip
-                marginLeft: '-24px',
-                transform: trimHandlesActive ? 'translateY(-50%) scale(1.08)' : 'translateY(-50%)',
-              }}
-              onTouchStart={(e) => startTrimDrag('in', e)}
-              onMouseDown={(e) => startTrimDrag('in', e)}
-            >
-              {/* Cozy pillow shape - rounded rect */}
-              <div 
-                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full transition-all" 
+              {/* Handles INSIDE the filmstrip - contained within h-14 */}
+              {/* Trim IN handle */}
+              <div
+                className="absolute top-0 bottom-0 cursor-ew-resize touch-none z-10 transition-all"
                 style={{ 
-                  width: '6px',
-                  height: '56px', // Matches filmstrip exactly
-                  background: '#F2A24A',
-                  boxShadow: trimHandlesActive 
-                    ? '0 0 12px rgba(242,162,74,0.8)' 
-                    : '0 0 6px rgba(242,162,74,0.5)' 
-                }} 
-              />
-              {/* Subtle grip dots */}
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-2">
-                <div className="w-1 h-1 bg-walnut rounded-full" />
-                <div className="w-1 h-1 bg-walnut rounded-full" />
-                <div className="w-1 h-1 bg-walnut rounded-full" />
+                  left: `${trimInPct}%`,
+                  width: '48px',
+                  marginLeft: '-24px',
+                  transform: trimHandlesActive ? 'scale(1.08)' : 'scale(1)',
+                }}
+                onTouchStart={(e) => startTrimDrag('in', e)}
+                onMouseDown={(e) => startTrimDrag('in', e)}
+              >
+                {/* Cozy pillow - full height of filmstrip */}
+                <div 
+                  className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 rounded-full transition-all w-[6px]" 
+                  style={{ 
+                    background: '#F2A24A',
+                    boxShadow: trimHandlesActive 
+                      ? '0 0 12px rgba(242,162,74,0.8)' 
+                      : '0 0 6px rgba(242,162,74,0.5)' 
+                  }} 
+                />
+                {/* Grip dots */}
+                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-2">
+                  <div className="w-1 h-1 bg-walnut rounded-full" />
+                  <div className="w-1 h-1 bg-walnut rounded-full" />
+                  <div className="w-1 h-1 bg-walnut rounded-full" />
+                </div>
               </div>
-            </div>
 
-            {/* Trim OUT handle - right edge */}
-            <div
-              className="absolute top-1/2 -translate-y-1/2 cursor-ew-resize touch-none z-10 transition-all"
-              style={{ 
-                left: `${trimOutPct}%`,
-                width: '48px',
-                height: '56px',
-                marginLeft: '-24px',
-                transform: trimHandlesActive ? 'translateY(-50%) scale(1.08)' : 'translateY(-50%)',
-              }}
-              onTouchStart={(e) => startTrimDrag('out', e)}
-              onMouseDown={(e) => startTrimDrag('out', e)}
-            >
-              {/* Cozy pillow shape - rounded rect */}
-              <div 
-                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full transition-all"
+              {/* Trim OUT handle */}
+              <div
+                className="absolute top-0 bottom-0 cursor-ew-resize touch-none z-10 transition-all"
                 style={{ 
-                  width: '6px',
-                  height: '56px',
-                  background: '#F2A24A',
-                  boxShadow: trimHandlesActive 
-                    ? '0 0 12px rgba(242,162,74,0.8)' 
-                    : '0 0 6px rgba(242,162,74,0.5)' 
-                }} 
-              />
-              {/* Subtle grip dots */}
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-2">
-                <div className="w-1 h-1 bg-walnut rounded-full" />
-                <div className="w-1 h-1 bg-walnut rounded-full" />
-                <div className="w-1 h-1 bg-walnut rounded-full" />
+                  left: `${trimOutPct}%`,
+                  width: '48px',
+                  marginLeft: '-24px',
+                  transform: trimHandlesActive ? 'scale(1.08)' : 'scale(1)',
+                }}
+                onTouchStart={(e) => startTrimDrag('out', e)}
+                onMouseDown={(e) => startTrimDrag('out', e)}
+              >
+                {/* Cozy pillow - full height of filmstrip */}
+                <div 
+                  className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 rounded-full transition-all w-[6px]"
+                  style={{ 
+                    background: '#F2A24A',
+                    boxShadow: trimHandlesActive 
+                      ? '0 0 12px rgba(242,162,74,0.8)' 
+                      : '0 0 6px rgba(242,162,74,0.5)' 
+                  }} 
+                />
+                {/* Grip dots */}
+                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-2">
+                  <div className="w-1 h-1 bg-walnut rounded-full" />
+                  <div className="w-1 h-1 bg-walnut rounded-full" />
+                  <div className="w-1 h-1 bg-walnut rounded-full" />
+                </div>
               </div>
             </div>
           </div>
@@ -868,6 +861,9 @@ export default function WorkspaceScreen() {
                     }
                     {clip.caption_text && (
                       <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full border text-sienna" style={{ background: 'rgba(232,133,90,0.1)', borderColor: 'rgba(232,133,90,0.2)' }}>caption</span>
+                    )}
+                    {clip.muted && (
+                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full border text-rust" style={{ background: 'rgba(122,59,30,0.1)', borderColor: 'rgba(122,59,30,0.25)' }}>muted</span>
                     )}
                   </div>
                 </div>

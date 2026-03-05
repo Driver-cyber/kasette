@@ -225,7 +225,7 @@ export default function PlaybackScreen() {
             ? 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
             : 'none',
           willChange: 'transform',
-          width: nextClip ? '200%' : '100%', // Double width when there's a next clip
+          width: nextClip ? '200%' : '100%',
         }}
         onTransitionEnd={() => setDragTransitioning(false)}
       >
@@ -242,64 +242,64 @@ export default function PlaybackScreen() {
             preload="metadata"
           />
 
-        {/* Top vignette */}
-        <div
-          className="absolute inset-x-0 top-0 h-44 pointer-events-none"
-          style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%)' }}
-        />
-
-        {/* Bottom vignette */}
-        <div
-          className="absolute inset-x-0 bottom-0 h-56 pointer-events-none"
-          style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)' }}
-        />
-
-        {/* Caption overlay */}
-        {currentClip?.caption_text && (
+          {/* Top vignette */}
           <div
-            className="absolute pointer-events-none"
-            style={{
-              left: `${currentClip.caption_x ?? 50}%`,
-              top: `${currentClip.caption_y ?? 85}%`,
-              transform: 'translate(-50%, -50%)',
-              maxWidth: '80vw',
-            }}
-          >
-            <p
-              className="font-display italic text-wheat text-center leading-snug"
+            className="absolute inset-x-0 top-0 h-44 pointer-events-none"
+            style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%)' }}
+          />
+
+          {/* Bottom vignette */}
+          <div
+            className="absolute inset-x-0 bottom-0 h-56 pointer-events-none"
+            style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)' }}
+          />
+
+          {/* Caption overlay */}
+          {currentClip?.caption_text && (
+            <div
+              className="absolute pointer-events-none"
               style={{
-                fontSize: `${currentClip.caption_size || 24}px`,
-                textShadow: '0 2px 12px rgba(0,0,0,0.6), 0 0 40px rgba(0,0,0,0.4)',
+                left: `${currentClip.caption_x ?? 50}%`,
+                top: `${currentClip.caption_y ?? 85}%`,
+                transform: 'translate(-50%, -50%)',
+                maxWidth: '80vw',
               }}
             >
-              {currentClip.caption_text}
-            </p>
-          </div>
-        )}
+              <p
+                className="font-display italic text-wheat text-center leading-snug"
+                style={{
+                  fontSize: `${currentClip.caption_size || 24}px`,
+                  textShadow: '0 2px 12px rgba(0,0,0,0.6), 0 0 40px rgba(0,0,0,0.4)',
+                }}
+              >
+                {currentClip.caption_text}
+              </p>
+            </div>
+          )}
 
-        {/* Pause overlay */}
-        {showPauseOverlay && (
-          <div className="absolute inset-0 bg-black/35 flex items-center justify-center pointer-events-none">
+          {/* Pause overlay */}
+          {showPauseOverlay && (
+            <div className="absolute inset-0 bg-black/35 flex items-center justify-center pointer-events-none">
+              <div
+                className="w-[72px] h-[72px] rounded-full flex items-center justify-center"
+                style={{ background: 'rgba(242,162,74,0.9)', boxShadow: '0 0 40px rgba(242,162,74,0.3)' }}
+              >
+                <Play size={28} fill="#2C1A0E" strokeWidth={0} className="ml-1" />
+              </div>
+            </div>
+          )}
+
+          {/* Swipe hint — shows when dragging left */}
+          {dragOffset > 12 && (
             <div
-              className="w-[72px] h-[72px] rounded-full flex items-center justify-center"
-              style={{ background: 'rgba(242,162,74,0.9)', boxShadow: '0 0 40px rgba(242,162,74,0.3)' }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none"
+              style={{ opacity: Math.min(dragOffset / 80, 0.6) }}
             >
-              <Play size={28} fill="#2C1A0E" strokeWidth={0} className="ml-1" />
+              <div className="text-wheat/60 text-xs font-semibold tracking-widest uppercase">
+                → Next
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* Swipe hint — shows when dragging left */}
-        {dragOffset > 12 && (
-          <div
-            className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none"
-            style={{ opacity: Math.min(dragOffset / 80, 0.6) }}
-          >
-            <div className="text-wheat/60 text-xs font-semibold tracking-widest uppercase">
-              → Next
-            </div>
-          </div>
-        )}
+          )}
         </div>
 
         {/* Next video - attached to the right */}
@@ -351,9 +351,9 @@ export default function PlaybackScreen() {
         )}
       </div>
 
-      {/* ── Static chrome — stays in place ── */
+      {/* ── Static chrome — stays in place ── */}
 
-      {/* Top controls - compressed spacing, bigger buttons */}
+      {/* Top controls */}
       <div className="absolute top-10 left-0 right-0 flex items-center justify-between px-5 z-20">
         <button
           onClick={(e) => { e.stopPropagation(); navigate('/') }}

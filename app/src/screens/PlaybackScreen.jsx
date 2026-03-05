@@ -164,7 +164,13 @@ export default function PlaybackScreen() {
     // Ignore mostly-vertical gestures
     if (dy > Math.abs(dx) * 0.8 && Math.abs(dx) < 24) return
 
-    // Swipe right on first clip = exit to library (let iOS handle it naturally)
+    // CRITICAL FIX: Block iOS swipe-back when swiping right on non-first clips
+    // Only allow native swipe-back on first clip
+    if (dx < 0 && currentIndex > 0) {
+      e.preventDefault() // Block iOS gesture
+    }
+
+    // Swipe right on first clip = let iOS handle it naturally (exit to library)
     if (dx < 0 && currentIndex === 0) {
       dragActiveRef.current = false
       return
@@ -471,8 +477,8 @@ export default function PlaybackScreen() {
         </button>
       </div>
 
-      {/* Segmented progress bar - below the 40px tall buttons */}
-      <div className="absolute top-[56px] left-5 right-5 flex gap-1 z-20">
+      {/* Segmented progress bar - clearly below buttons with gap */}
+      <div className="absolute top-[92px] left-5 right-5 flex gap-1 z-20">
         {clips.map((clip, i) => (
           <div
             key={clip.id}

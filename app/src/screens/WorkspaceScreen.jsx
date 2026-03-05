@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Play, Pause, Type, Eye, Trash2, Check, GripVertical } from 'lucide-react'
+import { ArrowLeft, Play, Pause, Type, Eye, Trash2, Check, GripVertical, Volume2, VolumeX } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -29,7 +29,7 @@ const STRIP_COLORS = [
   '#562810','#3C1C0E','#4A2010','#401A08','#502210',
 ]
 
-const ROW_H = 52
+const ROW_H = 44 // Compact row height for clip list
 const LONG_PRESS_MS = 400
 
 // ── Main component ─────────────────────────────────────────────────────────
@@ -99,6 +99,7 @@ export default function WorkspaceScreen() {
     if (!video || !activeClip) return
     video.src = activeClip.video_url
     video.currentTime = activeClip.trim_in || 0
+    video.muted = activeClip.muted || false // Apply muted state
     video.load()
     setIsPlaying(false)
     setPlayheadPct((activeClip.trim_in || 0) / (activeClip.duration || 1) * 100)
@@ -253,6 +254,19 @@ export default function WorkspaceScreen() {
     document.addEventListener('touchend', onEnd)
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onEnd)
+  }
+
+  // ── Mute toggle ────────────────────────────────────────────────────────
+  async function toggleMute() {
+    if (!activeClip) return
+    const newMuted = !activeClip.muted
+    await saveClipChanges(activeClip.id, { muted: newMuted })
+    
+    // Update video element
+    const video = videoRef.current
+    if (video) {
+      video.muted = newMuted
+    }
   }
 
   // ── Caption save ───────────────────────────────────────────────────────
@@ -471,27 +485,27 @@ export default function WorkspaceScreen() {
     <div className="flex flex-col bg-walnut overflow-hidden select-none" style={{ height: '100dvh' }}>
 
       {/* ── Nav ── */}
-      <header className="flex items-center justify-between px-5 pt-8 pb-1.5 flex-shrink-0">
+      <header className="flex items-center justify-between px-5 pt-10 pb-2 flex-shrink-0">
         <button
           onClick={() => navigate('/')}
-          className="flex items-center gap-1.5 text-wheat/45 font-sans text-[13px] font-medium active:opacity-60"
+          className="flex items-center gap-1.5 text-wheat/45 font-sans text-[15px] font-semibold active:opacity-60"
         >
-          <ArrowLeft size={14} strokeWidth={1.75} />
+          <ArrowLeft size={18} strokeWidth={2} />
           Library
         </button>
-        <h1 className="font-display font-semibold text-base text-wheat truncate mx-3 max-w-[160px]">
+        <h1 className="font-display font-semibold text-[18px] text-wheat truncate mx-3 max-w-[160px]">
           {scrapbook?.name}
         </h1>
         <button
           onClick={() => navigate(`/scrapbook/${id}`)}
-          className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-xs rounded-full px-4 py-1.5 active:opacity-80"
+          className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-[13px] rounded-full px-5 py-2 active:opacity-80"
         >
-          <Play size={9} fill="#2C1A0E" strokeWidth={0} />
+          <Play size={11} fill="#2C1A0E" strokeWidth={0} />
           Watch
         </button>
       </header>
 
-      {/* ── Preview zone ── */}
+      {/* ── Preview zone - LARGER for better viewing ── */}
       {!reorderMode && (
         <div
           ref={previewRef}
@@ -500,7 +514,7 @@ export default function WorkspaceScreen() {
             flexGrow: isCaption ? 1 : 0,
             flexShrink: isCaption ? 1 : 0,
             minHeight: isCaption ? 0 : undefined,
-            height: isCaption ? undefined : 220,
+            height: isCaption ? undefined : 280, // Increased from 220
             transition: 'height 0.3s ease',
           }}
         >
@@ -635,65 +649,72 @@ export default function WorkspaceScreen() {
                 style={{ left: `${playheadPct}%` }} />
             </div>
 
-            {/* Handles are OUTSIDE overflow-hidden so they never get clipped */}
-            {/* Trim IN handle - aligned with filmstrip edges */}
+            {/* Handles positioned at filmstrip edges - cozy pillows */}
+            {/* Trim IN handle - left edge */}
             <div
               className="absolute top-1/2 -translate-y-1/2 cursor-ew-resize touch-none z-10 transition-all"
               style={{ 
                 left: `${trimInPct}%`,
-                width: '44px',
-                height: '56px', // Matches filmstrip h-14
-                marginLeft: '-22px',
-                transform: trimHandlesActive ? 'translateY(-50%) scale(1.1)' : 'translateY(-50%)',
+                width: '48px',
+                height: '56px', // Same as filmstrip
+                marginLeft: '-24px',
+                transform: trimHandlesActive ? 'translateY(-50%) scale(1.08)' : 'translateY(-50%)',
               }}
               onTouchStart={(e) => startTrimDrag('in', e)}
               onMouseDown={(e) => startTrimDrag('in', e)}
             >
-              {/* Visual bar - matches filmstrip height exactly */}
+              {/* Cozy pillow shape - rounded rect */}
               <div 
-                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1 rounded-sm transition-all" 
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full transition-all" 
                 style={{ 
-                  height: '56px', // Exact filmstrip height
+                  width: '6px',
+                  height: '56px', // Matches filmstrip exactly
                   background: '#F2A24A',
                   boxShadow: trimHandlesActive 
-                    ? '0 0 12px rgba(242,162,74,0.8), 0 0 3px rgba(242,162,74,1)' 
-                    : '0 0 8px rgba(242,162,74,0.4)' 
+                    ? '0 0 12px rgba(242,162,74,0.8)' 
+                    : '0 0 6px rgba(242,162,74,0.5)' 
                 }} 
               />
-              {/* Grip indicator - small pill shape */}
-              <div 
-                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-6 bg-deep/40 rounded-full"
-              />
+              {/* Subtle grip dots */}
+              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-2">
+                <div className="w-1 h-1 bg-walnut rounded-full" />
+                <div className="w-1 h-1 bg-walnut rounded-full" />
+                <div className="w-1 h-1 bg-walnut rounded-full" />
+              </div>
             </div>
 
-            {/* Trim OUT handle - aligned with filmstrip edges */}
+            {/* Trim OUT handle - right edge */}
             <div
               className="absolute top-1/2 -translate-y-1/2 cursor-ew-resize touch-none z-10 transition-all"
               style={{ 
                 left: `${trimOutPct}%`,
-                width: '44px',
-                height: '56px', // Matches filmstrip h-14
-                marginLeft: '-22px',
-                transform: trimHandlesActive ? 'translateY(-50%) scale(1.1)' : 'translateY(-50%)',
+                width: '48px',
+                height: '56px',
+                marginLeft: '-24px',
+                transform: trimHandlesActive ? 'translateY(-50%) scale(1.08)' : 'translateY(-50%)',
               }}
               onTouchStart={(e) => startTrimDrag('out', e)}
               onMouseDown={(e) => startTrimDrag('out', e)}
             >
-              {/* Visual bar - matches filmstrip height exactly */}
+              {/* Cozy pillow shape - rounded rect */}
               <div 
-                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1 rounded-sm transition-all"
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full transition-all"
                 style={{ 
-                  height: '56px', // Exact filmstrip height
+                  width: '6px',
+                  height: '56px',
                   background: '#F2A24A',
                   boxShadow: trimHandlesActive 
-                    ? '0 0 12px rgba(242,162,74,0.8), 0 0 3px rgba(242,162,74,1)' 
-                    : '0 0 8px rgba(242,162,74,0.4)' 
+                    ? '0 0 12px rgba(242,162,74,0.8)' 
+                    : '0 0 6px rgba(242,162,74,0.5)' 
                 }} 
               />
-              {/* Grip indicator - small pill shape */}
-              <div 
-                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-6 bg-deep/40 rounded-full"
-              />
+              {/* Subtle grip dots */}
+              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-2">
+                <div className="w-1 h-1 bg-walnut rounded-full" />
+                <div className="w-1 h-1 bg-walnut rounded-full" />
+                <div className="w-1 h-1 bg-walnut rounded-full" />
+              </div>
+            </div>
             </div>
           </div>
         </div>
@@ -710,14 +731,16 @@ export default function WorkspaceScreen() {
 
       {/* ── Tool row ── */}
       {!isCaption && !reorderMode && (
-        <div className="flex items-center justify-around px-5 py-2 border-b border-walnut-light flex-shrink-0">
+        <div className="flex items-center justify-around px-4 py-2 border-b border-walnut-light flex-shrink-0">
           {[
+            { key: 'mute', Icon: activeClip?.muted ? VolumeX : Volume2, label: activeClip?.muted ? 'Unmute' : 'Mute', danger: false },
             { key: 'caption', Icon: Type, label: 'Caption', danger: false },
             { key: 'preview', Icon: Eye, label: 'Preview', danger: false },
             { key: 'reorder', Icon: GripVertical, label: 'Reorder', danger: false },
             { key: 'remove', Icon: Trash2, label: 'Remove', danger: true },
           ].map(({ key, Icon, label, danger }) => {
             const active = activeTool === key || (key === 'reorder' && reorderMode)
+            const isMuted = key === 'mute' && activeClip?.muted
             return (
               <button
                 key={key}
@@ -725,22 +748,23 @@ export default function WorkspaceScreen() {
                   if (key === 'preview') navigate(`/scrapbook/${id}`)
                   else if (key === 'remove') setConfirmRemoveId(activeClipId)
                   else if (key === 'reorder') setReorderMode(!reorderMode)
+                  else if (key === 'mute') toggleMute()
                   else toggleTool(key)
                 }}
-                className="flex flex-col items-center gap-1.5 px-3 py-1.5 rounded-xl active:opacity-70"
+                className="flex flex-col items-center gap-1.5 px-2 py-1.5 rounded-xl active:opacity-70"
               >
                 <div
                   className="w-9 h-9 rounded-xl flex items-center justify-center border"
                   style={{
-                    background: active ? 'rgba(242,162,74,0.12)' : danger ? 'rgba(232,133,90,0.08)' : '#3D2410',
-                    borderColor: active ? 'rgba(242,162,74,0.3)' : danger ? 'rgba(232,133,90,0.2)' : '#4A2E18',
+                    background: (active || isMuted) ? 'rgba(242,162,74,0.12)' : danger ? 'rgba(232,133,90,0.08)' : '#3D2410',
+                    borderColor: (active || isMuted) ? 'rgba(242,162,74,0.3)' : danger ? 'rgba(232,133,90,0.2)' : '#4A2E18',
                   }}
                 >
                   <Icon size={17} strokeWidth={1.75}
-                    style={{ color: active ? '#F2A24A' : danger ? '#E8855A' : '#7A3B1E' }} />
+                    style={{ color: (active || isMuted) ? '#F2A24A' : danger ? '#E8855A' : '#7A3B1E' }} />
                 </div>
                 <span className="text-[9px] font-bold tracking-[0.1em] uppercase"
-                  style={{ color: active ? '#F2A24A' : danger ? 'rgba(232,133,90,0.7)' : '#7A3B1E' }}>
+                  style={{ color: (active || isMuted) ? '#F2A24A' : danger ? 'rgba(232,133,90,0.7)' : '#7A3B1E' }}>
                   {label}
                 </span>
               </button>

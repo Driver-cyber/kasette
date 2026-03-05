@@ -548,6 +548,18 @@ export default function HomeScreen() {
                 </div>
               </div>
 
+              {/* Logout button */}
+              <button
+                onClick={async () => {
+                  await supabase.auth.signOut()
+                  setShowVersion(false)
+                  navigate('/login')
+                }}
+                className="w-full bg-walnut-mid text-rust font-sans font-semibold text-[14px] rounded-xl py-3 active:opacity-80 mb-2 border border-walnut-light"
+              >
+                Log Out
+              </button>
+
               {/* Close button */}
               <button
                 onClick={() => setShowVersion(false)}

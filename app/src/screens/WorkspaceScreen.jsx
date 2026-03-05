@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Play, Pause, Type, Eye, Trash2, Check } from 'lucide-react'
+import { ArrowLeft, Play, Pause, Type, Eye, Trash2, Check, GripVertical } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -55,6 +55,7 @@ export default function WorkspaceScreen() {
   const [loading, setLoading] = useState(true)
   const [confirmRemoveId, setConfirmRemoveId] = useState(null)
   const [trimHandlesActive, setTrimHandlesActive] = useState(false) // Tap-to-activate trim handles
+  const [reorderMode, setReorderMode] = useState(false) // Full-screen reorder mode
 
   // Reorder drag state
   const dragState = useRef(null)
@@ -73,6 +74,7 @@ export default function WorkspaceScreen() {
   const longPressTimer = useRef(null)
   const longPressData = useRef(null) // { index, rowEl, startY, clientY }
   const wasReorderDrag = useRef(false) // blocks onClick from selecting after a drag
+  const isDraggingActive = useRef(false) // track if currently in drag mode
 
   // ── Fetch ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -281,6 +283,7 @@ export default function WorkspaceScreen() {
   function handleClipTouchStart(e, index) {
     const touch = e.touches[0]
     wasReorderDrag.current = false
+    isDraggingActive.current = false
     const rowEl = e.currentTarget
     longPressData.current = { index, rowEl, startY: touch.clientY, clientY: touch.clientY }
     longPressTimer.current = setTimeout(() => {
@@ -288,11 +291,18 @@ export default function WorkspaceScreen() {
       if (!data) return
       longPressTimer.current = null
       wasReorderDrag.current = true
+      isDraggingActive.current = true
       startDragFromTouch(data.index, data.rowEl, data.clientY)
     }, LONG_PRESS_MS)
   }
 
   function handleClipTouchMove(e) {
+    // If drag is active, pass event to drag handler
+    if (isDraggingActive.current) {
+      // The drag onMove handler is already attached, so just let it handle
+      return
+    }
+    
     // Cancel long press if finger moves before timer fires
     if (!longPressTimer.current || !longPressData.current) return
     const dy = Math.abs(e.touches[0].clientY - longPressData.current.startY)
@@ -301,6 +311,8 @@ export default function WorkspaceScreen() {
 
   function handleClipTouchEnd() {
     cancelLongPress()
+    // Reset drag state
+    isDraggingActive.current = false
   }
 
   function cancelLongPress() {
@@ -480,17 +492,18 @@ export default function WorkspaceScreen() {
       </header>
 
       {/* ── Preview zone ── */}
-      <div
-        ref={previewRef}
-        className="mx-4 rounded-2xl overflow-hidden relative bg-deep"
-        style={{
-          flexGrow: isCaption ? 1 : 0,
-          flexShrink: isCaption ? 1 : 0,
-          minHeight: isCaption ? 0 : undefined,
-          height: isCaption ? undefined : 220,
-          transition: 'height 0.3s ease',
-        }}
-      >
+      {!reorderMode && (
+        <div
+          ref={previewRef}
+          className="mx-4 rounded-2xl overflow-hidden relative bg-deep"
+          style={{
+            flexGrow: isCaption ? 1 : 0,
+            flexShrink: isCaption ? 1 : 0,
+            minHeight: isCaption ? 0 : undefined,
+            height: isCaption ? undefined : 220,
+            transition: 'height 0.3s ease',
+          }}
+        >
         <video
           ref={videoRef}
           className="absolute inset-0 w-full h-full object-cover"
@@ -567,12 +580,14 @@ export default function WorkspaceScreen() {
           </div>
         )}
       </div>
+      )}
 
       {/* ── Trim zone ── */}
-      <div
-        className="px-4 pt-3 pb-2.5 border-b border-walnut-light flex-shrink-0 overflow-hidden"
-        style={{ maxHeight: isCaption ? 0 : 200, transition: 'max-height 0.3s ease', opacity: isCaption ? 0 : 1 }}
-      >
+      {!reorderMode && (
+        <div
+          className="px-4 pt-3 pb-2.5 border-b border-walnut-light flex-shrink-0 overflow-hidden"
+          style={{ maxHeight: isCaption ? 0 : 200, transition: 'max-height 0.3s ease', opacity: isCaption ? 0 : 1 }}
+        >
         <div className="flex items-center justify-between mb-2">
           <span className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase">Trim</span>
           <div className="flex items-center gap-2">
@@ -621,64 +636,64 @@ export default function WorkspaceScreen() {
             </div>
 
             {/* Handles are OUTSIDE overflow-hidden so they never get clipped */}
-            {/* Trim IN handle - pulses when active */}
+            {/* Trim IN handle - aligned with filmstrip edges */}
             <div
-              className="absolute top-1/2 -translate-y-1/2 cursor-ew-resize touch-none z-10 transition-transform"
+              className="absolute top-1/2 -translate-y-1/2 cursor-ew-resize touch-none z-10 transition-all"
               style={{ 
                 left: `${trimInPct}%`,
                 width: '44px',
-                height: '56px',
+                height: '56px', // Matches filmstrip h-14
                 marginLeft: '-22px',
-                transform: trimHandlesActive ? 'translateY(-50%) scale(1.15)' : 'translateY(-50%)',
+                transform: trimHandlesActive ? 'translateY(-50%) scale(1.1)' : 'translateY(-50%)',
               }}
               onTouchStart={(e) => startTrimDrag('in', e)}
               onMouseDown={(e) => startTrimDrag('in', e)}
             >
-              {/* Visual indicator - glows when active */}
+              {/* Visual bar - matches filmstrip height exactly */}
               <div 
-                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-10 bg-amber rounded-full transition-all" 
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1 rounded-sm transition-all" 
                 style={{ 
+                  height: '56px', // Exact filmstrip height
+                  background: '#F2A24A',
                   boxShadow: trimHandlesActive 
-                    ? '0 0 16px rgba(242,162,74,0.8), 0 0 4px rgba(242,162,74,1)' 
-                    : '0 0 10px rgba(242,162,74,0.5)' 
+                    ? '0 0 12px rgba(242,162,74,0.8), 0 0 3px rgba(242,162,74,1)' 
+                    : '0 0 8px rgba(242,162,74,0.4)' 
                 }} 
               />
-              {/* Grip dots */}
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1.5">
-                <div className="w-0.5 h-0.5 bg-deep rounded-full" />
-                <div className="w-0.5 h-0.5 bg-deep rounded-full" />
-                <div className="w-0.5 h-0.5 bg-deep rounded-full" />
-              </div>
+              {/* Grip indicator - small pill shape */}
+              <div 
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-6 bg-deep/40 rounded-full"
+              />
             </div>
 
-            {/* Trim OUT handle - pulses when active */}
+            {/* Trim OUT handle - aligned with filmstrip edges */}
             <div
-              className="absolute top-1/2 -translate-y-1/2 cursor-ew-resize touch-none z-10 transition-transform"
+              className="absolute top-1/2 -translate-y-1/2 cursor-ew-resize touch-none z-10 transition-all"
               style={{ 
                 left: `${trimOutPct}%`,
                 width: '44px',
-                height: '56px',
+                height: '56px', // Matches filmstrip h-14
                 marginLeft: '-22px',
-                transform: trimHandlesActive ? 'translateY(-50%) scale(1.15)' : 'translateY(-50%)',
+                transform: trimHandlesActive ? 'translateY(-50%) scale(1.1)' : 'translateY(-50%)',
               }}
               onTouchStart={(e) => startTrimDrag('out', e)}
               onMouseDown={(e) => startTrimDrag('out', e)}
             >
-              {/* Visual indicator - glows when active */}
+              {/* Visual bar - matches filmstrip height exactly */}
               <div 
-                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-10 bg-amber rounded-full transition-all"
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1 rounded-sm transition-all"
                 style={{ 
+                  height: '56px', // Exact filmstrip height
+                  background: '#F2A24A',
                   boxShadow: trimHandlesActive 
-                    ? '0 0 16px rgba(242,162,74,0.8), 0 0 4px rgba(242,162,74,1)' 
-                    : '0 0 10px rgba(242,162,74,0.5)' 
+                    ? '0 0 12px rgba(242,162,74,0.8), 0 0 3px rgba(242,162,74,1)' 
+                    : '0 0 8px rgba(242,162,74,0.4)' 
                 }} 
               />
-              {/* Grip dots */}
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1.5">
-                <div className="w-0.5 h-0.5 bg-deep rounded-full" />
-                <div className="w-0.5 h-0.5 bg-deep rounded-full" />
-                <div className="w-0.5 h-0.5 bg-deep rounded-full" />
-              </div>
+              {/* Grip indicator - small pill shape */}
+              <div 
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-6 bg-deep/40 rounded-full"
+              />
             </div>
           </div>
         </div>
@@ -691,22 +706,25 @@ export default function WorkspaceScreen() {
           <span>{fmt(duration)}</span>
         </div>
       </div>
+      )}
 
       {/* ── Tool row ── */}
-      {!isCaption && (
+      {!isCaption && !reorderMode && (
         <div className="flex items-center justify-around px-5 py-2 border-b border-walnut-light flex-shrink-0">
           {[
             { key: 'caption', Icon: Type, label: 'Caption', danger: false },
             { key: 'preview', Icon: Eye, label: 'Preview', danger: false },
+            { key: 'reorder', Icon: GripVertical, label: 'Reorder', danger: false },
             { key: 'remove', Icon: Trash2, label: 'Remove', danger: true },
           ].map(({ key, Icon, label, danger }) => {
-            const active = activeTool === key
+            const active = activeTool === key || (key === 'reorder' && reorderMode)
             return (
               <button
                 key={key}
                 onClick={() => {
                   if (key === 'preview') navigate(`/scrapbook/${id}`)
                   else if (key === 'remove') setConfirmRemoveId(activeClipId)
+                  else if (key === 'reorder') setReorderMode(!reorderMode)
                   else toggleTool(key)
                 }}
                 className="flex flex-col items-center gap-1.5 px-3 py-1.5 rounded-xl active:opacity-70"
@@ -734,13 +752,24 @@ export default function WorkspaceScreen() {
       {/* ── Clip list header ── */}
       {!isCaption && (
         <div className="flex items-center justify-between px-5 py-2.5 flex-shrink-0">
-          <span className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase">All clips</span>
-          <span className="text-wheat/30 text-[10px] font-medium">
-            {editedCount > 0
-              ? `${editedCount} of ${clips.length} edited`
-              : `${clips.length} clips · hold to reorder`
-            }
+          <span className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase">
+            {reorderMode ? 'Hold & drag to reorder' : 'All clips'}
           </span>
+          {reorderMode ? (
+            <button 
+              onClick={() => setReorderMode(false)}
+              className="text-amber font-bold text-sm active:opacity-70"
+            >
+              Done
+            </button>
+          ) : (
+            <span className="text-wheat/30 text-[10px] font-medium">
+              {editedCount > 0
+                ? `${editedCount} of ${clips.length} edited`
+                : `${clips.length} clips · hold to reorder`
+              }
+            </span>
+          )}
         </div>
       )}
 

@@ -299,8 +299,8 @@ export default function PlaybackScreen() {
         </button>
       </div>
 
-      {/* Segmented progress bar */}
-      <div className="absolute top-[72px] left-5 right-5 flex gap-1 z-20">
+      {/* Segmented progress bar - moved down to avoid button overlap */}
+      <div className="absolute top-[60px] left-5 right-5 flex gap-1 z-20">
         {clips.map((clip, i) => (
           <div
             key={clip.id}

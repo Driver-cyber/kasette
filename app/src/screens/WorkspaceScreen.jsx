@@ -54,6 +54,7 @@ export default function WorkspaceScreen() {
   const [captionPosDraft, setCaptionPosDraft] = useState({ x: 50, y: 85 })
   const [loading, setLoading] = useState(true)
   const [confirmRemoveId, setConfirmRemoveId] = useState(null)
+  const [trimHandlesActive, setTrimHandlesActive] = useState(false) // Tap-to-activate trim handles
 
   // Reorder drag state
   const dragState = useRef(null)
@@ -153,13 +154,32 @@ export default function WorkspaceScreen() {
     e.stopPropagation()
     const strip = filmstripRef.current
     if (!strip || !activeClip) return
+    
+    // Activate handles when drag starts
+    setTrimHandlesActive(true)
+    
     const rect = strip.getBoundingClientRect()
     const duration = activeClip.duration || 1
     let currentTrimIn = activeClip.trim_in || 0
     let currentTrimOut = activeClip.trim_out ?? duration
+    
+    // Track initial position to prevent swipe-back
+    const startX = e.touches ? e.touches[0].clientX : e.clientX
+    const startY = e.touches ? e.touches[0].clientY : e.clientY
 
     function onMove(ev) {
       const clientX = ev.touches ? ev.touches[0].clientX : ev.clientX
+      
+      // Prevent horizontal swipe gestures (iOS swipe-back)
+      if (ev.touches) {
+        const dx = Math.abs(clientX - startX)
+        const dy = Math.abs((ev.touches[0].clientY) - startY)
+        // Block swipe-back if mostly horizontal movement
+        if (dx > dy && dx > 10) {
+          ev.preventDefault()
+        }
+      }
+      
       const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
       const time = pct * duration
       const video = videoRef.current
@@ -181,6 +201,10 @@ export default function WorkspaceScreen() {
       document.removeEventListener('touchend', onEnd)
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onEnd)
+      
+      // Keep handles visible for 2 seconds after release
+      setTimeout(() => setTrimHandlesActive(false), 2000)
+      
       await supabase.from('clips')
         .update({ trim_in: currentTrimIn, trim_out: currentTrimOut })
         .eq('id', activeClip.id)
@@ -297,16 +321,29 @@ export default function WorkspaceScreen() {
     setGhostClip(clipsRef.current[fromIndex])
     setIsActiveDragging(true)
 
+    // Lock scroll position during drag
+    const clipList = document.querySelector('[data-clip-list]')
+    const scrollTop = clipList?.scrollTop || 0
+    
     function onMove(ev) {
       ev.preventDefault()
       const y = ev.touches[0].clientY
+      
+      // Keep list locked at original scroll position
+      if (clipList) {
+        clipList.scrollTop = scrollTop
+      }
+      
+      // Move ghost card to follow finger
       if (ghostRef.current) {
         ghostRef.current.style.top = (y - ghostOffsetRef.current) + 'px'
       }
+      
       const dy = y - startClientY
       const delta = Math.round(dy / ROW_H)
       const from = dragState.current.fromIndex
       const to = Math.max(0, Math.min(clipsRef.current.length - 1, from + delta))
+      
       if (dragState.current && to !== dragState.current.currentIndex) {
         const spliceFrom = dragState.current.currentIndex
         dragState.current.currentIndex = to
@@ -425,19 +462,19 @@ export default function WorkspaceScreen() {
       <header className="flex items-center justify-between px-5 pt-8 pb-1.5 flex-shrink-0">
         <button
           onClick={() => navigate('/')}
-          className="flex items-center gap-1.5 text-wheat/45 font-sans text-[14px] font-semibold active:opacity-60"
+          className="flex items-center gap-1.5 text-wheat/45 font-sans text-[13px] font-medium active:opacity-60"
         >
-          <ArrowLeft size={18} strokeWidth={2} />
+          <ArrowLeft size={14} strokeWidth={1.75} />
           Library
         </button>
-        <h1 className="font-display font-semibold text-[17px] text-wheat truncate mx-3 max-w-[160px]">
+        <h1 className="font-display font-semibold text-base text-wheat truncate mx-3 max-w-[160px]">
           {scrapbook?.name}
         </h1>
         <button
           onClick={() => navigate(`/scrapbook/${id}`)}
-          className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-[13px] rounded-full px-5 py-2 active:opacity-80"
+          className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-xs rounded-full px-4 py-1.5 active:opacity-80"
         >
-          <Play size={10} fill="#2C1A0E" strokeWidth={0} />
+          <Play size={9} fill="#2C1A0E" strokeWidth={0} />
           Watch
         </button>
       </header>
@@ -553,42 +590,100 @@ export default function WorkspaceScreen() {
           </div>
         </div>
 
-        <div ref={filmstripRef} className="relative h-10 rounded-lg overflow-hidden mb-1">
-          <div className="absolute inset-0 flex gap-px">
-            {STRIP_COLORS.map((c, i) => (
-              <div key={i} className="flex-1 h-full" style={{ background: c }} />
-            ))}
-          </div>
-          <div className="absolute top-0 left-0 bottom-0 rounded-l-lg"
-            style={{ width: `${trimInPct}%`, background: 'rgba(0,0,0,0.62)' }} />
-          <div className="absolute top-0 right-0 bottom-0 rounded-r-lg"
-            style={{ width: `${100 - trimOutPct}%`, background: 'rgba(0,0,0,0.62)' }} />
-          <div className="absolute top-0 h-[3px] bg-amber"
-            style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%` }} />
-          <div className="absolute bottom-0 h-[3px] bg-amber"
-            style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%` }} />
-          <div className="absolute top-0 bottom-0 w-px bg-white/75 pointer-events-none"
-            style={{ left: `${playheadPct}%` }} />
+        {/* 🔧 FIX: Added px-6 wrapper to create grabbable space for handles */}
+        <div className="px-6">
+          {/* Container with extra vertical padding to prevent handle clipping */}
+          {/* Tap anywhere on filmstrip to activate handles */}
+          <div 
+            className="relative py-5 mb-1 cursor-pointer"
+            onClick={() => {
+              setTrimHandlesActive(true)
+              setTimeout(() => setTrimHandlesActive(false), 3000)
+            }}
+          >
+            {/* Filmstrip visual - BIGGER for easier interaction (h-14 instead of h-10) */}
+            <div ref={filmstripRef} className="relative h-14 rounded-lg overflow-hidden">
+              <div className="absolute inset-0 flex gap-px">
+                {STRIP_COLORS.map((c, i) => (
+                  <div key={i} className="flex-1 h-full" style={{ background: c }} />
+                ))}
+              </div>
+              <div className="absolute top-0 left-0 bottom-0 rounded-l-lg"
+                style={{ width: `${trimInPct}%`, background: 'rgba(0,0,0,0.62)' }} />
+              <div className="absolute top-0 right-0 bottom-0 rounded-r-lg"
+                style={{ width: `${100 - trimOutPct}%`, background: 'rgba(0,0,0,0.62)' }} />
+              <div className="absolute top-0 h-[3px] bg-amber"
+                style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%` }} />
+              <div className="absolute bottom-0 h-[3px] bg-amber"
+                style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%` }} />
+              <div className="absolute top-0 bottom-0 w-px bg-white/75 pointer-events-none"
+                style={{ left: `${playheadPct}%` }} />
+            </div>
 
-          <div
-            className="absolute top-0 bottom-0 w-[3px] bg-amber cursor-ew-resize touch-none"
-            style={{ left: `${trimInPct}%` }}
-            onTouchStart={(e) => startTrimDrag('in', e)}
-            onMouseDown={(e) => startTrimDrag('in', e)}
-          >
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-6 bg-amber rounded-sm" />
-          </div>
-          <div
-            className="absolute top-0 bottom-0 w-[3px] bg-amber cursor-ew-resize touch-none"
-            style={{ left: `${trimOutPct}%` }}
-            onTouchStart={(e) => startTrimDrag('out', e)}
-            onMouseDown={(e) => startTrimDrag('out', e)}
-          >
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-6 bg-amber rounded-sm" />
+            {/* Handles are OUTSIDE overflow-hidden so they never get clipped */}
+            {/* Trim IN handle - pulses when active */}
+            <div
+              className="absolute top-1/2 -translate-y-1/2 cursor-ew-resize touch-none z-10 transition-transform"
+              style={{ 
+                left: `${trimInPct}%`,
+                width: '44px',
+                height: '56px',
+                marginLeft: '-22px',
+                transform: trimHandlesActive ? 'translateY(-50%) scale(1.15)' : 'translateY(-50%)',
+              }}
+              onTouchStart={(e) => startTrimDrag('in', e)}
+              onMouseDown={(e) => startTrimDrag('in', e)}
+            >
+              {/* Visual indicator - glows when active */}
+              <div 
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-10 bg-amber rounded-full transition-all" 
+                style={{ 
+                  boxShadow: trimHandlesActive 
+                    ? '0 0 16px rgba(242,162,74,0.8), 0 0 4px rgba(242,162,74,1)' 
+                    : '0 0 10px rgba(242,162,74,0.5)' 
+                }} 
+              />
+              {/* Grip dots */}
+              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1.5">
+                <div className="w-0.5 h-0.5 bg-deep rounded-full" />
+                <div className="w-0.5 h-0.5 bg-deep rounded-full" />
+                <div className="w-0.5 h-0.5 bg-deep rounded-full" />
+              </div>
+            </div>
+
+            {/* Trim OUT handle - pulses when active */}
+            <div
+              className="absolute top-1/2 -translate-y-1/2 cursor-ew-resize touch-none z-10 transition-transform"
+              style={{ 
+                left: `${trimOutPct}%`,
+                width: '44px',
+                height: '56px',
+                marginLeft: '-22px',
+                transform: trimHandlesActive ? 'translateY(-50%) scale(1.15)' : 'translateY(-50%)',
+              }}
+              onTouchStart={(e) => startTrimDrag('out', e)}
+              onMouseDown={(e) => startTrimDrag('out', e)}
+            >
+              {/* Visual indicator - glows when active */}
+              <div 
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-10 bg-amber rounded-full transition-all"
+                style={{ 
+                  boxShadow: trimHandlesActive 
+                    ? '0 0 16px rgba(242,162,74,0.8), 0 0 4px rgba(242,162,74,1)' 
+                    : '0 0 10px rgba(242,162,74,0.5)' 
+                }} 
+              />
+              {/* Grip dots */}
+              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1.5">
+                <div className="w-0.5 h-0.5 bg-deep rounded-full" />
+                <div className="w-0.5 h-0.5 bg-deep rounded-full" />
+                <div className="w-0.5 h-0.5 bg-deep rounded-full" />
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="flex justify-between text-rust text-[8px] font-semibold tracking-wide">
+        <div className="flex justify-between text-rust text-[8px] font-semibold tracking-wide px-6">
           <span>0:00</span>
           <span>{fmt(duration * 0.25)}</span>
           <span>{fmt(duration * 0.5)}</span>
@@ -651,7 +746,7 @@ export default function WorkspaceScreen() {
 
       {/* ── Clip list ── */}
       {!isCaption && (
-        <div className="flex-1 overflow-y-auto px-4 pb-6 flex flex-col gap-1.5">
+        <div data-clip-list className="flex-1 overflow-y-auto px-4 pb-6 flex flex-col gap-1.5">
           {clips.map((clip, i) => {
             const active = clip.id === activeClipId
             const edited = isEdited(clip)

@@ -19,6 +19,11 @@ export default function PlaybackScreen() {
   const [progress, setProgress] = useState(0)
   const [loading, setLoading] = useState(true)
 
+  // Hold-to-pause state
+  const [isHolding, setIsHolding] = useState(false)
+  const holdTimerRef = useRef(null)
+  const wasPlayingBeforeHold = useRef(false)
+
   // Horizontal swipe state (left/right navigation)
   const [dragOffset, setDragOffset] = useState(0)
   const [dragTransitioning, setDragTransitioning] = useState(false)
@@ -103,6 +108,8 @@ export default function PlaybackScreen() {
     if (showActionSheet) { setShowActionSheet(false); return }
     // Ignore taps that were actually swipes
     if (Math.abs(dragOffsetRef.current) > 8) return
+    // Ignore if this was a hold (not a quick tap)
+    if (isHolding) return
     
     const video = videoRef.current
     if (!video) return
@@ -124,14 +131,8 @@ export default function PlaybackScreen() {
       return
     }
     
-    // Center 50% = play/pause
-    if (video.paused) {
-      video.play().catch(() => {})
-      setShowPauseOverlay(false)
-    } else {
-      video.pause()
-      setShowPauseOverlay(true)
-    }
+    // Center 50% taps are handled by hold-to-pause now
+    // (quick tap does nothing, only hold pauses)
   }
 
   function togglePlayPause(e) {
@@ -150,6 +151,19 @@ export default function PlaybackScreen() {
   // ── Swipe drag handlers (horizontal - left=next, right=prev) ──────────
   function handleTouchStart(e) {
     if (showActionSheet) return
+    
+    const video = videoRef.current
+    
+    // Start hold-to-pause timer (150ms threshold)
+    holdTimerRef.current = setTimeout(() => {
+      if (video && !video.paused) {
+        wasPlayingBeforeHold.current = true
+        video.pause()
+        setIsHolding(true)
+        setShowPauseOverlay(true)
+      }
+    }, 150)
+    
     dragActiveRef.current = true
     dragStartY.current = e.touches[0].clientY
     dragStartX.current = e.touches[0].clientX
@@ -160,6 +174,14 @@ export default function PlaybackScreen() {
     if (!dragActiveRef.current) return
     const dx = dragStartX.current - e.touches[0].clientX  // positive = swipe left, negative = swipe right
     const dy = Math.abs(dragStartY.current - e.touches[0].clientY)
+
+    // If user moves, cancel the hold-to-pause
+    if (Math.abs(dx) > 5 || dy > 5) {
+      if (holdTimerRef.current) {
+        clearTimeout(holdTimerRef.current)
+        holdTimerRef.current = null
+      }
+    }
 
     // Ignore mostly-vertical gestures
     if (dy > Math.abs(dx) * 0.8 && Math.abs(dx) < 24) return
@@ -190,6 +212,21 @@ export default function PlaybackScreen() {
   }
 
   function handleTouchEnd() {
+    // Clean up hold timer
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current)
+      holdTimerRef.current = null
+    }
+    
+    // Resume playback if was holding
+    const video = videoRef.current
+    if (isHolding && wasPlayingBeforeHold.current && video) {
+      video.play().catch(() => {})
+      setShowPauseOverlay(false)
+      wasPlayingBeforeHold.current = false
+    }
+    setIsHolding(false)
+    
     if (!dragActiveRef.current) return
     dragActiveRef.current = false
 

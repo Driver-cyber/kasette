@@ -529,7 +529,7 @@ export default function HomeScreen() {
                   Version
                 </p>
                 <p className="font-display text-[32px] font-bold text-amber">
-                  0.3.0
+                  0.4.0
                 </p>
               </div>
 

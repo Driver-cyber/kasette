@@ -425,19 +425,19 @@ export default function WorkspaceScreen() {
       <header className="flex items-center justify-between px-5 pt-8 pb-1.5 flex-shrink-0">
         <button
           onClick={() => navigate('/')}
-          className="flex items-center gap-1.5 text-wheat/45 font-sans text-[13px] font-medium active:opacity-60"
+          className="flex items-center gap-1.5 text-wheat/45 font-sans text-[14px] font-semibold active:opacity-60"
         >
-          <ArrowLeft size={14} strokeWidth={1.75} />
+          <ArrowLeft size={18} strokeWidth={2} />
           Library
         </button>
-        <h1 className="font-display font-semibold text-base text-wheat truncate mx-3 max-w-[160px]">
+        <h1 className="font-display font-semibold text-[17px] text-wheat truncate mx-3 max-w-[160px]">
           {scrapbook?.name}
         </h1>
         <button
           onClick={() => navigate(`/scrapbook/${id}`)}
-          className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-xs rounded-full px-4 py-1.5 active:opacity-80"
+          className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-[13px] rounded-full px-5 py-2 active:opacity-80"
         >
-          <Play size={9} fill="#2C1A0E" strokeWidth={0} />
+          <Play size={10} fill="#2C1A0E" strokeWidth={0} />
           Watch
         </button>
       </header>
@@ -553,79 +553,42 @@ export default function WorkspaceScreen() {
           </div>
         </div>
 
-        {/* 🔧 FIX: Added px-6 wrapper to create grabbable space for handles */}
-        <div className="px-6">
-          {/* Container with extra vertical padding to prevent handle clipping */}
-          <div className="relative py-5 mb-1">
-            {/* Filmstrip visual - BIGGER for easier interaction (h-14 instead of h-10) */}
-            <div ref={filmstripRef} className="relative h-14 rounded-lg overflow-hidden">
-              <div className="absolute inset-0 flex gap-px">
-                {STRIP_COLORS.map((c, i) => (
-                  <div key={i} className="flex-1 h-full" style={{ background: c }} />
-                ))}
-              </div>
-              <div className="absolute top-0 left-0 bottom-0 rounded-l-lg"
-                style={{ width: `${trimInPct}%`, background: 'rgba(0,0,0,0.62)' }} />
-              <div className="absolute top-0 right-0 bottom-0 rounded-r-lg"
-                style={{ width: `${100 - trimOutPct}%`, background: 'rgba(0,0,0,0.62)' }} />
-              <div className="absolute top-0 h-[3px] bg-amber"
-                style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%` }} />
-              <div className="absolute bottom-0 h-[3px] bg-amber"
-                style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%` }} />
-              <div className="absolute top-0 bottom-0 w-px bg-white/75 pointer-events-none"
-                style={{ left: `${playheadPct}%` }} />
-            </div>
+        <div ref={filmstripRef} className="relative h-10 rounded-lg overflow-hidden mb-1">
+          <div className="absolute inset-0 flex gap-px">
+            {STRIP_COLORS.map((c, i) => (
+              <div key={i} className="flex-1 h-full" style={{ background: c }} />
+            ))}
+          </div>
+          <div className="absolute top-0 left-0 bottom-0 rounded-l-lg"
+            style={{ width: `${trimInPct}%`, background: 'rgba(0,0,0,0.62)' }} />
+          <div className="absolute top-0 right-0 bottom-0 rounded-r-lg"
+            style={{ width: `${100 - trimOutPct}%`, background: 'rgba(0,0,0,0.62)' }} />
+          <div className="absolute top-0 h-[3px] bg-amber"
+            style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%` }} />
+          <div className="absolute bottom-0 h-[3px] bg-amber"
+            style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%` }} />
+          <div className="absolute top-0 bottom-0 w-px bg-white/75 pointer-events-none"
+            style={{ left: `${playheadPct}%` }} />
 
-            {/* 🔧 FIX: Handles are OUTSIDE the overflow-hidden container so they never get clipped */}
-            {/* Trim IN handle - taller to match bigger filmstrip */}
-            <div
-              className="absolute top-1/2 -translate-y-1/2 cursor-ew-resize touch-none z-10"
-              style={{ 
-                left: `${trimInPct}%`,
-                width: '44px',
-                height: '56px', // Taller to match h-14 filmstrip
-                marginLeft: '-22px',
-              }}
-              onTouchStart={(e) => startTrimDrag('in', e)}
-              onMouseDown={(e) => startTrimDrag('in', e)}
-            >
-              {/* Visual indicator - taller */}
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-10 bg-amber rounded-full" 
-                   style={{ boxShadow: '0 0 10px rgba(242,162,74,0.5)' }} />
-              {/* Grip dots for visual feedback */}
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1.5">
-                <div className="w-0.5 h-0.5 bg-deep rounded-full" />
-                <div className="w-0.5 h-0.5 bg-deep rounded-full" />
-                <div className="w-0.5 h-0.5 bg-deep rounded-full" />
-              </div>
-            </div>
-
-            {/* Trim OUT handle - taller to match bigger filmstrip */}
-            <div
-              className="absolute top-1/2 -translate-y-1/2 cursor-ew-resize touch-none z-10"
-              style={{ 
-                left: `${trimOutPct}%`,
-                width: '44px',
-                height: '56px', // Taller to match h-14 filmstrip
-                marginLeft: '-22px',
-              }}
-              onTouchStart={(e) => startTrimDrag('out', e)}
-              onMouseDown={(e) => startTrimDrag('out', e)}
-            >
-              {/* Visual indicator - taller */}
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-10 bg-amber rounded-full"
-                   style={{ boxShadow: '0 0 10px rgba(242,162,74,0.5)' }} />
-              {/* Grip dots for visual feedback */}
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1.5">
-                <div className="w-0.5 h-0.5 bg-deep rounded-full" />
-                <div className="w-0.5 h-0.5 bg-deep rounded-full" />
-                <div className="w-0.5 h-0.5 bg-deep rounded-full" />
-              </div>
-            </div>
+          <div
+            className="absolute top-0 bottom-0 w-[3px] bg-amber cursor-ew-resize touch-none"
+            style={{ left: `${trimInPct}%` }}
+            onTouchStart={(e) => startTrimDrag('in', e)}
+            onMouseDown={(e) => startTrimDrag('in', e)}
+          >
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-6 bg-amber rounded-sm" />
+          </div>
+          <div
+            className="absolute top-0 bottom-0 w-[3px] bg-amber cursor-ew-resize touch-none"
+            style={{ left: `${trimOutPct}%` }}
+            onTouchStart={(e) => startTrimDrag('out', e)}
+            onMouseDown={(e) => startTrimDrag('out', e)}
+          >
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-6 bg-amber rounded-sm" />
           </div>
         </div>
 
-        <div className="flex justify-between text-rust text-[8px] font-semibold tracking-wide px-6">
+        <div className="flex justify-between text-rust text-[8px] font-semibold tracking-wide">
           <span>0:00</span>
           <span>{fmt(duration * 0.25)}</span>
           <span>{fmt(duration * 0.5)}</span>

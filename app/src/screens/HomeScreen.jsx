@@ -249,11 +249,11 @@ export default function HomeScreen() {
   return (
     <div className="flex flex-col h-screen bg-walnut">
 
-      {/* Nav */}
-      <header className="flex items-center justify-between px-6 pt-14 pb-4 flex-shrink-0">
+      {/* Nav - Compressed header */}
+      <header className="flex items-center justify-between px-6 pt-8 pb-2 flex-shrink-0">
         <div className="flex items-center gap-2.5">
-          {/* Spool logo */}
-          <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
+          {/* Spool logo - slightly bigger */}
+          <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
             <rect width="48" height="48" rx="9" fill="#3D2410"/>
             <circle cx="16" cy="22" r="8" stroke="#F2A24A" strokeWidth="3.5" fill="none"/>
             <circle cx="32" cy="22" r="8" stroke="#F2A24A" strokeWidth="3.5" fill="none"/>
@@ -261,7 +261,7 @@ export default function HomeScreen() {
             <circle cx="32" cy="22" r="2.5" fill="#F2A24A"/>
             <rect x="14" y="31" width="20" height="3" rx="1.5" fill="#E8855A"/>
           </svg>
-          <span className="font-display font-bold text-[22px] text-amber leading-none">
+          <span className="font-display font-bold text-[24px] text-amber leading-none">
             Cassette<em className="font-light text-sienna not-italic">.</em>
           </span>
         </div>
@@ -269,25 +269,25 @@ export default function HomeScreen() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('/discover')}
-            className="w-9 h-9 flex items-center justify-center rounded-full active:opacity-70"
+            className="w-10 h-10 flex items-center justify-center rounded-full active:opacity-70"
           >
-            <Shuffle size={16} strokeWidth={1.75} className="text-wheat/50" />
+            <Shuffle size={18} strokeWidth={2} className="text-wheat/50" />
           </button>
 
           <button
             onClick={() => showSearch ? closeSearch() : setShowSearch(true)}
-            className="w-9 h-9 flex items-center justify-center rounded-full active:opacity-70"
+            className="w-10 h-10 flex items-center justify-center rounded-full active:opacity-70"
             style={{ background: showSearch ? 'rgba(242,162,74,0.12)' : 'transparent' }}
           >
             {showSearch
-              ? <X size={16} strokeWidth={2} className="text-amber" />
-              : <Search size={16} strokeWidth={1.75} className="text-wheat/50" />
+              ? <X size={18} strokeWidth={2} className="text-amber" />
+              : <Search size={18} strokeWidth={2} className="text-wheat/50" />
             }
           </button>
 
           <button
             onClick={() => navigate('/intake')}
-            className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-xs rounded-full px-4 py-2.5 tracking-wide active:opacity-80 transition-opacity"
+            className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-[13px] rounded-full px-5 py-2.5 tracking-wide active:opacity-80 transition-opacity"
           >
             <Plus size={12} strokeWidth={2.5} />
             New

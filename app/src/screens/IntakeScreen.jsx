@@ -290,14 +290,14 @@ export default function IntakeScreen() {
   if (items.length === 0) {
     return (
       <div className="flex flex-col h-screen bg-walnut">
-        <header className="flex items-center gap-3 px-5 pt-14 pb-4 flex-shrink-0">
+        <header className="flex items-center gap-3 px-5 pt-8 pb-2 flex-shrink-0">
           <button
             onClick={() => navigate('/')}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-walnut-mid active:opacity-80 transition-opacity"
+            className="w-11 h-11 flex items-center justify-center rounded-full bg-walnut-mid active:opacity-80 transition-opacity"
           >
-            <ArrowLeft size={20} strokeWidth={1.75} className="text-wheat" />
+            <ArrowLeft size={22} strokeWidth={2} className="text-wheat" />
           </button>
-          <h1 className="font-display font-semibold text-[17px] text-wheat">New Scrapbook</h1>
+          <h1 className="font-display font-semibold text-[19px] text-wheat">New Scrapbook</h1>
         </header>
 
         <main className="flex-1 flex flex-col items-center justify-center px-8 gap-6 text-center pb-16">
@@ -340,12 +340,12 @@ export default function IntakeScreen() {
     <div className="flex flex-col h-screen bg-walnut overflow-hidden">
 
       {/* Nav */}
-      <header className="flex items-center justify-between px-5 pt-14 pb-3 flex-shrink-0">
+      <header className="flex items-center justify-between px-5 pt-8 pb-2 flex-shrink-0">
         <button
           onClick={() => navigate('/')}
-          className="flex items-center gap-1.5 text-wheat/60 font-sans text-sm font-medium"
+          className="flex items-center gap-1.5 text-wheat/60 font-sans text-[14px] font-semibold"
         >
-          <ArrowLeft size={16} strokeWidth={1.75} />
+          <ArrowLeft size={18} strokeWidth={2} />
           Back
         </button>
         <h1 className="font-display font-semibold text-[17px] text-wheat">Pick your clips</h1>

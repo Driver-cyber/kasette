@@ -276,31 +276,31 @@ export default function PlaybackScreen() {
 
       {/* ── Static chrome — stays in place ── */}
 
-      {/* Top controls */}
-      <div className="absolute top-14 left-0 right-0 flex items-center justify-between px-5 z-20">
+      {/* Top controls - compressed spacing, bigger buttons */}
+      <div className="absolute top-10 left-0 right-0 flex items-center justify-between px-5 z-20">
         <button
           onClick={(e) => { e.stopPropagation(); navigate('/') }}
-          className="w-9 h-9 rounded-full flex items-center justify-center border border-white/10 active:opacity-70"
+          className="w-10 h-10 rounded-full flex items-center justify-center border border-white/10 active:opacity-70"
           style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(8px)' }}
         >
-          <ArrowLeft size={16} strokeWidth={1.75} className="text-wheat/80" />
+          <ArrowLeft size={18} strokeWidth={2} className="text-wheat/80" />
         </button>
 
-        <span className="font-display font-semibold text-sm text-wheat/70 truncate mx-4 max-w-[200px]">
+        <span className="font-display font-semibold text-[15px] text-wheat/70 truncate mx-4 max-w-[200px]">
           {scrapbook?.name}
         </span>
 
         <button
           onClick={(e) => { e.stopPropagation(); setShowActionSheet(true) }}
-          className="w-9 h-9 rounded-full flex items-center justify-center border border-white/10 active:opacity-70"
+          className="w-10 h-10 rounded-full flex items-center justify-center border border-white/10 active:opacity-70"
           style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(8px)' }}
         >
-          <MoreHorizontal size={16} strokeWidth={1.75} className="text-wheat/80" />
+          <MoreHorizontal size={18} strokeWidth={2} className="text-wheat/80" />
         </button>
       </div>
 
       {/* Segmented progress bar */}
-      <div className="absolute top-[96px] left-5 right-5 flex gap-1 z-20">
+      <div className="absolute top-[72px] left-5 right-5 flex gap-1 z-20">
         {clips.map((clip, i) => (
           <div
             key={clip.id}

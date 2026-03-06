@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Play, Search, X, MoreHorizontal, ChevronDown, Image, Shuffle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { APP_VERSION } from '../version'
 
 // Warm gradient palettes for cards without a cover image
 const CARD_GRADIENTS = [
@@ -529,7 +530,7 @@ export default function HomeScreen() {
                   Version
                 </p>
                 <p className="font-display text-[32px] font-bold text-amber">
-                  0.4.0
+                  {APP_VERSION.number}
                 </p>
               </div>
 
@@ -537,13 +538,13 @@ export default function HomeScreen() {
               <div className="bg-deep rounded-xl p-4 mb-5 border border-walnut-light">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-rust text-[10px] font-bold tracking-widest uppercase">Build</span>
-                  <span className="text-wheat/60 font-mono text-xs">March 2026</span>
+                  <span className="text-wheat/60 font-mono text-xs">{APP_VERSION.build}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-rust text-[10px] font-bold tracking-widest uppercase">Status</span>
                   <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-amber animate-pulse" />
-                    <span className="text-amber text-xs font-semibold">Beta</span>
+                    <span className="text-amber text-xs font-semibold">{APP_VERSION.status}</span>
                   </div>
                 </div>
               </div>

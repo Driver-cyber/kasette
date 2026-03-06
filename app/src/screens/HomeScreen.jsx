@@ -252,7 +252,7 @@ export default function HomeScreen() {
     <div className="flex flex-col h-screen bg-walnut">
 
       {/* Nav - Compressed header */}
-      <header className="flex items-center justify-between px-6 pt-8 pb-2 flex-shrink-0">
+      <header className="flex items-center justify-between px-6 pt-12 pb-2 flex-shrink-0">
         <button 
           onClick={() => setShowVersion(true)}
           className="flex items-center gap-2.5 active:opacity-70"

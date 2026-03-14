@@ -17,6 +17,9 @@ export default function DiscoveryScreen() {
   const navigate = useNavigate()
   const { session } = useAuth()
   const videoRef = useRef(null)
+  const prevVideoRef = useRef(null)
+  const nextVideoRef = useRef(null)
+  const next2VideoRef = useRef(null)
 
   const [clips, setClips] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -24,11 +27,18 @@ export default function DiscoveryScreen() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [isHeld, setIsHeld] = useState(false)
 
-  // Hold-to-pause tracking
+  // Drag/swipe state
+  const [dragOffset, setDragOffset] = useState(0)
+  const [dragTransitioning, setDragTransitioning] = useState(false)
+  const dragOffsetRef = useRef(0)
+  const dragActiveRef = useRef(false)
+  const dragStartX = useRef(0)
+  const dragStartY = useRef(0)
+
+  // Hold-to-pause
   const holdTimerRef = useRef(null)
   const holdActiveRef = useRef(false)
-  const pointerDownPos = useRef({ x: 0, y: 0 })
-  const didMoveRef = useRef(false)
+  const wasPlayingBeforeHold = useRef(false)
 
   const loadClips = useCallback(async () => {
     setLoading(true)
@@ -59,11 +69,39 @@ export default function DiscoveryScreen() {
   }, [loadClips])
 
   const currentClip = clips[currentIndex]
+  const prevClip = clips[currentIndex - 1] ?? null
+  const nextClip = clips[currentIndex + 1] ?? null
+  const next2Clip = clips[currentIndex + 2] ?? null
+
+  // Preload prev + next 2 clips
+  useEffect(() => {
+    const prev = prevVideoRef.current
+    if (!prev || !prevClip) return
+    prev.src = prevClip.video_url
+    prev.load()
+  }, [prevClip])
+
+  useEffect(() => {
+    const next = nextVideoRef.current
+    if (!next || !nextClip) return
+    next.src = nextClip.video_url
+    next.load()
+  }, [nextClip])
+
+  useEffect(() => {
+    const next2 = next2VideoRef.current
+    if (!next2 || !next2Clip) return
+    next2.src = next2Clip.video_url
+    next2.load()
+  }, [next2Clip])
 
   // Load + autoplay when clip changes
   useEffect(() => {
     const video = videoRef.current
     if (!video || !currentClip) return
+    setDragOffset(0)
+    dragOffsetRef.current = 0
+    setDragTransitioning(false)
     video.src = currentClip.video_url
     video.currentTime = currentClip.trim_in || 0
     video.load()
@@ -93,61 +131,123 @@ export default function DiscoveryScreen() {
     setCurrentIndex(0)
   }
 
-  // ── Hold-to-pause + side-tap navigation ──────────────────────────────────
-  function handlePointerDown(e) {
+  // ── Touch handlers ────────────────────────────────────────────────────────
+  function handleTouchStart(e) {
     if (e.target.closest('button')) return
-    pointerDownPos.current = { x: e.clientX, y: e.clientY }
-    didMoveRef.current = false
-    holdActiveRef.current = false
 
+    const video = videoRef.current
     holdTimerRef.current = setTimeout(() => {
-      holdActiveRef.current = true
-      setIsHeld(true)
-      videoRef.current?.pause()
+      if (video && !video.paused) {
+        wasPlayingBeforeHold.current = true
+        video.pause()
+        holdActiveRef.current = true
+        setIsHeld(true)
+      }
     }, 200)
+
+    dragActiveRef.current = true
+    dragStartX.current = e.touches[0].clientX
+    dragStartY.current = e.touches[0].clientY
+    setDragTransitioning(false)
   }
 
-  function handlePointerMove(e) {
-    const dx = Math.abs(e.clientX - pointerDownPos.current.x)
-    const dy = Math.abs(e.clientY - pointerDownPos.current.y)
-    if (dx > 10 || dy > 10) {
-      didMoveRef.current = true
-      clearTimeout(holdTimerRef.current)
-      // If hold already fired while finger was still, cancel it
-      if (holdActiveRef.current) {
-        holdActiveRef.current = false
-        setIsHeld(false)
-        videoRef.current?.play().catch(() => {})
+  function handleTouchMove(e) {
+    if (!dragActiveRef.current) return
+    const dx = dragStartX.current - e.touches[0].clientX  // positive = swipe left = next
+    const dy = Math.abs(dragStartY.current - e.touches[0].clientY)
+
+    // Cancel hold if finger moves
+    if (Math.abs(dx) > 5 || dy > 5) {
+      if (holdTimerRef.current) {
+        clearTimeout(holdTimerRef.current)
+        holdTimerRef.current = null
       }
     }
-  }
 
-  function handlePointerUp(e) {
-    if (e.target.closest('button')) return
-    clearTimeout(holdTimerRef.current)
+    // Ignore mostly-vertical gestures
+    if (dy > Math.abs(dx) * 0.8 && Math.abs(dx) < 24) return
 
-    if (holdActiveRef.current) {
-      // Releasing a hold — resume
-      holdActiveRef.current = false
-      setIsHeld(false)
-      videoRef.current?.play().catch(() => {})
+    // Block iOS swipe-back when swiping right on non-first clips
+    if (dx < 0 && currentIndex > 0) {
+      e.preventDefault()
+    }
+
+    // Let iOS handle swipe-back on first clip
+    if (dx < 0 && currentIndex === 0) {
+      dragActiveRef.current = false
       return
     }
 
-    if (didMoveRef.current) return
+    // Rubber-band at boundaries
+    const atBoundary =
+      (dx > 0 && currentIndex >= clips.length - 1) ||
+      (dx < 0 && currentIndex <= 0)
 
-    // Quick tap — navigate by side
-    const isLeft = e.clientX < window.innerWidth / 2
-    if (isLeft) goPrev()
-    else goNext()
+    const offset = atBoundary
+      ? Math.sign(dx) * Math.min(Math.abs(dx) * 0.15, 50)
+      : dx
+
+    dragOffsetRef.current = offset
+    setDragOffset(offset)
   }
 
-  function handlePointerCancel() {
-    clearTimeout(holdTimerRef.current)
+  function handleTouchEnd(e) {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current)
+      holdTimerRef.current = null
+    }
+
+    // Resume if was holding
+    const video = videoRef.current
     if (holdActiveRef.current) {
+      if (wasPlayingBeforeHold.current && video) {
+        video.play().catch(() => {})
+        wasPlayingBeforeHold.current = false
+      }
       holdActiveRef.current = false
       setIsHeld(false)
-      videoRef.current?.play().catch(() => {})
+      dragActiveRef.current = false
+      return
+    }
+
+    if (!dragActiveRef.current) return
+    dragActiveRef.current = false
+
+    const THRESHOLD = window.innerWidth * 0.3
+    const offset = dragOffsetRef.current
+
+    // Quick tap (barely moved) → side navigation
+    if (Math.abs(offset) < 8) {
+      const touch = e.changedTouches[0]
+      if (touch.clientX < window.innerWidth / 2) goPrev()
+      else goNext()
+      return
+    }
+
+    // Swipe committed
+    if (offset > THRESHOLD && currentIndex < clips.length - 1) {
+      setDragTransitioning(true)
+      setDragOffset(window.innerWidth)
+      setTimeout(() => {
+        goNext()
+        setDragOffset(0)
+        dragOffsetRef.current = 0
+        setDragTransitioning(false)
+      }, 280)
+    } else if (offset < -THRESHOLD && currentIndex > 0) {
+      setDragTransitioning(true)
+      setDragOffset(-window.innerWidth)
+      setTimeout(() => {
+        goPrev()
+        setDragOffset(0)
+        dragOffsetRef.current = 0
+        setDragTransitioning(false)
+      }, 280)
+    } else {
+      // Spring back
+      setDragTransitioning(true)
+      dragOffsetRef.current = 0
+      setDragOffset(0)
     }
   }
 
@@ -184,21 +284,37 @@ export default function DiscoveryScreen() {
     <div
       className="relative bg-deep overflow-hidden select-none"
       style={{ height: '100dvh' }}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerCancel}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
-      {/* Video */}
-      <video
-        ref={videoRef}
-        className="absolute inset-0 w-full h-full object-cover"
-        onTimeUpdate={handleTimeUpdate}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        playsInline
-        preload="metadata"
-      />
+      {/* Sliding video container */}
+      <div
+        className="absolute inset-0"
+        style={{
+          transform: `translateX(${-dragOffset}px)`,
+          transition: dragTransitioning
+            ? 'transform 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+            : 'none',
+          willChange: 'transform',
+        }}
+        onTransitionEnd={() => setDragTransitioning(false)}
+      >
+        <video
+          ref={videoRef}
+          className="absolute inset-0 w-full h-full object-cover"
+          onTimeUpdate={handleTimeUpdate}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          playsInline
+          preload="auto"
+        />
+      </div>
+
+      {/* Hidden preload elements */}
+      <video ref={prevVideoRef} className="hidden" playsInline preload="auto" muted />
+      <video ref={nextVideoRef} className="hidden" playsInline preload="auto" muted />
+      <video ref={next2VideoRef} className="hidden" playsInline preload="auto" muted />
 
       {/* Gradient overlay */}
       <div
@@ -235,6 +351,24 @@ export default function DiscoveryScreen() {
         <div className="absolute inset-0 bg-black/30 pointer-events-none" />
       )}
 
+      {/* Swipe hints */}
+      {dragOffset > 12 && (
+        <div
+          className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none"
+          style={{ opacity: Math.min(dragOffset / 80, 0.6) }}
+        >
+          <div className="text-wheat/60 text-xs font-semibold tracking-widest uppercase">→ Next</div>
+        </div>
+      )}
+      {dragOffset < -12 && currentIndex > 0 && (
+        <div
+          className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+          style={{ opacity: Math.min(Math.abs(dragOffset) / 80, 0.6) }}
+        >
+          <div className="text-wheat/60 text-xs font-semibold tracking-widest uppercase">← Prev</div>
+        </div>
+      )}
+
       {/* ── Top bar ── */}
       <div className="absolute top-0 left-0 right-0 flex items-center justify-between pt-14 px-5 pb-4 pointer-events-none">
         <button
@@ -245,7 +379,6 @@ export default function DiscoveryScreen() {
           <ArrowLeft size={16} strokeWidth={1.75} className="text-wheat" />
         </button>
 
-        {/* Counter */}
         <div
           className="px-3.5 py-1.5 rounded-full"
           style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(10px)' }}

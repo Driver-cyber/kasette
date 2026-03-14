@@ -312,7 +312,7 @@ export default function PlaybackScreen() {
               ref={prevVideoRef}
               className="absolute inset-0 w-full h-full object-cover"
               playsInline
-              preload="metadata"
+              preload="auto"
               muted
             />
 
@@ -445,7 +445,7 @@ export default function PlaybackScreen() {
               ref={nextVideoRef}
               className="absolute inset-0 w-full h-full object-cover"
               playsInline
-              preload="metadata"
+              preload="auto"
               muted
             />
 

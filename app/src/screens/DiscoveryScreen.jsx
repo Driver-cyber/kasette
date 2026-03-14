@@ -47,7 +47,7 @@ export default function DiscoveryScreen() {
     setLoading(true)
     const { data } = await supabase
       .from('scrapbooks')
-      .select('id, name, year, created_at, clips(id, video_url, duration, trim_in, trim_out, caption_text, caption_x, caption_y, caption_size)')
+      .select('id, name, year, created_at, clips(id, video_url, thumbnail_url, duration, trim_in, trim_out, caption_text, caption_x, caption_y, caption_size)')
       .eq('user_id', session.user.id)
 
     if (data) {
@@ -359,6 +359,7 @@ export default function DiscoveryScreen() {
           onPause={() => setIsPlaying(false)}
           playsInline
           preload="auto"
+          poster={currentClip?.thumbnail_url || undefined}
         />
       </div>
 

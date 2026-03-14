@@ -3,6 +3,16 @@ import { ArrowLeft, Check, Image, ChevronLeft, ChevronRight, X } from 'lucide-re
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { remuxWithFaststart } from '../lib/remux'
+
+function dataURLtoBlob(dataURL) {
+  const [header, data] = dataURL.split(',')
+  const mime = header.match(/:(.*?);/)[1]
+  const binary = atob(data)
+  const arr = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i)
+  return new Blob([arr], { type: mime })
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -100,6 +110,7 @@ export default function IntakeScreen() {
   const [step, setStep] = useState('pick')      // 'pick' | 'name'
   const [name, setName] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [uploadPhase, setUploadPhase] = useState('remuxing') // 'remuxing' | 'uploading'
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 })
   const [error, setError] = useState(null)
   const [year, setYear] = useState(new Date().getFullYear())
@@ -194,7 +205,18 @@ export default function IntakeScreen() {
     setError(null)
 
     try {
-      // 1. Create scrapbook record
+      // 1. Remux all clips with faststart
+      setUploadPhase('remuxing')
+      const remuxedItems = []
+      for (let i = 0; i < selectedItems.length; i++) {
+        setUploadProgress({ current: i + 1, total: selectedItems.length })
+        const remuxedFile = await remuxWithFaststart(selectedItems[i].file)
+        remuxedItems.push({ ...selectedItems[i], file: remuxedFile })
+      }
+
+      // 2. Create scrapbook record
+      setUploadPhase('uploading')
+      setUploadProgress({ current: 0, total: remuxedItems.length })
       const { data: sb, error: sbErr } = await supabase
         .from('scrapbooks')
         .insert({ name: name.trim(), user_id: session.user.id, year })
@@ -202,7 +224,7 @@ export default function IntakeScreen() {
         .single()
       if (sbErr) throw sbErr
 
-      // 2. Upload cover image if provided
+      // 3. Upload cover image if provided
       if (coverFile) {
         const ext = coverFile.name.split('.').pop()?.toLowerCase() || 'jpg'
         const coverPath = `${session.user.id}/covers/${sb.id}.${ext}`
@@ -217,12 +239,12 @@ export default function IntakeScreen() {
         }
       }
 
-      // 3. Upload each clip
-      for (let i = 0; i < selectedItems.length; i++) {
-        setUploadProgress({ current: i + 1, total: selectedItems.length })
-        const item = selectedItems[i]
+      // 4. Upload each clip + thumbnail
+      for (let i = 0; i < remuxedItems.length; i++) {
+        setUploadProgress({ current: i + 1, total: remuxedItems.length })
+        const item = remuxedItems[i]
         const clipId = crypto.randomUUID()
-        const ext = item.file.name.split('.').pop()?.toLowerCase() || 'mov'
+        const ext = item.file.name.split('.').pop()?.toLowerCase() || 'mp4'
         const storagePath = `${session.user.id}/${sb.id}/${clipId}.${ext}`
 
         const { error: uploadErr } = await supabase.storage
@@ -234,6 +256,22 @@ export default function IntakeScreen() {
           .from('cassette-media')
           .getPublicUrl(storagePath)
 
+        // Upload thumbnail if available
+        let thumbnailUrl = null
+        if (item.thumbnail) {
+          const thumbBlob = dataURLtoBlob(item.thumbnail)
+          const thumbPath = `${session.user.id}/${sb.id}/${clipId}_thumb.jpg`
+          const { error: thumbErr } = await supabase.storage
+            .from('cassette-media')
+            .upload(thumbPath, thumbBlob, { cacheControl: '3600', contentType: 'image/jpeg' })
+          if (!thumbErr) {
+            const { data: { publicUrl: tUrl } } = supabase.storage
+              .from('cassette-media')
+              .getPublicUrl(thumbPath)
+            thumbnailUrl = tUrl
+          }
+        }
+
         const { error: clipErr } = await supabase
           .from('clips')
           .insert({
@@ -241,6 +279,7 @@ export default function IntakeScreen() {
             scrapbook_id: sb.id,
             storage_path: storagePath,
             video_url: publicUrl,
+            thumbnail_url: thumbnailUrl,
             order: i,
             duration: item.duration || null,
             trim_in: 0,
@@ -269,10 +308,13 @@ export default function IntakeScreen() {
         <div className="w-12 h-12 rounded-full border-2 border-amber border-t-transparent animate-spin" />
         <div>
           <p className="font-display font-semibold text-xl text-wheat mb-1">
-            Creating your scrapbook…
+            {uploadPhase === 'remuxing' ? 'Optimizing your clips…' : 'Creating your scrapbook…'}
           </p>
           <p className="text-rust text-sm">
-            Uploading clip {uploadProgress.current} of {uploadProgress.total}
+            {uploadPhase === 'remuxing'
+              ? `Clip ${uploadProgress.current} of ${uploadProgress.total}`
+              : `Uploading clip ${uploadProgress.current} of ${uploadProgress.total}`
+            }
           </p>
         </div>
         {/* Mini progress bar */}

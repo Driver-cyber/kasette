@@ -48,7 +48,7 @@ export default function PlaybackScreen() {
   useEffect(() => {
     Promise.all([
       supabase.from('scrapbooks').select('id, name').eq('id', id).single(),
-      supabase.from('clips').select('id, video_url, duration, trim_in, trim_out, caption_text, caption_x, caption_y, caption_size, order').eq('scrapbook_id', id).order('order', { ascending: true }),
+      supabase.from('clips').select('id, video_url, thumbnail_url, duration, trim_in, trim_out, caption_text, caption_x, caption_y, caption_size, order').eq('scrapbook_id', id).order('order', { ascending: true }),
     ]).then(([{ data: sb }, { data: cl }]) => {
       if (sb) setScrapbook(sb)
       if (cl) setClips(cl)
@@ -372,6 +372,7 @@ export default function PlaybackScreen() {
             onPause={() => setIsPlaying(false)}
             playsInline
             preload="auto"
+            poster={currentClip?.thumbnail_url || undefined}
           />
           <div className="absolute inset-x-0 top-0 h-44 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%)' }} />
           <div className="absolute inset-x-0 bottom-0 h-56 pointer-events-none" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)' }} />

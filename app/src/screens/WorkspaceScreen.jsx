@@ -284,10 +284,22 @@ export default function WorkspaceScreen() {
   // ── Remove clip ────────────────────────────────────────────────────────
   async function removeClip(clipId) {
     setConfirmRemoveId(null)
+    const clip = clips.find(c => c.id === clipId)
     const remaining = clips.filter(c => c.id !== clipId)
     setClips(remaining)
     if (activeClipId === clipId) setActiveClipId(remaining[0]?.id ?? null)
     await supabase.from('clips').delete().eq('id', clipId)
+    // Delete video + thumbnail from storage
+    const toDelete = []
+    if (clip?.video_url) {
+      const p = clip.video_url.split('/cassette-media/')[1]?.split('?')[0]
+      if (p) toDelete.push(decodeURIComponent(p))
+    }
+    if (clip?.thumbnail_url) {
+      const p = clip.thumbnail_url.split('/cassette-media/')[1]?.split('?')[0]
+      if (p) toDelete.push(decodeURIComponent(p))
+    }
+    if (toDelete.length) await supabase.storage.from('cassette-media').remove(toDelete)
     for (let i = 0; i < remaining.length; i++) {
       await supabase.from('clips').update({ order: i }).eq('id', remaining[i].id)
     }

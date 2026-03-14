@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Play, Pause, MoreHorizontal, Edit, Share2 } from 'lucide-react'
+import { ArrowLeft, Play, Pause, MoreHorizontal, Edit, Download } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { exportScrapbook } from '../lib/export'
 
 function formatTime(secs) {
   if (!secs || isNaN(secs) || secs < 0) return '0:00'
@@ -24,6 +25,10 @@ export default function PlaybackScreen() {
   const [showActionSheet, setShowActionSheet] = useState(false)
   const [progress, setProgress] = useState(0)
   const [loading, setLoading] = useState(true)
+
+  // Export
+  const [exportState, setExportState] = useState(null) // null | { phase, current, total } | 'done' | 'error'
+  const [exportBlob, setExportBlob] = useState(null)
 
   // Scrub bar
   const [isScrubbing, setIsScrubbing] = useState(false)
@@ -155,6 +160,44 @@ export default function PlaybackScreen() {
     } else {
       video.pause()
     }
+  }
+
+  async function handleExport() {
+    setShowActionSheet(false)
+    setExportState({ phase: 'fetching', current: 1, total: clips.length })
+    videoRef.current?.pause()
+    try {
+      const blob = await exportScrapbook(clips, (progress) => setExportState(progress))
+      setExportBlob(blob)
+      setExportState('done')
+    } catch (e) {
+      console.error('[export]', e)
+      setExportState('error')
+    }
+  }
+
+  async function handleShare() {
+    if (!exportBlob) return
+    const filename = `${scrapbook?.name || 'cassette'}.mp4`
+    const file = new File([exportBlob], filename, { type: 'video/mp4' })
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: scrapbook?.name })
+    } else {
+      const url = URL.createObjectURL(exportBlob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+  }
+
+  function exportPhaseLabel(state) {
+    if (!state || state === 'done' || state === 'error') return ''
+    if (state.phase === 'fetching') return `Fetching clip ${state.current} of ${state.total}…`
+    if (state.phase === 'trimming') return `Trimming clip ${state.current} of ${state.total}…`
+    if (state.phase === 'stitching') return 'Stitching your scrapbook…'
+    return 'Working…'
   }
 
   // ── Touch handlers ────────────────────────────────────────────────────────
@@ -505,6 +548,59 @@ export default function PlaybackScreen() {
         </div>
       )}
 
+      {/* Export overlay */}
+      {exportState && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center px-8 text-center" style={{ background: '#1A0F08' }}>
+          {exportState === 'done' ? (
+            <>
+              <p className="font-display italic text-amber text-4xl mb-2">Done!</p>
+              <p className="text-wheat/60 text-sm mb-10">{scrapbook?.name}</p>
+              <button
+                onClick={handleShare}
+                className="w-full max-w-xs bg-amber text-walnut font-sans font-bold text-[15px] rounded-2xl py-4 mb-4 active:opacity-80"
+              >
+                Save / Share
+              </button>
+              <button
+                onClick={() => { setExportState(null); setExportBlob(null); videoRef.current?.play().catch(() => {}) }}
+                className="text-rust font-sans text-sm active:opacity-70"
+              >
+                Done
+              </button>
+            </>
+          ) : exportState === 'error' ? (
+            <>
+              <p className="text-sienna font-display font-semibold text-xl mb-2">Export failed</p>
+              <p className="text-rust text-sm mb-8">Something went wrong. Check your connection and try again.</p>
+              <button
+                onClick={() => { setExportState(null); videoRef.current?.play().catch(() => {}) }}
+                className="text-amber font-sans text-sm active:opacity-70"
+              >
+                Dismiss
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="font-display italic text-amber text-3xl mb-1">Exporting…</p>
+              <p className="text-wheat/50 text-sm mb-10">{scrapbook?.name}</p>
+              {/* Progress bar */}
+              <div className="w-full max-w-xs h-[3px] rounded-full mb-4" style={{ background: 'rgba(245,222,179,0.15)' }}>
+                <div
+                  className="h-full bg-amber rounded-full transition-all duration-500"
+                  style={{
+                    width: exportState.phase === 'stitching'
+                      ? '95%'
+                      : `${((exportState.current - 1) / exportState.total) * 90}%`
+                  }}
+                />
+              </div>
+              <p className="text-rust text-sm">{exportPhaseLabel(exportState)}</p>
+              <p className="text-wheat/25 text-xs mt-4">Keep this screen open</p>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Action sheet */}
       {showActionSheet && (
         <>
@@ -529,13 +625,16 @@ export default function PlaybackScreen() {
                 <p className="text-rust text-[11px] mt-0.5">Trim clips, add captions, reorder</p>
               </div>
             </button>
-            <div className="w-full flex items-center gap-3.5 px-2 py-4 border-b border-walnut-light opacity-35">
-              <Share2 size={20} strokeWidth={1.75} className="text-amber flex-shrink-0" />
+            <button
+              onClick={handleExport}
+              className="w-full flex items-center gap-3.5 px-2 py-4 border-b border-walnut-light active:opacity-70 text-left"
+            >
+              <Download size={20} strokeWidth={1.75} className="text-amber flex-shrink-0" />
               <div>
-                <p className="text-wheat font-semibold text-[15px]">Share Scrapbook</p>
-                <p className="text-rust text-[11px] mt-0.5">Coming soon</p>
+                <p className="text-wheat font-semibold text-[15px]">Export as Video</p>
+                <p className="text-rust text-[11px] mt-0.5">Saves as MP4 · captions not included</p>
               </div>
-            </div>
+            </button>
             <button
               onClick={() => setShowActionSheet(false)}
               className="w-full py-4 text-center text-rust font-semibold text-[15px] active:opacity-70 mt-2"

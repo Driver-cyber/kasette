@@ -299,9 +299,10 @@ All screens are built and confirmed working in the browser:
 
 ## 💡 Parking Lot (Good Ideas, Not Yet)
 
+- **First-time user tutorial / tip screen** — on first login, show a brief guide: how playback works, how to trim, that captions won't export, clip length limits, etc. Could be a swipeable card stack or a simple overlay.
+- **Caption burning on export** — re-encode captioned clips to bake text into the video. Slow on mobile but complete. v2 of export.
 - **Video compression on upload** — iPhone videos are large (100MB+). Client-side canvas re-encode or server-side worker would dramatically improve load speed. Biggest real-world performance lever.
 - **Cover image extraction** — auto-pull first frame. Needs canvas extraction or server processing.
-- **Export as single video file** — FFmpeg on Supabase Edge Functions. v2.
 - **Background music / audio track** — v2.
 - **Multi-user / shared scrapbooks** — requires data model rethink. v2.
 - **Public share links (grandparent view)** — read-only link. High value, v2.

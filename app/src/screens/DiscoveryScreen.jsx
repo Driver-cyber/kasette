@@ -21,13 +21,14 @@ export default function DiscoveryScreen() {
   const [clips, setClips] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [showInfo, setShowInfo] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [isHeld, setIsHeld] = useState(false)
 
-  // Swipe detection
-  const touchStartY = useRef(null)
-  const touchStartTime = useRef(null)
-  const didSwipe = useRef(false)
+  // Hold-to-pause tracking
+  const holdTimerRef = useRef(null)
+  const holdActiveRef = useRef(false)
+  const pointerDownPos = useRef({ x: 0, y: 0 })
+  const didMoveRef = useRef(false)
 
   const loadClips = useCallback(async () => {
     setLoading(true)
@@ -67,7 +68,6 @@ export default function DiscoveryScreen() {
     video.currentTime = currentClip.trim_in || 0
     video.load()
     video.play().catch(() => {})
-    setShowInfo(false)
   }, [currentIndex, currentClip?.id])
 
   function handleTimeUpdate() {
@@ -81,51 +81,77 @@ export default function DiscoveryScreen() {
   }
 
   function goNext() {
-    if (currentIndex < clips.length - 1) {
-      setCurrentIndex(i => i + 1)
-    }
+    if (currentIndex < clips.length - 1) setCurrentIndex(i => i + 1)
   }
 
   function goPrev() {
-    if (currentIndex > 0) {
-      setCurrentIndex(i => i - 1)
-    }
+    if (currentIndex > 0) setCurrentIndex(i => i - 1)
   }
 
   function reshuffle() {
     setClips(prev => shuffleArray(prev))
     setCurrentIndex(0)
-    setShowInfo(false)
   }
 
-  function handleTouchStart(e) {
-    touchStartY.current = e.touches[0].clientY
-    touchStartTime.current = Date.now()
-    didSwipe.current = false
+  // ── Hold-to-pause + side-tap navigation ──────────────────────────────────
+  function handlePointerDown(e) {
+    if (e.target.closest('button')) return
+    pointerDownPos.current = { x: e.clientX, y: e.clientY }
+    didMoveRef.current = false
+    holdActiveRef.current = false
+
+    holdTimerRef.current = setTimeout(() => {
+      holdActiveRef.current = true
+      setIsHeld(true)
+      videoRef.current?.pause()
+    }, 200)
   }
 
-  function handleTouchMove(e) {
-    if (touchStartY.current === null) return
-    const dy = Math.abs(e.touches[0].clientY - touchStartY.current)
-    if (dy > 10) didSwipe.current = true
-  }
-
-  function handleTouchEnd(e) {
-    if (touchStartY.current === null) return
-    const dy = touchStartY.current - e.changedTouches[0].clientY
-    const dt = Date.now() - touchStartTime.current
-    const isSwipe = Math.abs(dy) > 40 && dt < 500
-
-    if (isSwipe) {
-      if (dy > 0) goNext()
-      else goPrev()
-    } else if (!didSwipe.current) {
-      setShowInfo(prev => !prev)
+  function handlePointerMove(e) {
+    const dx = Math.abs(e.clientX - pointerDownPos.current.x)
+    const dy = Math.abs(e.clientY - pointerDownPos.current.y)
+    if (dx > 10 || dy > 10) {
+      didMoveRef.current = true
+      clearTimeout(holdTimerRef.current)
+      // If hold already fired while finger was still, cancel it
+      if (holdActiveRef.current) {
+        holdActiveRef.current = false
+        setIsHeld(false)
+        videoRef.current?.play().catch(() => {})
+      }
     }
-    touchStartY.current = null
   }
 
-  // ── Loading ─────────────────────────────────────────────────────────────
+  function handlePointerUp(e) {
+    if (e.target.closest('button')) return
+    clearTimeout(holdTimerRef.current)
+
+    if (holdActiveRef.current) {
+      // Releasing a hold — resume
+      holdActiveRef.current = false
+      setIsHeld(false)
+      videoRef.current?.play().catch(() => {})
+      return
+    }
+
+    if (didMoveRef.current) return
+
+    // Quick tap — navigate by side
+    const isLeft = e.clientX < window.innerWidth / 2
+    if (isLeft) goPrev()
+    else goNext()
+  }
+
+  function handlePointerCancel() {
+    clearTimeout(holdTimerRef.current)
+    if (holdActiveRef.current) {
+      holdActiveRef.current = false
+      setIsHeld(false)
+      videoRef.current?.play().catch(() => {})
+    }
+  }
+
+  // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex items-center justify-center bg-deep" style={{ height: '100dvh' }}>
@@ -134,7 +160,7 @@ export default function DiscoveryScreen() {
     )
   }
 
-  // ── Empty ────────────────────────────────────────────────────────────────
+  // ── Empty ─────────────────────────────────────────────────────────────────
   if (clips.length === 0) {
     return (
       <div className="relative flex flex-col items-center justify-center bg-deep px-8 text-center" style={{ height: '100dvh' }}>
@@ -153,14 +179,15 @@ export default function DiscoveryScreen() {
     )
   }
 
-  // ── Main view ────────────────────────────────────────────────────────────
+  // ── Main view ─────────────────────────────────────────────────────────────
   return (
     <div
-      className="relative bg-deep overflow-hidden"
+      className="relative bg-deep overflow-hidden select-none"
       style={{ height: '100dvh' }}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
     >
       {/* Video */}
       <video
@@ -171,14 +198,13 @@ export default function DiscoveryScreen() {
         onPause={() => setIsPlaying(false)}
         playsInline
         preload="metadata"
-        muted={false}
       />
 
       {/* Gradient overlay */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: 'linear-gradient(180deg, rgba(0,0,0,0.45) 0%, transparent 25%, transparent 55%, rgba(0,0,0,0.7) 100%)',
+          background: 'linear-gradient(180deg, rgba(0,0,0,0.45) 0%, transparent 25%, transparent 50%, rgba(0,0,0,0.75) 100%)',
         }}
       />
 
@@ -204,12 +230,16 @@ export default function DiscoveryScreen() {
         </div>
       )}
 
+      {/* Hold-to-pause dim overlay */}
+      {isHeld && (
+        <div className="absolute inset-0 bg-black/30 pointer-events-none" />
+      )}
+
       {/* ── Top bar ── */}
-      <div className="absolute top-0 left-0 right-0 flex items-center justify-between pt-14 px-5 pb-4">
-        {/* Back */}
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between pt-14 px-5 pb-4 pointer-events-none">
         <button
           onClick={() => navigate('/')}
-          className="w-9 h-9 flex items-center justify-center rounded-full active:opacity-70"
+          className="w-9 h-9 flex items-center justify-center rounded-full active:opacity-70 pointer-events-auto"
           style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(10px)' }}
         >
           <ArrowLeft size={16} strokeWidth={1.75} className="text-wheat" />
@@ -225,48 +255,38 @@ export default function DiscoveryScreen() {
           </span>
         </div>
 
-        {/* Reshuffle */}
         <button
-          onClick={(e) => { e.stopPropagation(); reshuffle() }}
-          className="w-9 h-9 flex items-center justify-center rounded-full active:opacity-70"
+          onClick={reshuffle}
+          className="w-9 h-9 flex items-center justify-center rounded-full active:opacity-70 pointer-events-auto"
           style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(10px)' }}
         >
           <Shuffle size={15} strokeWidth={1.75} className="text-wheat" />
         </button>
       </div>
 
-      {/* ── Scrapbook info overlay — revealed on tap ── */}
-      {showInfo && (
-        <div
-          className="absolute bottom-0 left-0 right-0 px-6 pt-10 pointer-events-none"
-          style={{
-            background: 'linear-gradient(0deg, rgba(26,15,8,0.95) 0%, rgba(26,15,8,0.6) 70%, transparent 100%)',
-            paddingBottom: 'max(2.5rem, env(safe-area-inset-bottom))',
-          }}
-        >
-          <p className="text-rust text-[9px] font-bold tracking-[0.2em] uppercase mb-1.5">
-            From your library · {currentClip.scrapbook.year}
-          </p>
-          <p className="font-display font-semibold text-[26px] text-wheat leading-tight mb-5">
+      {/* ── Bottom info ── */}
+      <div
+        className="absolute bottom-0 left-0 right-0 px-6 pt-10 pointer-events-none"
+        style={{
+          background: 'linear-gradient(0deg, rgba(26,15,8,0.92) 0%, rgba(26,15,8,0.5) 60%, transparent 100%)',
+          paddingBottom: 'max(2rem, env(safe-area-inset-bottom))',
+        }}
+      >
+        <p className="text-rust text-[9px] font-bold tracking-[0.2em] uppercase mb-1">
+          From your library · {currentClip.scrapbook.year}
+        </p>
+        <div className="flex items-end justify-between">
+          <p className="font-display font-semibold text-[22px] text-wheat leading-tight">
             {currentClip.scrapbook.name}
           </p>
           <button
-            className="pointer-events-auto flex items-center gap-2 bg-amber text-walnut font-sans font-bold text-sm rounded-full px-5 py-3 active:opacity-80"
-            onClick={(e) => { e.stopPropagation(); navigate(`/scrapbook/${currentClip.scrapbook.id}`) }}
+            className="pointer-events-auto flex items-center gap-1.5 mb-0.5 ml-4 flex-shrink-0 text-amber/70 font-sans font-semibold text-[12px] active:opacity-60"
+            onClick={() => navigate(`/scrapbook/${currentClip.scrapbook.id}`)}
           >
-            Watch scrapbook →
+            Watch →
           </button>
         </div>
-      )}
-
-      {/* Swipe hint — shown briefly on first load */}
-      {!showInfo && clips.length > 1 && (
-        <div className="absolute bottom-8 left-0 right-0 flex justify-center pointer-events-none">
-          <p className="text-white/25 text-[11px] font-medium">
-            Swipe to explore · tap for details
-          </p>
-        </div>
-      )}
+      </div>
     </div>
   )
 }

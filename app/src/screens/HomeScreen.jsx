@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Play, Search, X, MoreHorizontal, ChevronDown, Image, Shuffle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { APP_VERSION } from '../version'
 
 // Warm gradient palettes for cards without a cover image
 const CARD_GRADIENTS = [
@@ -131,6 +132,7 @@ export default function HomeScreen() {
   const [optionsId, setOptionsId] = useState(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [deleting, setDeleting] = useState(false)
+  const [showVersion, setShowVersion] = useState(false) // Version popup
   const searchInputRef = useRef(null)
   const coverChangeInputRef = useRef(null)
 
@@ -249,11 +251,14 @@ export default function HomeScreen() {
   return (
     <div className="flex flex-col h-screen bg-walnut">
 
-      {/* Nav */}
-      <header className="flex items-center justify-between px-6 pt-14 pb-4 flex-shrink-0">
-        <div className="flex items-center gap-2.5">
-          {/* Spool logo */}
-          <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
+      {/* Nav - Compressed header */}
+      <header className="flex items-center justify-between px-6 pt-12 pb-2 flex-shrink-0">
+        <button 
+          onClick={() => setShowVersion(true)}
+          className="flex items-center gap-2.5 active:opacity-70"
+        >
+          {/* Spool logo - slightly bigger */}
+          <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
             <rect width="48" height="48" rx="9" fill="#3D2410"/>
             <circle cx="16" cy="22" r="8" stroke="#F2A24A" strokeWidth="3.5" fill="none"/>
             <circle cx="32" cy="22" r="8" stroke="#F2A24A" strokeWidth="3.5" fill="none"/>
@@ -261,33 +266,33 @@ export default function HomeScreen() {
             <circle cx="32" cy="22" r="2.5" fill="#F2A24A"/>
             <rect x="14" y="31" width="20" height="3" rx="1.5" fill="#E8855A"/>
           </svg>
-          <span className="font-display font-bold text-[22px] text-amber leading-none">
+          <span className="font-display font-bold text-[24px] text-amber leading-none">
             Cassette<em className="font-light text-sienna not-italic">.</em>
           </span>
-        </div>
+        </button>
 
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('/discover')}
-            className="w-9 h-9 flex items-center justify-center rounded-full active:opacity-70"
+            className="w-10 h-10 flex items-center justify-center rounded-full active:opacity-70"
           >
-            <Shuffle size={16} strokeWidth={1.75} className="text-wheat/50" />
+            <Shuffle size={18} strokeWidth={2} className="text-wheat/50" />
           </button>
 
           <button
             onClick={() => showSearch ? closeSearch() : setShowSearch(true)}
-            className="w-9 h-9 flex items-center justify-center rounded-full active:opacity-70"
+            className="w-10 h-10 flex items-center justify-center rounded-full active:opacity-70"
             style={{ background: showSearch ? 'rgba(242,162,74,0.12)' : 'transparent' }}
           >
             {showSearch
-              ? <X size={16} strokeWidth={2} className="text-amber" />
-              : <Search size={16} strokeWidth={1.75} className="text-wheat/50" />
+              ? <X size={18} strokeWidth={2} className="text-amber" />
+              : <Search size={18} strokeWidth={2} className="text-wheat/50" />
             }
           </button>
 
           <button
             onClick={() => navigate('/intake')}
-            className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-xs rounded-full px-4 py-2.5 tracking-wide active:opacity-80 transition-opacity"
+            className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-[13px] rounded-full px-5 py-2.5 tracking-wide active:opacity-80 transition-opacity"
           >
             <Plus size={12} strokeWidth={2.5} />
             New
@@ -489,6 +494,81 @@ export default function HomeScreen() {
             >
               Cancel
             </button>
+          </div>
+        </>
+      )}
+
+      {/* Version popup */}
+      {showVersion && (
+        <>
+          <div 
+            className="absolute inset-0 bg-black/60 z-50 flex items-center justify-center"
+            onClick={() => setShowVersion(false)}
+          >
+            <div 
+              className="mx-6 max-w-sm w-full bg-walnut rounded-2xl p-6 border border-walnut-light"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Logo */}
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <svg width="40" height="40" viewBox="0 0 48 48" fill="none">
+                  <rect width="48" height="48" rx="9" fill="#3D2410"/>
+                  <circle cx="16" cy="22" r="8" stroke="#F2A24A" strokeWidth="3.5" fill="none"/>
+                  <circle cx="32" cy="22" r="8" stroke="#F2A24A" strokeWidth="3.5" fill="none"/>
+                  <circle cx="16" cy="22" r="2.5" fill="#F2A24A"/>
+                  <circle cx="32" cy="22" r="2.5" fill="#F2A24A"/>
+                  <rect x="14" y="31" width="20" height="3" rx="1.5" fill="#E8855A"/>
+                </svg>
+                <span className="font-display font-bold text-[28px] text-amber leading-none">
+                  Cassette<em className="font-light text-sienna not-italic">.</em>
+                </span>
+              </div>
+
+              {/* Version info */}
+              <div className="text-center mb-5">
+                <p className="text-wheat/40 text-[11px] font-bold tracking-[0.15em] uppercase mb-1">
+                  Version
+                </p>
+                <p className="font-display text-[32px] font-bold text-amber">
+                  {APP_VERSION.number}
+                </p>
+              </div>
+
+              {/* Build info */}
+              <div className="bg-deep rounded-xl p-4 mb-5 border border-walnut-light">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-rust text-[10px] font-bold tracking-widest uppercase">Build</span>
+                  <span className="text-wheat/60 font-mono text-xs">{APP_VERSION.build}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-rust text-[10px] font-bold tracking-widest uppercase">Status</span>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-amber animate-pulse" />
+                    <span className="text-amber text-xs font-semibold">{APP_VERSION.status}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Logout button */}
+              <button
+                onClick={async () => {
+                  await supabase.auth.signOut()
+                  setShowVersion(false)
+                  navigate('/login')
+                }}
+                className="w-full bg-walnut-mid text-rust font-sans font-semibold text-[14px] rounded-xl py-3 active:opacity-80 mb-2 border border-walnut-light"
+              >
+                Log Out
+              </button>
+
+              {/* Close button */}
+              <button
+                onClick={() => setShowVersion(false)}
+                className="w-full bg-amber text-walnut font-sans font-bold text-[15px] rounded-xl py-3.5 active:opacity-80"
+              >
+                Got it
+              </button>
+            </div>
           </div>
         </>
       )}

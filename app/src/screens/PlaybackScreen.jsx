@@ -7,6 +7,8 @@ export default function PlaybackScreen() {
   const navigate = useNavigate()
   const { id } = useParams()
   const videoRef = useRef(null)
+  const nextVideoRef = useRef(null) // For forward transitions
+  const prevVideoRef = useRef(null) // For backward transitions
 
   const [scrapbook, setScrapbook] = useState(null)
   const [clips, setClips] = useState([])
@@ -17,7 +19,12 @@ export default function PlaybackScreen() {
   const [progress, setProgress] = useState(0)
   const [loading, setLoading] = useState(true)
 
-  // Swipe drag state
+  // Hold-to-pause state
+  const [isHolding, setIsHolding] = useState(false)
+  const holdTimerRef = useRef(null)
+  const wasPlayingBeforeHold = useRef(false)
+
+  // Horizontal swipe state (left/right navigation)
   const [dragOffset, setDragOffset] = useState(0)
   const [dragTransitioning, setDragTransitioning] = useState(false)
   const dragOffsetRef = useRef(0)
@@ -38,6 +45,28 @@ export default function PlaybackScreen() {
   }, [id])
 
   const currentClip = clips[currentIndex]
+  const nextClip = currentIndex < clips.length - 1 ? clips[currentIndex + 1] : null
+  const prevClip = currentIndex > 0 ? clips[currentIndex - 1] : null
+
+  // Preload next video for smooth transitions
+  useEffect(() => {
+    const nextVideo = nextVideoRef.current
+    if (nextVideo && nextClip) {
+      nextVideo.src = nextClip.video_url
+      nextVideo.currentTime = nextClip.trim_in || 0
+      nextVideo.load()
+    }
+  }, [nextClip])
+
+  // Preload previous video for smooth transitions
+  useEffect(() => {
+    const prevVideo = prevVideoRef.current
+    if (prevVideo && prevClip) {
+      prevVideo.src = prevClip.video_url
+      prevVideo.currentTime = prevClip.trim_in || 0
+      prevVideo.load()
+    }
+  }, [prevClip])
 
   // Load + play when clip changes
   useEffect(() => {
@@ -79,15 +108,31 @@ export default function PlaybackScreen() {
     if (showActionSheet) { setShowActionSheet(false); return }
     // Ignore taps that were actually swipes
     if (Math.abs(dragOffsetRef.current) > 8) return
+    // Ignore if this was a hold (not a quick tap)
+    if (isHolding) return
+    
     const video = videoRef.current
     if (!video) return
-    if (video.paused) {
-      video.play().catch(() => {})
-      setShowPauseOverlay(false)
-    } else {
-      video.pause()
-      setShowPauseOverlay(true)
+    
+    // Get tap position
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const screenWidth = rect.width
+    
+    // Left 25% = previous clip
+    if (x < screenWidth * 0.25 && currentIndex > 0) {
+      goToClip(currentIndex - 1)
+      return
     }
+    
+    // Right 25% = next clip
+    if (x > screenWidth * 0.75 && currentIndex < clips.length - 1) {
+      goToClip(currentIndex + 1)
+      return
+    }
+    
+    // Center 50% taps are handled by hold-to-pause now
+    // (quick tap does nothing, only hold pauses)
   }
 
   function togglePlayPause(e) {
@@ -103,9 +148,22 @@ export default function PlaybackScreen() {
     }
   }
 
-  // ── Swipe drag handlers ──────────────────────────────────────────────
+  // ── Swipe drag handlers (horizontal - left=next, right=prev) ──────────
   function handleTouchStart(e) {
     if (showActionSheet) return
+    
+    const video = videoRef.current
+    
+    // Start hold-to-pause timer (150ms threshold)
+    holdTimerRef.current = setTimeout(() => {
+      if (video && !video.paused) {
+        wasPlayingBeforeHold.current = true
+        video.pause()
+        setIsHolding(true)
+        setShowPauseOverlay(true)
+      }
+    }, 150)
+    
     dragActiveRef.current = true
     dragStartY.current = e.touches[0].clientY
     dragStartX.current = e.touches[0].clientX
@@ -114,41 +172,89 @@ export default function PlaybackScreen() {
 
   function handleTouchMove(e) {
     if (!dragActiveRef.current) return
-    const dy = dragStartY.current - e.touches[0].clientY   // positive = swipe up
-    const dx = Math.abs(dragStartX.current - e.touches[0].clientX)
+    const dx = dragStartX.current - e.touches[0].clientX  // positive = swipe left, negative = swipe right
+    const dy = Math.abs(dragStartY.current - e.touches[0].clientY)
 
-    // Ignore mostly-horizontal gestures early on
-    if (dx > Math.abs(dy) * 0.8 && Math.abs(dy) < 24) return
+    // If user moves, cancel the hold-to-pause
+    if (Math.abs(dx) > 5 || dy > 5) {
+      if (holdTimerRef.current) {
+        clearTimeout(holdTimerRef.current)
+        holdTimerRef.current = null
+      }
+    }
 
-    // Rubber-band resistance at the first and last clip
-    const atBoundary =
-      (dy > 0 && currentIndex >= clips.length - 1) ||
-      (dy < 0 && currentIndex <= 0)
+    // Ignore mostly-vertical gestures
+    if (dy > Math.abs(dx) * 0.8 && Math.abs(dx) < 24) return
+
+    // CRITICAL FIX: Block iOS swipe-back when swiping right on non-first clips
+    // Only allow native swipe-back on first clip
+    if (dx < 0 && currentIndex > 0) {
+      e.preventDefault() // Block iOS gesture
+    }
+
+    // Swipe right on first clip = let iOS handle it naturally (exit to library)
+    if (dx < 0 && currentIndex === 0) {
+      dragActiveRef.current = false
+      return
+    }
+
+    // Rubber-band resistance at boundaries
+    const atBoundary = 
+      (dx > 0 && currentIndex >= clips.length - 1) ||
+      (dx < 0 && currentIndex <= 0)
+    
     const offset = atBoundary
-      ? Math.sign(dy) * Math.min(Math.abs(dy) * 0.15, 50)
-      : dy
+      ? Math.sign(dx) * Math.min(Math.abs(dx) * 0.15, 50)
+      : dx
 
     dragOffsetRef.current = offset
     setDragOffset(offset)
   }
 
   function handleTouchEnd() {
+    // Clean up hold timer
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current)
+      holdTimerRef.current = null
+    }
+    
+    // Resume playback if was holding
+    const video = videoRef.current
+    if (isHolding && wasPlayingBeforeHold.current && video) {
+      video.play().catch(() => {})
+      setShowPauseOverlay(false)
+      wasPlayingBeforeHold.current = false
+    }
+    setIsHolding(false)
+    
     if (!dragActiveRef.current) return
     dragActiveRef.current = false
 
-    const THRESHOLD = window.innerHeight * 0.28
+    const THRESHOLD = window.innerWidth * 0.3
     const offset = dragOffsetRef.current
 
     if (offset > THRESHOLD && currentIndex < clips.length - 1) {
-      // Committed — next clip (instant cut, new video loads naturally)
-      dragOffsetRef.current = 0
-      setDragOffset(0)
-      goToClip(currentIndex + 1)
+      // Swipe left committed — next clip
+      setDragTransitioning(true)
+      setDragOffset(window.innerWidth)
+      
+      setTimeout(() => {
+        goToClip(currentIndex + 1)
+        setDragOffset(0)
+        dragOffsetRef.current = 0
+        setDragTransitioning(false)
+      }, 300)
     } else if (offset < -THRESHOLD && currentIndex > 0) {
-      // Committed — prev clip
-      dragOffsetRef.current = 0
-      setDragOffset(0)
-      goToClip(currentIndex - 1)
+      // Swipe right committed — previous clip
+      setDragTransitioning(true)
+      setDragOffset(-window.innerWidth)
+      
+      setTimeout(() => {
+        goToClip(currentIndex - 1)
+        setDragOffset(0)
+        dragOffsetRef.current = 0
+        setDragTransitioning(false)
+      }, 300)
     } else {
       // Spring back
       setDragTransitioning(true)
@@ -186,121 +292,230 @@ export default function PlaybackScreen() {
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* ── Moving layer — slides with swipe ── */}
+      {/* ── Sliding container: prev | current | next ── */}
       <div
-        className="absolute inset-0"
+        className="absolute inset-0 flex"
         style={{
-          transform: `translateY(${-dragOffset}px)`,
+          transform: `translateX(calc(-100vw + ${-dragOffset}px))`, // Start at -100vw (showing current)
           transition: dragTransitioning
-            ? 'transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+            ? 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
             : 'none',
           willChange: 'transform',
+          width: prevClip || nextClip ? '300vw' : '100vw', // Three panels when prev or next exists
         }}
         onTransitionEnd={() => setDragTransitioning(false)}
       >
-        {/* Video */}
-        <video
-          ref={videoRef}
-          className="absolute inset-0 w-full h-full object-cover"
-          onTimeUpdate={handleTimeUpdate}
-          onEnded={() => goToClip(currentIndex + 1)}
-          onPlay={() => { setIsPlaying(true); setShowPauseOverlay(false) }}
-          onPause={() => setIsPlaying(false)}
-          playsInline
-          preload="metadata"
-        />
+        {/* Previous video - on the left */}
+        {prevClip ? (
+          <div className="relative w-screen h-screen flex-shrink-0">
+            <video
+              ref={prevVideoRef}
+              className="absolute inset-0 w-full h-full object-cover"
+              playsInline
+              preload="metadata"
+              muted
+            />
 
-        {/* Top vignette */}
-        <div
-          className="absolute inset-x-0 top-0 h-44 pointer-events-none"
-          style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%)' }}
-        />
+            {/* Top vignette */}
+            <div
+              className="absolute inset-x-0 top-0 h-44 pointer-events-none"
+              style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%)' }}
+            />
 
-        {/* Bottom vignette */}
-        <div
-          className="absolute inset-x-0 bottom-0 h-56 pointer-events-none"
-          style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)' }}
-        />
+            {/* Bottom vignette */}
+            <div
+              className="absolute inset-x-0 bottom-0 h-56 pointer-events-none"
+              style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)' }}
+            />
 
-        {/* Caption overlay */}
-        {currentClip?.caption_text && (
+            {/* Previous clip caption preview */}
+            {prevClip?.caption_text && (
+              <div
+                className="absolute pointer-events-none"
+                style={{
+                  left: `${prevClip.caption_x ?? 50}%`,
+                  top: `${prevClip.caption_y ?? 85}%`,
+                  transform: 'translate(-50%, -50%)',
+                  maxWidth: '80vw',
+                }}
+              >
+                <p
+                  className="font-display italic text-wheat text-center leading-snug"
+                  style={{
+                    fontSize: `${prevClip.caption_size || 24}px`,
+                    textShadow: '0 2px 12px rgba(0,0,0,0.6), 0 0 40px rgba(0,0,0,0.4)',
+                  }}
+                >
+                  {prevClip.caption_text}
+                </p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="relative w-screen h-screen flex-shrink-0 bg-deep" />
+        )}
+
+        {/* Current video - in the center */}
+        <div className="relative w-screen h-screen flex-shrink-0">
+          <video
+            ref={videoRef}
+            className="absolute inset-0 w-full h-full object-cover"
+            onTimeUpdate={handleTimeUpdate}
+            onEnded={() => goToClip(currentIndex + 1)}
+            onPlay={() => { setIsPlaying(true); setShowPauseOverlay(false) }}
+            onPause={() => setIsPlaying(false)}
+            playsInline
+            preload="metadata"
+          />
+
+          {/* Top vignette */}
           <div
-            className="absolute pointer-events-none"
-            style={{
-              left: `${currentClip.caption_x ?? 50}%`,
-              top: `${currentClip.caption_y ?? 85}%`,
-              transform: 'translate(-50%, -50%)',
-              maxWidth: '80vw',
-            }}
-          >
-            <p
-              className="font-display italic text-wheat text-center leading-snug"
+            className="absolute inset-x-0 top-0 h-44 pointer-events-none"
+            style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%)' }}
+          />
+
+          {/* Bottom vignette */}
+          <div
+            className="absolute inset-x-0 bottom-0 h-56 pointer-events-none"
+            style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)' }}
+          />
+
+          {/* Caption overlay */}
+          {currentClip?.caption_text && (
+            <div
+              className="absolute pointer-events-none"
               style={{
-                fontSize: `${currentClip.caption_size || 24}px`,
-                textShadow: '0 2px 12px rgba(0,0,0,0.6), 0 0 40px rgba(0,0,0,0.4)',
+                left: `${currentClip.caption_x ?? 50}%`,
+                top: `${currentClip.caption_y ?? 85}%`,
+                transform: 'translate(-50%, -50%)',
+                maxWidth: '80vw',
               }}
             >
-              {currentClip.caption_text}
-            </p>
-          </div>
-        )}
+              <p
+                className="font-display italic text-wheat text-center leading-snug"
+                style={{
+                  fontSize: `${currentClip.caption_size || 24}px`,
+                  textShadow: '0 2px 12px rgba(0,0,0,0.6), 0 0 40px rgba(0,0,0,0.4)',
+                }}
+              >
+                {currentClip.caption_text}
+              </p>
+            </div>
+          )}
 
-        {/* Pause overlay */}
-        {showPauseOverlay && (
-          <div className="absolute inset-0 bg-black/35 flex items-center justify-center pointer-events-none">
+          {/* Pause overlay */}
+          {showPauseOverlay && (
+            <div className="absolute inset-0 bg-black/35 flex items-center justify-center pointer-events-none">
+              <div
+                className="w-[72px] h-[72px] rounded-full flex items-center justify-center"
+                style={{ background: 'rgba(242,162,74,0.9)', boxShadow: '0 0 40px rgba(242,162,74,0.3)' }}
+              >
+                <Play size={28} fill="#2C1A0E" strokeWidth={0} className="ml-1" />
+              </div>
+            </div>
+          )}
+
+          {/* Swipe hints */}
+          {dragOffset > 12 && (
             <div
-              className="w-[72px] h-[72px] rounded-full flex items-center justify-center"
-              style={{ background: 'rgba(242,162,74,0.9)', boxShadow: '0 0 40px rgba(242,162,74,0.3)' }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none"
+              style={{ opacity: Math.min(dragOffset / 80, 0.6) }}
             >
-              <Play size={28} fill="#2C1A0E" strokeWidth={0} className="ml-1" />
+              <div className="text-wheat/60 text-xs font-semibold tracking-widest uppercase">
+                → Next
+              </div>
             </div>
-          </div>
-        )}
+          )}
+          {dragOffset < -12 && currentIndex > 0 && (
+            <div
+              className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+              style={{ opacity: Math.min(Math.abs(dragOffset) / 80, 0.6) }}
+            >
+              <div className="text-wheat/60 text-xs font-semibold tracking-widest uppercase">
+                ← Previous
+              </div>
+            </div>
+          )}
+        </div>
 
-        {/* Swipe hint arrows — subtle, fade with movement */}
-        {Math.abs(dragOffset) > 12 && (
-          <div
-            className="absolute inset-x-0 pointer-events-none flex justify-center"
-            style={{
-              top: dragOffset > 0 ? 'auto' : '1.5rem',
-              bottom: dragOffset > 0 ? '1.5rem' : 'auto',
-              opacity: Math.min(Math.abs(dragOffset) / 80, 0.6),
-            }}
-          >
-            <div className="text-wheat/60 text-xs font-semibold tracking-widest uppercase">
-              {dragOffset > 0 ? '↑ Next' : '↓ Previous'}
-            </div>
+        {/* Next video - on the right */}
+        {nextClip ? (
+          <div className="relative w-screen h-screen flex-shrink-0">
+            <video
+              ref={nextVideoRef}
+              className="absolute inset-0 w-full h-full object-cover"
+              playsInline
+              preload="metadata"
+              muted
+            />
+
+            {/* Top vignette */}
+            <div
+              className="absolute inset-x-0 top-0 h-44 pointer-events-none"
+              style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%)' }}
+            />
+
+            {/* Bottom vignette */}
+            <div
+              className="absolute inset-x-0 bottom-0 h-56 pointer-events-none"
+              style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)' }}
+            />
+
+            {/* Next clip caption preview */}
+            {nextClip?.caption_text && (
+              <div
+                className="absolute pointer-events-none"
+                style={{
+                  left: `${nextClip.caption_x ?? 50}%`,
+                  top: `${nextClip.caption_y ?? 85}%`,
+                  transform: 'translate(-50%, -50%)',
+                  maxWidth: '80vw',
+                }}
+              >
+                <p
+                  className="font-display italic text-wheat text-center leading-snug"
+                  style={{
+                    fontSize: `${nextClip.caption_size || 24}px`,
+                    textShadow: '0 2px 12px rgba(0,0,0,0.6), 0 0 40px rgba(0,0,0,0.4)',
+                  }}
+                >
+                  {nextClip.caption_text}
+                </p>
+              </div>
+            )}
           </div>
+        ) : (
+          <div className="relative w-screen h-screen flex-shrink-0 bg-deep" />
         )}
       </div>
 
       {/* ── Static chrome — stays in place ── */}
 
       {/* Top controls */}
-      <div className="absolute top-14 left-0 right-0 flex items-center justify-between px-5 z-20">
+      <div className="absolute top-10 left-0 right-0 flex items-center justify-between px-5 z-20">
         <button
           onClick={(e) => { e.stopPropagation(); navigate('/') }}
-          className="w-9 h-9 rounded-full flex items-center justify-center border border-white/10 active:opacity-70"
+          className="w-10 h-10 rounded-full flex items-center justify-center border border-white/10 active:opacity-70"
           style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(8px)' }}
         >
-          <ArrowLeft size={16} strokeWidth={1.75} className="text-wheat/80" />
+          <ArrowLeft size={18} strokeWidth={2} className="text-wheat/80" />
         </button>
 
-        <span className="font-display font-semibold text-sm text-wheat/70 truncate mx-4 max-w-[200px]">
+        <span className="font-display font-semibold text-[15px] text-wheat/70 truncate mx-4 max-w-[200px]">
           {scrapbook?.name}
         </span>
 
         <button
           onClick={(e) => { e.stopPropagation(); setShowActionSheet(true) }}
-          className="w-9 h-9 rounded-full flex items-center justify-center border border-white/10 active:opacity-70"
+          className="w-10 h-10 rounded-full flex items-center justify-center border border-white/10 active:opacity-70"
           style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(8px)' }}
         >
-          <MoreHorizontal size={16} strokeWidth={1.75} className="text-wheat/80" />
+          <MoreHorizontal size={18} strokeWidth={2} className="text-wheat/80" />
         </button>
       </div>
 
-      {/* Segmented progress bar */}
-      <div className="absolute top-[96px] left-5 right-5 flex gap-1 z-20">
+      {/* Segmented progress bar - clearly below buttons with gap */}
+      <div className="absolute top-[92px] left-5 right-5 flex gap-1 z-20">
         {clips.map((clip, i) => (
           <div
             key={clip.id}

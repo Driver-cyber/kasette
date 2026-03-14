@@ -16,7 +16,7 @@ export default function SignupScreen() {
     setError(null)
 
     if (password !== confirm) {
-      setError('Passwords don't match.')
+      setError("Passwords don't match.")
       return
     }
     if (password.length < 6) {

@@ -176,13 +176,13 @@ export default function PlaybackScreen() {
 
     const video = videoRef.current
 
-    // Hold-to-pause (1200ms threshold — well clear of a normal tap)
+    // Hold-to-pause (200ms — pauses quickly, but release after hold won't trigger navigation)
     holdTimerRef.current = setTimeout(() => {
       if (video && !video.paused) {
         wasPlayingBeforeHold.current = true
         video.pause()
       }
-    }, 1200)
+    }, 200)
 
     dragActiveRef.current = true
     dragStartY.current = touch.clientY

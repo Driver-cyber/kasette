@@ -180,7 +180,7 @@ export default function DiscoveryScreen() {
         video.pause()
         holdActiveRef.current = true
       }
-    }, 1200)
+    }, 200)
 
     dragActiveRef.current = true
     dragStartX.current = e.touches[0].clientX

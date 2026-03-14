@@ -34,6 +34,7 @@ export default function PlaybackScreen() {
   // Hold-to-pause
   const holdTimerRef = useRef(null)
   const wasPlayingBeforeHold = useRef(false)
+  const holdOccurredRef = useRef(false)
 
   // Horizontal swipe state
   const [dragOffset, setDragOffset] = useState(0)
@@ -129,6 +130,7 @@ export default function PlaybackScreen() {
     if (e.target.closest('button')) return
     if (showActionSheet) { setShowActionSheet(false); return }
     if (Math.abs(dragOffsetRef.current) > 8) return
+    if (holdOccurredRef.current) { holdOccurredRef.current = false; return }
 
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
@@ -180,6 +182,7 @@ export default function PlaybackScreen() {
     holdTimerRef.current = setTimeout(() => {
       if (video && !video.paused) {
         wasPlayingBeforeHold.current = true
+        holdOccurredRef.current = true
         video.pause()
       }
     }, 200)

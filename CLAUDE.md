@@ -46,15 +46,17 @@ expense of mobile experience.
 | Layer | Tool | Notes |
 |---|---|---|
 | Frontend | React + Vite | Component-based, fast dev loop |
-| Styling | Tailwind CSS | Mobile-first utility classes |
-| Auth | Supabase Auth | Single family account, stays logged in |
-| Storage | Supabase Storage | Video files and cover images |
-| Database | Supabase Postgres | Scrapbook and clip metadata |
-| Deployment | Netlify | CD from main branch |
+| Styling | Tailwind CSS v4 | Mobile-first utility classes, `@theme` brand tokens |
+| Auth | Supabase Auth | Multi-account, stays logged in |
+| Storage | Supabase Storage | Videos, covers, poster thumbnails in `cassette-media` bucket |
+| Database | Supabase Postgres (Pro) | Scrapbook and clip metadata, RLS user_id-scoped |
+| Deployment | Cloudflare Pages | CD from main branch via GitHub |
 | State | React Context | No Redux until complexity demands it |
+| Routing | React Router v7 | URL-based, iOS swipe-back works |
 | Icons | Lucide React | 1.75px stroke, Amber on dark |
+| Video processing | @ffmpeg/ffmpeg + @ffmpeg/util v0.12 | CDN-loaded WASM, singleton in `lib/remux.js` |
 
-**Do not introduce new infrastructure without a plan approval.** If a task seems to 
+**Do not introduce new infrastructure without a plan approval.** If a task seems to
 require a new service or dependency, propose it first.
 
 ---
@@ -100,9 +102,17 @@ All UI must use the Cassette brand system. Never deviate without a plan approval
 
 ---
 
-## 🏗 Screen Architecture — All Four Screens Designed & Locked
+## 🏗 Screen Architecture — 6 Screens Built & Working
 
-Cassette has four screens. Reference the HTML mockups in the design assets folder.
+### Routes
+```
+/              → HomeScreen       (protected)
+/signup        → SignupScreen     (PUBLIC — text this URL to new users)
+/intake        → IntakeScreen     (protected)
+/scrapbook/:id → PlaybackScreen   (protected)
+/scrapbook/:id/edit → WorkspaceScreen (protected)
+/discover      → DiscoveryScreen  (protected)
+```
 
 ### 1. Home Screen (`cassette-screen-home.html`)
 The library view. Shows all scrapbooks as medium cards, 2–3 visible at once.
@@ -164,11 +174,22 @@ The editing environment. Fixed layout — everything visible at once.
 The full-screen Reels-style viewer. The payoff.
 
 - **Navigation:** Swipe up/down between clips
-- **UI:** Almost nothing visible. Segmented progress bar (one segment per clip) at top, back button top-left, three-dot menu top-right. Clip counter + pause/play bottom right.
-- **Captions:** Rendered exactly where she placed them in Workspace. Fraunces italic, warm wheat, text-shadow for legibility.
-- **Pause:** Tap anywhere → big amber play button fades in over dimmed frame.
-- **Three-dot menu (⋯):** Action sheet with: Edit Scrapbook → Workspace, Scrapbook Details, Share (dimmed, coming soon).
-- Progress bar: segments fill left to right as clips complete. Currently active segment animates.
+- **UI:** Minimal. Segmented progress bar at top. Back button top-left. Three-dot menu top-right. Clip counter bottom-right.
+- **Captions:** Rendered exactly where placed in Workspace. Fraunces italic, wheat, text-shadow.
+- **Hold-to-pause:** Hold 200ms → pauses. Screen freezes cleanly (no overlay). Release → resumes if was playing.
+- **Scrub bar:** Touch bottom 25% of screen → amber timeline appears. Drag to seek.
+- **Three-dot menu (⋯):** Edit Scrapbook, Scrapbook Details, **Export Scrapbook** (trim+concat → MP4 download/share).
+
+### 5. Discovery Screen
+- `/discover` — shuffled playlist of all clips across all scrapbooks
+- Vertical swipe = next clip. Horizontal swipe = next scrapbook.
+- Hold-to-pause + scrub bar same as Playback.
+- Tap for scrapbook info + "Watch scrapbook →" link.
+
+### 6. Signup Screen
+- `/signup` — public route, outside AuthGate
+- Email + password + confirm. Supabase `signUp()`. Confirmation email sent.
+- Text this URL to new family members. No admin action required.
 
 ---
 
@@ -179,6 +200,7 @@ Scrapbook {
   id
   name
   cover_image_url   // optional
+  year              // integer, set at intake
   created_at
   clips: Clip[]
 }
@@ -186,18 +208,24 @@ Scrapbook {
 Clip {
   id
   scrapbook_id
-  video_url         // Supabase Storage URL
+  video_url         // Supabase Storage URL (FastStart remuxed)
+  thumbnail_url     // Supabase Storage URL for first-frame JPEG poster
   order             // integer, reorderable
-  trim_in           // seconds, default 0
-  trim_out          // seconds, default = duration
+  trim_in           // seconds, metadata only (no re-encoding)
+  trim_out          // seconds, metadata only
   caption_text      // optional string
   caption_x         // % of frame width (0–100)
   caption_y         // % of frame height (0–100)
-  caption_size      // px or rem, set during editing
+  caption_size      // font size
   duration          // seconds, set on upload
   recorded_at       // from video metadata if available
 }
 ```
+
+**Storage paths:**
+- Videos: `cassette-media/{userId}/videos/{clipId}.mp4`
+- Posters: `cassette-media/{userId}/posters/{clipId}.jpg`
+- Covers: `cassette-media/{userId}/covers/{scrapbookId}.ext`
 
 ---
 
@@ -205,12 +233,12 @@ Clip {
 
 Explicitly out of scope. Do not build, do not plan for:
 
-- Multi-user / shared scrapbooks
-- Background music or audio mixing  
+- Background music or audio mixing
 - Server-side video re-encoding or stitching
 - Social sharing or public links
 - Native mobile app (web app only)
 - Light mode
+- Caption burning into video (export ships captions as overlay metadata only; v2 idea)
 
 ---
 

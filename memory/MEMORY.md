@@ -4,68 +4,71 @@
 `/Users/Shared/Claude-Projects/Personal Projects/Casette/`
 React app lives in `app/` subdirectory. Design assets (HTML mockups) in root — not deployed.
 
-## Build Status — All 4 Screens Done
+## Build Status — All 6 Screens Done
 - **Login** ✅ tested, working
-- **Home** ✅ tested, working (real Supabase data, gradient cards)
-- **Intake** ✅ tested, working (full upload flow, thumbnails, progress)
-- **Playback** ✅ tested, working (swipe nav, captions, action sheet)
-- **Workspace** ✅ written + bugs fixed, not fully user-tested
+- **Signup** ✅ `/signup` public route, texted to new users to create accounts
+- **Home** ✅ tested, working (real Supabase data, gradient cards, year groups)
+- **Intake** ✅ tested, working (FFmpeg FastStart remux → upload, poster thumbnails)
+- **Playback** ✅ swipe nav, hold-to-pause, scrub bar, export, captions, action sheet
+- **Workspace** ✅ trim handles, caption tool, reorder mode, orphan storage cleanup on remove
+- **Discovery** ✅ horizontal + vertical swipe, hold-to-pause, scrub bar, shuffled playlist
 
-## Deployment Status — BLOCKED
+## Deployment
 - GitHub repo: `https://github.com/Driver-cyber/kasette` (private)
 - Pushed via GitHub Desktop from `app/` folder
-- Cloudflare Pages connected to repo, build settings configured
-- **Deployment is failing** — user went to bed before resolving
-- First thing next session: open Cloudflare build log, find the error
-
-**Cloudflare build settings:**
-- Build command: `npm run build`
-- Output dir: `dist`
-- Root directory: `app`
-- Env vars needed: `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` (both added to Production + Preview)
+- Cloudflare Pages: build cmd `npm run build`, output `dist`, root `app`
+- Env vars on Cloudflare: `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`
 
 ## Supabase
+- Plan: **Pro** (upgraded 2026-03-14)
 - Project URL: `https://ybjbsylocgqcgghmgxeh.supabase.co`
-- Anon key: in `app/.env.local` (gitignored, not in repo — must be set as Cloudflare env var)
-- Tables: `scrapbooks`, `clips` with RLS, user_id-scoped
+- Anon key: in `app/.env.local` (gitignored)
+- Tables: `scrapbooks` (has `year` column), `clips` (has `thumbnail_url` column) with RLS, user_id-scoped
 - Storage bucket: `cassette-media` (public)
+- Multi-user: RLS is user_id-scoped — multiple accounts just work, no code changes needed
 
 ## Tech Stack
 - React 18 + Vite + Tailwind v4 (`@theme` block, `@tailwindcss/vite`)
 - React Router v7, Supabase JS v2, Lucide React
+- **@ffmpeg/ffmpeg + @ffmpeg/util v0.12** — CDN loaded, singleton in `app/src/lib/remux.js`
 - Google Fonts: Fraunces (display/italic) + Plus Jakarta Sans (UI)
-- Supabase client: `app/src/lib/supabase.js`
-- AuthContext: `app/src/context/AuthContext.jsx`
+- `vite.config.js`: `optimizeDeps: { exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'] }`
 
 ## Routes
-- `/` → HomeScreen
-- `/intake` → IntakeScreen
-- `/scrapbook/:id` → PlaybackScreen
-- `/scrapbook/:id/edit` → WorkspaceScreen
+- `/` → HomeScreen (protected)
+- `/signup` → SignupScreen (**public**, outside AuthGate)
+- `/intake` → IntakeScreen (protected)
+- `/scrapbook/:id` → PlaybackScreen (protected)
+- `/scrapbook/:id/edit` → WorkspaceScreen (protected)
+- `/discover` → DiscoveryScreen (protected)
+
+## Key Files
+- `app/src/lib/remux.js` — FFmpeg singleton loader + `remuxWithFaststart(file)`
+- `app/src/lib/export.js` — `exportScrapbook(clips, onProgress)` → Blob (trim + concat)
+- `app/src/lib/supabase.js` — Supabase client
+- `app/src/context/AuthContext.jsx` — Auth context, persistent session
+
+## FFmpeg / Video
+- FFmpeg WASM loaded from CDN on first app launch; `localStorage` key `cassette_ff_ready` marks completion
+- First launch: `InitScreen` shows ("Setting up your experience · This only happens once")
+- Intake: remux → upload (not re-encode — just move moov atom to front for fast start)
+- Export: fetch each clip → trim with `-ss -t -c copy` → concat demuxer → single MP4 download
+- Posters: first-frame JPEG extracted at intake, stored at `cassette-media/{userId}/posters/`, `thumbnail_url` in DB
+
+## Key Patterns
+- Bottom sheets: `absolute bottom-0 left-0 right-0 z-20 rounded-t-3xl` inside root div
+- Drag interactions: document-level listeners in closures (NOT React onTouchMove — passive)
+- Always add both touch AND mouse handlers for drag features
+- Stale closure fix: capture values as local vars before calling `setClips`
+- Hold-to-pause: 200ms `setTimeout` → `holdOccurredRef` + `wasPlayingBeforeHold` refs
+- `holdOccurredRef` bridges `touchEnd` → `onClick` to block navigation after hold
+- Scrub bar: `clientY > window.innerHeight * 0.75` detection → amber timeline, drag to seek
 
 ## Brand Tokens (Tailwind)
 `bg-walnut`, `bg-walnut-mid`, `bg-walnut-light`, `bg-deep`
 `text-amber`, `text-wheat`, `text-rust`, `text-sienna`
 `font-display` (Fraunces), `font-sans` (Plus Jakarta Sans)
 Lucide icons: `strokeWidth={1.75}`
-
-## Key Patterns
-- Bottom sheets: `absolute bottom-0 left-0 right-0 z-20 rounded-t-3xl` inside root div
-- Drag interactions: use document-level listeners in closures (NOT React onTouchMove — it's passive)
-- Always add both touch AND mouse handlers for drag features (users test on desktop)
-- Stale closure fix: capture values as local vars before calling `setClips`/`setXxx`
-
-## Workspace Bugs Fixed (this session)
-1. Trim stale closure → use local `currentTrimIn`/`currentTrimOut` vars in drag closure
-2. Reorder passive listener → document-level `{ passive: false }` listeners
-3. Reorder mouse support → added `onMouseDown` + `mousemove`/`mouseup` listeners
-4. Reorder splice race → capture `spliceFrom` before `setClips`, then update ref
-
-## Remaining Work
-- **Fix Cloudflare deployment** (first priority next session)
-- Workspace: full user-test (trim, caption, reorder, remove)
-- Cover image / thumbnail extraction (v1 stretch goal)
-- Actual video thumbnails in Workspace clip list (currently gradient placeholders)
 
 ## Dev Setup
 - Node via Homebrew: `/opt/homebrew/bin/npm`

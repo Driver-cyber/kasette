@@ -254,7 +254,7 @@ All screens are built and confirmed working in the browser:
 
 ---
 
-### [2026-02-27] — GitHub + Cloudflare Pages Deployment (In Progress)
+### [2026-02-27] — GitHub + Cloudflare Pages Deployment
 
 - **GitHub repo:** `https://github.com/Driver-cyber/kasette` (private)
 - **Git root:** `app/` subdirectory (design assets remain in project root, not committed)
@@ -268,11 +268,71 @@ All screens are built and confirmed working in the browser:
 | Build output directory | `dist` |
 | Root directory | `app` |
 
-**Environment variables needed** (Settings → Environment variables → Production + Preview):
+**Environment variables** (Settings → Environment variables → Production + Preview):
 - `VITE_SUPABASE_URL` = `https://ybjbsylocgqcgghmgxeh.supabase.co`
 - `VITE_SUPABASE_ANON_KEY` = (from `app/.env.local`)
 
-**Status:** Deployment failing — env vars were added but deploy still errored. Need to check the Cloudflare build log for the specific error next session.
+---
+
+### [2026-03-14] — Supabase Pro + Multi-User
+
+- **Supabase upgraded to Pro plan** — expanded storage and compute for real-world use
+- **Multi-user approach:** RLS policies are already user_id-scoped. New users sign up at `/signup`. No schema changes needed. Each user sees only their own scrapbooks.
+- **Signup flow:** `/signup` is a public route (outside AuthGate) with email + password + confirm. Supabase sends email confirmation. Text the URL to new family members to onboard.
+
+---
+
+### [2026-03-14] — FFmpeg WASM + FastStart Remux
+
+- **@ffmpeg/ffmpeg + @ffmpeg/util v0.12** added as dependencies
+- **Singleton loader:** `app/src/lib/remux.js` — `loadFFmpeg()` and `remuxWithFaststart(file)`
+- **CDN source:** `https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd`
+- **First-launch init screen:** `AppInit` component in `App.jsx` — shows branded "Setting up your experience · This only happens once" on first app open while FFmpeg downloads. Subsequent launches load FFmpeg silently in the background.
+- **Marker:** `localStorage` key `cassette_ff_ready` — set after first successful load
+- **Intake flow change:** Step now: select clips → remux all clips with FastStart → upload + extract thumbnails
+- **What FastStart does:** Moves the MP4 `moov` atom to the front of the file so video can start playing before fully downloaded. No re-encoding. No quality loss. Purely a metadata restructure.
+- **Why not re-encode:** iPhone files are large (100MB+). Re-encoding on mobile would take 20+ minutes and drain battery. FastStart is a 1–2s operation with the same result for streaming purposes.
+- `vite.config.js` exclusion: `optimizeDeps: { exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'] }` (prevents Vite from trying to bundle WASM)
+
+---
+
+### [2026-03-14] — Poster Thumbnails
+
+- At intake, first frame of each video extracted as JPEG using canvas
+- Uploaded to `cassette-media/{userId}/posters/{clipId}.jpg`
+- Stored as `thumbnail_url` in `clips` table
+- Used as `poster` attribute on `<video>` elements in Playback and Discovery — eliminates blank black frames before video loads
+
+---
+
+### [2026-03-14] — Export as MP4
+
+- **Built:** Export scrapbook as a single MP4 download
+- **Pipeline:** `app/src/lib/export.js` — `exportScrapbook(clips, onProgress)` → Blob
+  1. For each clip: fetch from Supabase Storage → write to FFmpeg virtual FS → trim with `-ss {trim_in} -t {duration} -c copy` → delete raw file
+  2. Write `list.txt` → `ffmpeg -f concat -safe 0 -i list.txt -c copy output.mp4`
+  3. Read output → return Blob → trigger Web Share API or download fallback
+- **Progress:** phases `fetching` → `trimming` → `stitching` → `done` shown as overlay in PlaybackScreen
+- **Captions NOT exported** — they are overlay metadata, not burned into video. Action sheet notes this. A future v2 could re-encode with captions baked in.
+- **Share:** Web Share API (`navigator.share` with File) → falls back to `<a download>` if not supported
+- **Access point:** PlaybackScreen three-dot menu → "Export Scrapbook"
+
+---
+
+### [2026-03-14] — Playback + Discovery UX Improvements
+
+- **Hold-to-pause:** 200ms hold threshold. `holdOccurredRef` bridges touchEnd → onClick to prevent navigation after hold. `wasPlayingBeforeHold` restores state on release.
+- **Pause overlay removed:** Screen freezes cleanly with no visual change on pause (no amber button)
+- **Scrub bar:** Touch bottom 25% of screen → amber timeline appears. Drag to seek. `scrubActiveRef` ref controls this mode.
+- **Discovery horizontal swipe:** Side-swipe navigates between scrapbooks. Vertical swipe navigates clips within a scrapbook. 30% screen width threshold. Rubber-band at boundaries.
+- **Video preloading:** `preload="auto"` on adjacent (prev/next) video elements. Browser HTTP cache shared — preloaded content serves instantly when main video element requests same URL.
+
+---
+
+### [2026-03-14] — Orphan Storage Cleanup
+
+- When a clip is removed in Workspace, `removeClip` now extracts the storage path from `video_url` and `thumbnail_url` and calls `supabase.storage.from('cassette-media').remove([...paths])` after the DB row delete.
+- Previously only the DB row was deleted, leaving orphan files in storage.
 
 ---
 

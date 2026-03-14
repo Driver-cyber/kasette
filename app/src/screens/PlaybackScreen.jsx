@@ -27,7 +27,7 @@ export default function PlaybackScreen() {
   const [loading, setLoading] = useState(true)
 
   // Export
-  const [exportState, setExportState] = useState(null) // null | { phase, current, total } | 'done' | 'error'
+  const [exportState, setExportState] = useState(null) // null | { phase, current, total } | 'done' | { error: string }
   const [exportBlob, setExportBlob] = useState(null)
 
   // Scrub bar
@@ -172,7 +172,7 @@ export default function PlaybackScreen() {
       setExportState('done')
     } catch (e) {
       console.error('[export]', e)
-      setExportState('error')
+      setExportState({ error: e?.message || String(e) })
     }
   }
 
@@ -193,7 +193,7 @@ export default function PlaybackScreen() {
   }
 
   function exportPhaseLabel(state) {
-    if (!state || state === 'done' || state === 'error') return ''
+    if (!state || state === 'done' || state?.error) return ''
     if (state.phase === 'fetching') return `Fetching clip ${state.current} of ${state.total}…`
     if (state.phase === 'trimming') return `Trimming clip ${state.current} of ${state.total}…`
     if (state.phase === 'stitching') return 'Stitching your scrapbook…'
@@ -568,10 +568,11 @@ export default function PlaybackScreen() {
                 Done
               </button>
             </>
-          ) : exportState === 'error' ? (
+          ) : exportState?.error ? (
             <>
               <p className="text-sienna font-display font-semibold text-xl mb-2">Export failed</p>
-              <p className="text-rust text-sm mb-8">Something went wrong. Check your connection and try again.</p>
+              <p className="text-rust text-sm mb-3">Something went wrong. Check your connection and try again.</p>
+              <p className="text-wheat/30 text-[11px] font-mono mb-8 px-2 text-center break-all">{exportState.error}</p>
               <button
                 onClick={() => { setExportState(null); videoRef.current?.play().catch(() => {}) }}
                 className="text-amber font-sans text-sm active:opacity-70"

@@ -18,7 +18,10 @@ export async function loadFFmpeg() {
     })
     ffmpeg = ff
     return ff
-  })()
+  })().catch((e) => {
+    loadPromise = null  // allow retry next time
+    throw e
+  })
 
   return loadPromise
 }

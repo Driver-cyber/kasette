@@ -4,16 +4,17 @@ import { fetchFile, toBlobURL } from '@ffmpeg/util'
 let ffmpeg = null
 let loadPromise = null
 
+const FFMPEG_BASE = 'https://ybjbsylocgqcgghmgxeh.supabase.co/storage/v1/object/public/cassette-media/ffmpeg'
+
 export async function loadFFmpeg() {
   if (ffmpeg) return ffmpeg
   if (loadPromise) return loadPromise
 
   loadPromise = (async () => {
     const ff = new FFmpeg()
-    const base = `${window.location.origin}/ffmpeg`
     await ff.load({
-      coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+      coreURL: await toBlobURL(`${FFMPEG_BASE}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${FFMPEG_BASE}/ffmpeg-core.wasm`, 'application/wasm'),
     })
     ffmpeg = ff
     return ff

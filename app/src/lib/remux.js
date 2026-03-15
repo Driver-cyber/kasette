@@ -1,5 +1,5 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg'
-import { fetchFile } from '@ffmpeg/util'
+import { fetchFile, toBlobURL } from '@ffmpeg/util'
 
 let ffmpeg = null
 let loadPromise = null
@@ -13,8 +13,8 @@ export async function loadFFmpeg() {
   loadPromise = (async () => {
     const ff = new FFmpeg()
     await ff.load({
-      coreURL: `${FFMPEG_BASE}/ffmpeg-core.js`,
-      wasmURL: `${FFMPEG_BASE}/ffmpeg-core.wasm`,
+      coreURL: await toBlobURL(`${FFMPEG_BASE}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${FFMPEG_BASE}/ffmpeg-core.wasm`, 'application/wasm'),
     })
     ffmpeg = ff
     return ff

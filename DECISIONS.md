@@ -329,6 +329,28 @@ All screens are built and confirmed working in the browser:
 
 ---
 
+### [2026-03-15] — FFmpeg Loading: Final Architecture (Hard-Won)
+
+**Problem:** `@ffmpeg/ffmpeg` v0.12 consistently failed with `"failed to import ffmpeg-core.js"` in production on Cloudflare Pages.
+
+**Root causes discovered (in order):**
+1. Original CDN approach (`jsdelivr.net` via `toBlobURL`) — failed; CDN unreliable in production worker context
+2. `COEP: credentialless` header added to fix SharedArrayBuffer — broke CDN fetch, replaced one error with another
+3. Self-hosting via Cloudflare Pages — blocked by **25MB per-file limit** (ffmpeg-core.wasm is 31MB)
+4. Direct Supabase URL without `toBlobURL` — worker dynamic `import()` fails without correct MIME type enforcement
+5. Supabase URL + `toBlobURL` without COOP/COEP — SharedArrayBuffer unavailable, FFmpeg init fails
+
+**Final working configuration (all three parts required together):**
+- **Files hosted in Supabase Storage:** `cassette-media/ffmpeg/ffmpeg-core.js` + `ffmpeg-core.wasm` — no size limits, public bucket, CORS built in. Uploaded once via Supabase Dashboard UI from `node_modules/@ffmpeg/core/dist/umd/`.
+- **`toBlobURL()`** in `remux.js` — fetches files and creates same-origin blob URLs, forcing correct MIME types (`text/javascript`, `application/wasm`) so the worker's dynamic `import()` succeeds.
+- **`_headers` file** with `Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: credentialless` — enables SharedArrayBuffer (required by FFmpeg WASM) without blocking cross-origin Supabase fetches. `credentialless` is essential — `require-corp` would break Supabase storage access.
+
+**Key constraint:** All three pieces must be present. Remove any one and FFmpeg fails.
+
+**For local dev:** `node copy-ffmpeg.js` copies files from `node_modules/@ffmpeg/core/dist/umd/` to `public/ffmpeg/`. That directory is gitignored.
+
+---
+
 ### [2026-03-14] — Orphan Storage Cleanup
 
 - When a clip is removed in Workspace, `removeClip` now extracts the storage path from `video_url` and `thumbnail_url` and calls `supabase.storage.from('cassette-media').remove([...paths])` after the DB row delete.
@@ -353,7 +375,7 @@ All screens are built and confirmed working in the browser:
 |---|---|---|
 | 1 | **Reorder 2-step → 1-step UX** | Tap to select + same gesture drags. Hard: `onClick` fires after `touchend`. Parked. |
 | 2 | **Rename scrapbook** | From Home card options menu or Playback action sheet. Simple text input sheet. |
-| 3 | **Delete clip storage on remove** | When a clip is removed in Workspace, also delete its file from `cassette-media`. Currently only DB row is deleted. |
+| 3 | **Delete clip storage on remove** | ✅ Done — `removeClip` in WorkspaceScreen now deletes video + thumbnail from storage. |
 
 ---
 

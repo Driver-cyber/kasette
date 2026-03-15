@@ -54,7 +54,7 @@ expense of mobile experience.
 | State | React Context | No Redux until complexity demands it |
 | Routing | React Router v7 | URL-based, iOS swipe-back works |
 | Icons | Lucide React | 1.75px stroke, Amber on dark |
-| Video processing | @ffmpeg/ffmpeg + @ffmpeg/util v0.12 | CDN-loaded WASM, singleton in `lib/remux.js` |
+| Video processing | @ffmpeg/ffmpeg + @ffmpeg/util v0.12 | WASM hosted in Supabase Storage, singleton in `lib/remux.js` |
 
 **Do not introduce new infrastructure without a plan approval.** If a task seems to
 require a new service or dependency, propose it first.

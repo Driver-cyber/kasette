@@ -18,6 +18,7 @@ React app lives in `app/` subdirectory. Design assets (HTML mockups) in root —
 - Pushed via GitHub Desktop from `app/` folder
 - Cloudflare Pages: build cmd `npm run build`, output `dist`, root `app`
 - Env vars on Cloudflare: `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`
+- **Cloudflare Pages 25MB file size limit** — cannot host FFmpeg WASM (31MB) there
 
 ## Supabase
 - Plan: **Pro** (upgraded 2026-03-14)
@@ -26,13 +27,25 @@ React app lives in `app/` subdirectory. Design assets (HTML mockups) in root —
 - Tables: `scrapbooks` (has `year` column), `clips` (has `thumbnail_url` column) with RLS, user_id-scoped
 - Storage bucket: `cassette-media` (public)
 - Multi-user: RLS is user_id-scoped — multiple accounts just work, no code changes needed
+- **FFmpeg files hosted in Supabase Storage:** `cassette-media/ffmpeg/ffmpeg-core.js` + `ffmpeg-core.wasm`
+  - Uploaded manually via Supabase Dashboard (one-time setup, already done)
+  - Source files: `node_modules/@ffmpeg/core/dist/umd/`
 
 ## Tech Stack
 - React 18 + Vite + Tailwind v4 (`@theme` block, `@tailwindcss/vite`)
 - React Router v7, Supabase JS v2, Lucide React
-- **@ffmpeg/ffmpeg + @ffmpeg/util v0.12** — CDN loaded, singleton in `app/src/lib/remux.js`
+- **@ffmpeg/ffmpeg + @ffmpeg/util v0.12** — singleton in `app/src/lib/remux.js`
+- **@ffmpeg/core v0.12.6** — in `package.json` dependencies (used for local dev copy script)
 - Google Fonts: Fraunces (display/italic) + Plus Jakarta Sans (UI)
 - `vite.config.js`: `optimizeDeps: { exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'] }`
+
+## FFmpeg Loading Strategy (IMPORTANT — hard-won)
+- Core files hosted in **Supabase Storage** (not CDN, not Cloudflare Pages — too large)
+- Loaded via **`toBlobURL()`** (forces correct MIME types for dynamic import in worker)
+- Requires **COOP + COEP: credentialless** headers (`public/_headers`) for SharedArrayBuffer
+  - `credentialless` (not `require-corp`) allows Supabase fetches to still work
+- `_headers` file: `Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: credentialless`
+- If FFmpeg loading breaks again: check these three things first
 
 ## Routes
 - `/` → HomeScreen (protected)
@@ -47,13 +60,8 @@ React app lives in `app/` subdirectory. Design assets (HTML mockups) in root —
 - `app/src/lib/export.js` — `exportScrapbook(clips, onProgress)` → Blob (trim + concat)
 - `app/src/lib/supabase.js` — Supabase client
 - `app/src/context/AuthContext.jsx` — Auth context, persistent session
-
-## FFmpeg / Video
-- FFmpeg WASM loaded from CDN on first app launch; `localStorage` key `cassette_ff_ready` marks completion
-- First launch: `InitScreen` shows ("Setting up your experience · This only happens once")
-- Intake: remux → upload (not re-encode — just move moov atom to front for fast start)
-- Export: fetch each clip → trim with `-ss -t -c copy` → concat demuxer → single MP4 download
-- Posters: first-frame JPEG extracted at intake, stored at `cassette-media/{userId}/posters/`, `thumbnail_url` in DB
+- `app/public/_headers` — COOP/COEP headers (required for FFmpeg WASM)
+- `app/copy-ffmpeg.js` — copies FFmpeg core files from node_modules to public/ffmpeg/ for local dev
 
 ## Key Patterns
 - Bottom sheets: `absolute bottom-0 left-0 right-0 z-20 rounded-t-3xl` inside root div
@@ -74,3 +82,4 @@ Lucide icons: `strokeWidth={1.75}`
 - Node via Homebrew: `/opt/homebrew/bin/npm`
 - Run locally: `cd app && npm run dev`
 - No GitHub CLI installed — use GitHub Desktop for pushes
+- Before first `npm run dev`: run `node copy-ffmpeg.js` to copy FFmpeg files to `public/ffmpeg/`

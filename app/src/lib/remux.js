@@ -4,17 +4,16 @@ import { fetchFile, toBlobURL } from '@ffmpeg/util'
 let ffmpeg = null
 let loadPromise = null
 
-const CDN = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd'
-
 export async function loadFFmpeg() {
   if (ffmpeg) return ffmpeg
   if (loadPromise) return loadPromise
 
   loadPromise = (async () => {
     const ff = new FFmpeg()
+    const base = `${window.location.origin}/ffmpeg`
     await ff.load({
-      coreURL: await toBlobURL(`${CDN}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${CDN}/ffmpeg-core.wasm`, 'application/wasm'),
+      coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
     })
     ffmpeg = ff
     return ff

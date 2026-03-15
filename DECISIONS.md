@@ -368,3 +368,4 @@ All screens are built and confirmed working in the browser:
 - **Public share links (grandparent view)** — read-only link. High value, v2.
 - **Native iOS app** — if PWA proves too limiting for video handling.
 - **Light mode** — not a Cassette experience. Maybe never.
+- **Scrapbook sharing between users** — share a scrapbook with another Cassette user (e.g. husband/wife) so they can view it in their own account. Requires a `shared_scrapbooks` join table or invite link system. High value for families.

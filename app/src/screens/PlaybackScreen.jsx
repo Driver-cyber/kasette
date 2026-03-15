@@ -180,16 +180,22 @@ export default function PlaybackScreen() {
     if (!exportBlob) return
     const filename = `${scrapbook?.name || 'cassette'}.mp4`
     const file = new File([exportBlob], filename, { type: 'video/mp4' })
-    if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: scrapbook?.name })
-    } else {
-      const url = URL.createObjectURL(exportBlob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      a.click()
-      URL.revokeObjectURL(url)
+    try {
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: scrapbook?.name })
+        return
+      }
+    } catch {
+      // share dismissed or unsupported — fall through to download
     }
+    const url = URL.createObjectURL(exportBlob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   function exportPhaseLabel(state) {

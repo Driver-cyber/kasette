@@ -24,8 +24,6 @@ export default function DiscoveryScreen() {
   const [clips, setClips] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [isPlaying, setIsPlaying] = useState(false)
-
   // Drag/swipe state
   const [dragOffset, setDragOffset] = useState(0)
   const [dragTransitioning, setDragTransitioning] = useState(false)
@@ -355,8 +353,6 @@ export default function DiscoveryScreen() {
           ref={videoRef}
           className="absolute inset-0 w-full h-full object-cover"
           onTimeUpdate={handleTimeUpdate}
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
           playsInline
           preload="auto"
           poster={currentClip?.thumbnail_url || undefined}

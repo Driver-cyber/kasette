@@ -1,33 +1,37 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg'
-import { fetchFile, toBlobURL } from '@ffmpeg/util'
+import { fetchFile } from '@ffmpeg/util'
 
 let ffmpeg = null
 let loadPromise = null
 
 const FFMPEG_BASE = 'https://ybjbsylocgqcgghmgxeh.supabase.co/storage/v1/object/public/cassette-media/ffmpeg'
 
+// toBlobURL but with explicit CORS mode — COEP:credentialless makes default fetches
+// return opaque responses (empty body), so the blob ends up empty and importScripts fails.
+async function fetchToBlobURL(url, mimeType) {
+  const res = await fetch(url, { mode: 'cors', credentials: 'omit' })
+  if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
+  const buf = await res.arrayBuffer()
+  console.log('[ffmpeg] fetched', url.split('/').pop(), buf.byteLength, 'bytes')
+  return URL.createObjectURL(new Blob([buf], { type: mimeType }))
+}
+
 export async function loadFFmpeg() {
   if (ffmpeg) return ffmpeg
   if (loadPromise) return loadPromise
 
   loadPromise = (async () => {
-    console.log('[ffmpeg] fetching core...')
-    const coreRes = await fetch(`${FFMPEG_BASE}/ffmpeg-core.js`)
-    console.log('[ffmpeg] core status:', coreRes.status, 'type:', coreRes.headers.get('content-type'), 'cors:', coreRes.headers.get('access-control-allow-origin'))
-    const coreURL = await toBlobURL(`${FFMPEG_BASE}/ffmpeg-core.js`, 'text/javascript')
-    console.log('[ffmpeg] coreURL blob created:', coreURL.slice(0, 40))
-    const wasmURL = await toBlobURL(`${FFMPEG_BASE}/ffmpeg-core.wasm`, 'application/wasm')
-    console.log('[ffmpeg] wasmURL blob created:', wasmURL.slice(0, 40))
+    const coreURL = await fetchToBlobURL(`${FFMPEG_BASE}/ffmpeg-core.js`, 'text/javascript')
+    const wasmURL = await fetchToBlobURL(`${FFMPEG_BASE}/ffmpeg-core.wasm`, 'application/wasm')
     const ff = new FFmpeg()
     ff.on('log', ({ message }) => console.log('[ffmpeg worker]', message))
-    console.log('[ffmpeg] calling ff.load...')
     await ff.load({ coreURL, wasmURL })
     console.log('[ffmpeg] loaded successfully!')
     ffmpeg = ff
     return ff
   })().catch((e) => {
     console.error('[ffmpeg] load failed:', e)
-    loadPromise = null  // allow retry next time
+    loadPromise = null
     throw e
   })
 

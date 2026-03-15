@@ -347,6 +347,8 @@ All screens are built and confirmed working in the browser:
 
 **Key constraint:** All three pieces must be present. Remove any one and FFmpeg fails.
 
+**Status as of 2026-03-15:** Still failing despite all three pieces in place. Diagnostic logging deployed in `remux.js` — next session open console, trigger export, look for `[ffmpeg]` log lines to find the exact failure point.
+
 **For local dev:** `node copy-ffmpeg.js` copies files from `node_modules/@ffmpeg/core/dist/umd/` to `public/ffmpeg/`. That directory is gitignored.
 
 ---

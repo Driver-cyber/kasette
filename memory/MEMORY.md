@@ -39,13 +39,12 @@ React app lives in `app/` subdirectory. Design assets (HTML mockups) in root —
 - Google Fonts: Fraunces (display/italic) + Plus Jakarta Sans (UI)
 - `vite.config.js`: `optimizeDeps: { exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'] }`
 
-## FFmpeg Loading Strategy (IMPORTANT — hard-won)
-- Core files hosted in **Supabase Storage** (not CDN, not Cloudflare Pages — too large)
-- Loaded via **`toBlobURL()`** (forces correct MIME types for dynamic import in worker)
-- Requires **COOP + COEP: credentialless** headers (`public/_headers`) for SharedArrayBuffer
-  - `credentialless` (not `require-corp`) allows Supabase fetches to still work
-- `_headers` file: `Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: credentialless`
-- If FFmpeg loading breaks again: check these three things first
+## FFmpeg Loading Strategy (IN PROGRESS — still debugging)
+- Core files hosted in **Supabase Storage** `cassette-media/ffmpeg/` (uploaded manually, already done)
+- Loaded via **`toBlobURL()`** + COOP/COEP: credentialless headers
+- **Still failing with `"failed to import ffmpeg-core.js"`** — root cause unknown
+- **Diagnostic logging deployed** (latest commit) — next session: try export → save full console log → look for `[ffmpeg]` lines to see exactly which step fails (fetch? blob creation? ff.load()?)
+- Do NOT remove the diagnostic logging until we identify the root cause
 
 ## Routes
 - `/` → HomeScreen (protected)

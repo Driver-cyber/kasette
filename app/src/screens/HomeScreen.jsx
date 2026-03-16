@@ -142,6 +142,17 @@ export default function HomeScreen() {
   const [optionsId, setOptionsId] = useState(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [deleting, setDeleting] = useState(false)
+  const [installDismissed, setInstallDismissed] = useState(
+    () => !!localStorage.getItem('cassette_pwa_prompt_dismissed')
+  )
+  const showInstallPrompt = !installDismissed &&
+    /iPhone|iPad|iPod/.test(navigator.userAgent) &&
+    !window.navigator.standalone
+
+  function dismissInstall() {
+    localStorage.setItem('cassette_pwa_prompt_dismissed', '1')
+    setInstallDismissed(true)
+  }
   const [showVersion, setShowVersion] = useState(false) // Version popup
   const searchInputRef = useRef(null)
   const coverChangeInputRef = useRef(null)
@@ -643,6 +654,42 @@ export default function HomeScreen() {
             </div>
           </div>
         </>
+      )}
+
+      {/* PWA install prompt — iOS only, once */}
+      {showInstallPrompt && (
+        <div
+          className="absolute bottom-6 left-4 right-4 z-50 rounded-2xl px-4 py-3.5 flex items-start gap-3 border border-walnut-light"
+          style={{ background: '#3D2410', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}
+        >
+          {/* iOS share icon */}
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
+            style={{ background: 'rgba(242,162,74,0.12)' }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F2A24A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/>
+              <polyline points="16 6 12 2 8 6"/>
+              <line x1="12" y1="2" x2="12" y2="15"/>
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-wheat font-semibold text-[13px] leading-snug mb-1">
+              Add Cassette to your home screen
+            </p>
+            <p className="text-rust text-[12px] leading-snug">
+              Tap <span className="text-wheat/60">Share</span> in Safari, then{' '}
+              <span className="text-wheat/60">"Add to Home Screen"</span> for the full app experience.
+            </p>
+          </div>
+          <button
+            onClick={dismissInstall}
+            className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 active:opacity-60 mt-0.5"
+            style={{ background: 'rgba(255,255,255,0.06)' }}
+          >
+            <X size={13} strokeWidth={2.5} className="text-rust" />
+          </button>
+        </div>
       )}
 
       {/* Hidden cover image input */}

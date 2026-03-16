@@ -68,44 +68,29 @@ function ScrapbookCard({ scrapbook, onClick, onOptionsPress, readOnly = false, i
       {/* Thumbnail */}
       <div className="relative h-[148px] overflow-hidden">
         {scrapbook.cover_image_url ? (
-          <img
-            src={scrapbook.cover_image_url}
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover"
+          <div
+            className="absolute inset-0 bg-center bg-cover"
+            style={{ backgroundImage: `url(${scrapbook.cover_image_url})` }}
           />
         ) : (
           <div className="absolute inset-0" style={{ background: gradient }} />
         )}
-
-        {/* Gradient overlay */}
-        <div
-          className="absolute inset-0"
-          style={{ background: 'linear-gradient(180deg, rgba(44,26,14,0) 40%, rgba(44,26,14,0.85) 100%)' }}
-        />
-
-        {/* Options button — top left (owner or shared) */}
-        {onOptionsPress ? (
+        {onOptionsPress && (
           <button
             onClick={(e) => { e.stopPropagation(); onOptionsPress() }}
-            className="absolute top-2.5 left-2.5 w-8 h-8 rounded-full flex items-center justify-center active:opacity-70"
-            style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}
+            className="absolute top-2 left-2 w-8 h-8 rounded-full flex items-center justify-center active:opacity-70 z-10"
+            style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)' }}
           >
-            <MoreHorizontal size={15} strokeWidth={1.75} className="text-wheat/70" />
+            <MoreHorizontal size={15} strokeWidth={2} className="text-white" />
           </button>
-        ) : isNew ? (
-          <div
-            className="absolute top-3 left-3 px-2 py-0.5 rounded-full"
-            style={{ background: 'rgba(242,162,74,0.9)' }}
-          >
-            <span className="text-walnut font-sans font-bold text-[10px] tracking-wide">NEW</span>
+        )}
+        {isNew && (
+          <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-amber text-walnut font-sans font-bold text-[10px] tracking-wider uppercase">
+            New
           </div>
-        ) : null}
-
-        {/* Clip count badge */}
-        <div
-          className="absolute top-3 right-3 px-2.5 py-1 rounded-full text-amber font-sans text-[10px] font-semibold tracking-widest border"
-          style={{ background: 'rgba(44,26,14,0.75)', borderColor: 'rgba(242,162,74,0.25)', backdropFilter: 'blur(4px)' }}
-        >
+        )}
+        <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-sans font-semibold text-white/90"
+          style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)' }}>
           {clips.length} {clips.length === 1 ? 'clip' : 'clips'}
         </div>
 
@@ -143,17 +128,6 @@ export default function HomeScreen() {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [sharedOptionsShareId, setSharedOptionsShareId] = useState(null)
-  const [installDismissed, setInstallDismissed] = useState(
-    () => !!localStorage.getItem('cassette_pwa_prompt_dismissed')
-  )
-  const showInstallPrompt = !installDismissed &&
-    /iPhone|iPad|iPod/.test(navigator.userAgent) &&
-    !window.navigator.standalone
-
-  function dismissInstall() {
-    localStorage.setItem('cassette_pwa_prompt_dismissed', '1')
-    setInstallDismissed(true)
-  }
   const [showVersion, setShowVersion] = useState(false) // Version popup
   const searchInputRef = useRef(null)
   const coverChangeInputRef = useRef(null)
@@ -332,103 +306,114 @@ export default function HomeScreen() {
           <button
             onClick={() => showSearch ? closeSearch() : setShowSearch(true)}
             className="w-10 h-10 flex items-center justify-center rounded-full active:opacity-70"
-            style={{ background: showSearch ? 'rgba(242,162,74,0.12)' : 'transparent' }}
+            style={{ background: showSearch ? 'rgba(242,162,74,0.15)' : 'transparent' }}
           >
-            {showSearch
-              ? <X size={18} strokeWidth={2} className="text-amber" />
-              : <Search size={18} strokeWidth={2} className="text-wheat/50" />
-            }
-          </button>
-
-          <button
-            onClick={() => navigate('/intake')}
-            className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-[13px] rounded-full px-5 py-2.5 tracking-wide active:opacity-80 transition-opacity"
-          >
-            <Plus size={12} strokeWidth={2.5} />
-            New
+            {showSearch ? (
+              <X size={18} strokeWidth={2.5} className="text-amber" />
+            ) : (
+              <Search size={18} strokeWidth={2} className="text-wheat/50" />
+            )}
           </button>
         </div>
       </header>
 
-      {/* Search bar */}
+      {/* Search input */}
       {showSearch && (
-        <div className="px-5 pb-3 flex-shrink-0">
-          <div
-            className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 border"
-            style={{ background: '#3D2410', borderColor: '#4A2E18' }}
-          >
-            <Search size={14} strokeWidth={1.75} className="text-rust flex-shrink-0" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search scrapbooks…"
-              className="flex-1 bg-transparent font-sans text-base text-wheat placeholder:text-rust/50 outline-none"
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="active:opacity-70">
-                <X size={13} strokeWidth={2} className="text-rust" />
-              </button>
-            )}
-          </div>
+        <div className="px-6 pb-4 flex-shrink-0">
+          <input
+            ref={searchInputRef}
+            type="search"
+            placeholder="Search scrapbooks..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-walnut-mid border border-walnut-light rounded-2xl px-4 py-3 text-wheat text-[15px] font-sans placeholder:text-rust focus:outline-none focus:border-amber"
+          />
         </div>
       )}
 
-      {/* Divider */}
-      <div className="mx-6 mb-5 h-px bg-walnut-light opacity-60 flex-shrink-0" />
-
-      {/* Section heading */}
-      {!showSearch && (
-        <div className="px-6 mb-4 flex-shrink-0">
-          <p className="text-rust text-[10px] font-semibold tracking-[0.2em] uppercase mb-1">
-            Your scrapbooks
-          </p>
-          <h2 className="font-display font-bold text-[30px] text-wheat leading-[1.1]">
-            What would you<br />like to <em className="font-light text-sienna">watch?</em>
-          </h2>
-        </div>
-      )}
-
-      {/* Scrapbook list */}
-      <main className="flex-1 overflow-y-auto px-5 pb-8">
+      {/* Main content */}
+      <main className="flex-1 overflow-y-auto px-6 pb-20">
         {loading ? (
           <div className="flex items-center justify-center pt-20">
-            <div className="w-7 h-7 rounded-full border-2 border-amber border-t-transparent animate-spin" />
+            <div className="w-8 h-8 rounded-full border-2 border-amber border-t-transparent animate-spin" />
+          </div>
+        ) : filteredScrapbooks.length === 0 && sharedScrapbooks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center text-center pt-20 px-8">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center mb-6"
+              style={{ background: 'rgba(242,162,74,0.1)' }}>
+              <Play size={24} strokeWidth={2} className="text-amber ml-1" />
+            </div>
+            <p className="text-wheat font-display font-semibold text-xl mb-2">No scrapbooks yet</p>
+            <p className="text-rust text-sm leading-relaxed mb-8">
+              Create your first scrapbook to get started.
+            </p>
+            <button
+              onClick={() => navigate('/intake')}
+              className="px-6 py-3 bg-amber text-walnut font-sans font-bold text-[15px] rounded-2xl active:opacity-80 flex items-center gap-2"
+            >
+              <Plus size={18} strokeWidth={2.5} />
+              New Scrapbook
+            </button>
           </div>
         ) : (
-          <div className="flex flex-col">
-            {/* Own scrapbooks */}
-            {filteredScrapbooks.length === 0 && !searchQuery ? null : filteredScrapbooks.length === 0 ? (
-              <div className="flex flex-col items-center justify-center pt-16 gap-3 text-center">
-                <p className="font-display font-semibold text-xl text-wheat opacity-60">
-                  No results for "{searchQuery}"
-                </p>
-              </div>
-            ) : (
-              years.map((year, yi) => (
-                <div key={year}>
-                  <button
-                    onClick={() => toggleYear(year)}
-                    className="w-full flex items-center justify-between py-3 active:opacity-70"
-                    style={{ paddingTop: yi === 0 ? 4 : 20 }}
-                  >
-                    <div className="flex items-baseline gap-2.5">
-                      <span className="font-display font-bold text-[26px] text-wheat leading-none">{year}</span>
-                      <span className="text-rust text-[11px] font-semibold">
-                        {groupedByYear[year].length} {groupedByYear[year].length === 1 ? 'scrapbook' : 'scrapbooks'}
-                      </span>
-                    </div>
+          <div className="space-y-8 pt-4">
+            {/* Shared with you section */}
+            {sharedScrapbooks.length > 0 && (
+              <div>
+                <button
+                  onClick={() => setSharedCollapsed(!sharedCollapsed)}
+                  className="flex items-center justify-between w-full mb-3 active:opacity-70"
+                >
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-rust font-sans font-semibold text-[13px] tracking-wide uppercase">
+                      Shared with you
+                    </h2>
                     <ChevronDown
                       size={16}
                       strokeWidth={2}
-                      className="text-wheat/30 transition-transform duration-200"
-                      style={{ transform: collapsedYears.has(year) ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+                      className={`text-rust transition-transform ${sharedCollapsed ? '-rotate-90' : ''}`}
+                    />
+                  </div>
+                </button>
+                {!sharedCollapsed && (
+                  <div className="grid gap-4">
+                    {sharedScrapbooks.map((share) => (
+                      <ScrapbookCard
+                        key={share.id}
+                        scrapbook={share.scrapbooks}
+                        onClick={() => handleSharedCardTap(share)}
+                        onOptionsPress={() => setSharedOptionsShareId(share.id)}
+                        readOnly={true}
+                        isNew={!share.seen}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Year groups */}
+            {years.map((year) => {
+              const yearScrapbooks = groupedByYear[year]
+              const isCollapsed = collapsedYears.has(year)
+              return (
+                <div key={year}>
+                  <button
+                    onClick={() => toggleYear(year)}
+                    className="flex items-center gap-2 mb-3 active:opacity-70"
+                  >
+                    <h2 className="text-rust font-sans font-semibold text-[13px] tracking-wide uppercase">
+                      {year}
+                    </h2>
+                    <ChevronDown
+                      size={16}
+                      strokeWidth={2}
+                      className={`text-rust transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
                     />
                   </button>
-                  {!collapsedYears.has(year) && (
-                    <div className="flex flex-col gap-3.5 pb-2">
-                      {groupedByYear[year].map((sb) => (
+                  {!isCollapsed && (
+                    <div className="grid gap-4">
+                      {yearScrapbooks.map((sb) => (
                         <ScrapbookCard
                           key={sb.id}
                           scrapbook={sb}
@@ -439,65 +424,19 @@ export default function HomeScreen() {
                     </div>
                   )}
                 </div>
-              ))
-            )}
-
-            {/* Shared with you */}
-            {sharedScrapbooks.length > 0 && (
-              <div className="mb-2" style={{ marginTop: filteredScrapbooks.length > 0 ? 32 : 4 }}>
-                <button
-                  onClick={() => setSharedCollapsed(c => !c)}
-                  className="w-full flex items-center justify-between py-3 active:opacity-70"
-                >
-                  <div className="flex items-baseline gap-2.5">
-                    <span className="font-display font-bold text-[26px] text-wheat leading-none">Shared</span>
-                    <span className="text-rust text-[11px] font-semibold">
-                      with you · {sharedScrapbooks.length} {sharedScrapbooks.length === 1 ? 'scrapbook' : 'scrapbooks'}
-                    </span>
-                  </div>
-                  <ChevronDown
-                    size={16}
-                    strokeWidth={2}
-                    className="text-wheat/30 transition-transform duration-200"
-                    style={{ transform: sharedCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
-                  />
-                </button>
-                {!sharedCollapsed && (
-                  <div className="flex flex-col gap-3.5 pb-2">
-                    {sharedScrapbooks.map((share) => (
-                      <ScrapbookCard
-                        key={share.id}
-                        scrapbook={share.scrapbooks}
-                        onClick={() => handleSharedCardTap(share)}
-                        onOptionsPress={() => setSharedOptionsShareId(share.id)}
-                        readOnly
-                        isNew={!share.seen}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Empty state — no own scrapbooks and nothing shared */}
-            {filteredScrapbooks.length === 0 && sharedScrapbooks.length === 0 && !searchQuery && (
-              <div className="flex flex-col items-center justify-center pt-20 gap-3 text-center">
-                <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="opacity-20">
-                  <circle cx="16" cy="22" r="8" stroke="#F5DEB3" strokeWidth="3" fill="none"/>
-                  <circle cx="32" cy="22" r="8" stroke="#F5DEB3" strokeWidth="3" fill="none"/>
-                  <circle cx="16" cy="22" r="2.5" fill="#F5DEB3"/>
-                  <circle cx="32" cy="22" r="2.5" fill="#F5DEB3"/>
-                  <rect x="14" y="31" width="20" height="3" rx="1.5" fill="#F5DEB3"/>
-                </svg>
-                <p className="font-display font-semibold text-xl text-wheat opacity-60">No scrapbooks yet</p>
-                <p className="text-rust text-sm leading-relaxed max-w-[220px]">
-                  Tap <strong className="text-amber">New</strong> to import videos from your camera roll and create your first scrapbook.
-                </p>
-              </div>
-            )}
+              )
+            })}
           </div>
         )}
       </main>
+
+      {/* FAB */}
+      <button
+        onClick={() => navigate('/intake')}
+        className="absolute bottom-8 right-6 w-14 h-14 rounded-full bg-amber flex items-center justify-center active:scale-95 transition-transform shadow-lg"
+      >
+        <Plus size={24} strokeWidth={2.5} className="text-walnut" />
+      </button>
 
       {/* Delete confirmation sheet */}
       {confirmDeleteId && (
@@ -561,15 +500,18 @@ export default function HomeScreen() {
               </div>
               <div className="flex-1 text-left">
                 <p className="text-wheat text-[14px] font-semibold leading-none mb-0.5">
-                  {optionsScrapbook?.cover_image_url ? 'Change cover' : 'Add cover image'}
+                  {optionsScrapbook?.cover_image_url ? 'Change Cover' : 'Add Cover Photo'}
                 </p>
-                <p className="text-rust text-[11px]">Pick a photo from your camera roll</p>
+                <p className="text-rust text-[11px]">Choose from your photos</p>
               </div>
             </button>
 
             {/* Delete */}
             <button
-              onClick={() => { setOptionsId(null); setConfirmDeleteId(optionsId) }}
+              onClick={() => {
+                setOptionsId(null)
+                setConfirmDeleteId(optionsId)
+              }}
               className="w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl mb-4 active:opacity-75"
               style={{ background: '#2C1A0E' }}
             >
@@ -577,7 +519,10 @@ export default function HomeScreen() {
                 style={{ background: 'rgba(232,133,90,0.1)' }}>
                 <X size={16} strokeWidth={2} className="text-sienna" />
               </div>
-              <p className="text-sienna text-[14px] font-semibold">Delete Scrapbook</p>
+              <div className="flex-1 text-left">
+                <p className="text-sienna text-[14px] font-semibold leading-none mb-0.5">Delete Scrapbook</p>
+                <p className="text-rust text-[11px]">This can't be undone</p>
+              </div>
             </button>
 
             <button
@@ -688,7 +633,6 @@ export default function HomeScreen() {
                 onClick={async () => {
                   await supabase.auth.signOut()
                   setShowVersion(false)
-                  navigate('/login')
                 }}
                 className="w-full bg-walnut-mid text-rust font-sans font-semibold text-[14px] rounded-xl py-3 active:opacity-80 mb-2 border border-walnut-light"
               >
@@ -705,42 +649,6 @@ export default function HomeScreen() {
             </div>
           </div>
         </>
-      )}
-
-      {/* PWA install prompt — iOS only, once */}
-      {showInstallPrompt && (
-        <div
-          className="absolute bottom-6 left-4 right-4 z-50 rounded-2xl px-4 py-3.5 flex items-start gap-3 border border-walnut-light"
-          style={{ background: '#3D2410', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}
-        >
-          {/* iOS share icon */}
-          <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
-            style={{ background: 'rgba(242,162,74,0.12)' }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F2A24A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/>
-              <polyline points="16 6 12 2 8 6"/>
-              <line x1="12" y1="2" x2="12" y2="15"/>
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-wheat font-semibold text-[13px] leading-snug mb-1">
-              Add Cassette to your home screen
-            </p>
-            <p className="text-rust text-[12px] leading-snug">
-              Tap <span className="text-wheat/60">Share</span> in Safari, then{' '}
-              <span className="text-wheat/60">"Add to Home Screen"</span> for the full app experience.
-            </p>
-          </div>
-          <button
-            onClick={dismissInstall}
-            className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 active:opacity-60 mt-0.5"
-            style={{ background: 'rgba(255,255,255,0.06)' }}
-          >
-            <X size={13} strokeWidth={2.5} className="text-rust" />
-          </button>
-        </div>
       )}
 
       {/* Hidden cover image input */}

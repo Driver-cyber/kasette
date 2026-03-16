@@ -83,8 +83,8 @@ function ScrapbookCard({ scrapbook, onClick, onOptionsPress, readOnly = false, i
           style={{ background: 'linear-gradient(180deg, rgba(44,26,14,0) 40%, rgba(44,26,14,0.85) 100%)' }}
         />
 
-        {/* Options button — top left (owner only) */}
-        {!readOnly ? (
+        {/* Options button — top left (owner or shared) */}
+        {onOptionsPress ? (
           <button
             onClick={(e) => { e.stopPropagation(); onOptionsPress() }}
             className="absolute top-2.5 left-2.5 w-8 h-8 rounded-full flex items-center justify-center active:opacity-70"
@@ -142,6 +142,7 @@ export default function HomeScreen() {
   const [optionsId, setOptionsId] = useState(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [deleting, setDeleting] = useState(false)
+  const [sharedOptionsShareId, setSharedOptionsShareId] = useState(null)
   const [installDismissed, setInstallDismissed] = useState(
     () => !!localStorage.getItem('cassette_pwa_prompt_dismissed')
   )
@@ -221,6 +222,7 @@ export default function HomeScreen() {
   const years = Object.keys(groupedByYear).map(Number).sort((a, b) => b - a)
 
   const optionsScrapbook = scrapbooks.find(sb => sb.id === optionsId)
+  const sharedOptionsShare = sharedScrapbooks.find(s => s.id === sharedOptionsShareId)
   const confirmDeleteScrapbook = scrapbooks.find(sb => sb.id === confirmDeleteId)
 
   async function handleCoverChange(e) {
@@ -288,6 +290,12 @@ export default function HomeScreen() {
     await supabase.from('scrapbooks').delete().eq('id', confirmDeleteId)
 
     setDeleting(false)
+  }
+
+  async function removeFromLibrary(shareId) {
+    setSharedScrapbooks(prev => prev.filter(s => s.id !== shareId))
+    setSharedOptionsShareId(null)
+    await supabase.from('scrapbook_shares').delete().eq('id', shareId)
   }
 
   return (
@@ -461,6 +469,7 @@ export default function HomeScreen() {
                         key={share.id}
                         scrapbook={share.scrapbooks}
                         onClick={() => handleSharedCardTap(share)}
+                        onOptionsPress={() => setSharedOptionsShareId(share.id)}
                         readOnly
                         isNew={!share.seen}
                       />
@@ -573,6 +582,48 @@ export default function HomeScreen() {
 
             <button
               onClick={() => setOptionsId(null)}
+              className="w-full py-3 text-center text-rust font-semibold text-[15px] active:opacity-70"
+            >
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Shared scrapbook options sheet */}
+      {sharedOptionsShareId && (
+        <>
+          <div
+            className="absolute inset-0 bg-black/50 z-10"
+            onClick={() => setSharedOptionsShareId(null)}
+          />
+          <div
+            className="absolute bottom-0 left-0 right-0 z-20 rounded-t-3xl border-t border-walnut-light px-5 pb-10 pt-1"
+            style={{ background: '#3D2410' }}
+          >
+            <div className="w-10 h-1 rounded-full bg-walnut-light mx-auto mt-3 mb-5" />
+            <p className="font-display font-semibold text-lg text-wheat mb-5 px-1">
+              {sharedOptionsShare?.scrapbooks?.name}
+            </p>
+
+            {/* Remove from library */}
+            <button
+              onClick={() => removeFromLibrary(sharedOptionsShareId)}
+              className="w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl mb-4 active:opacity-75"
+              style={{ background: '#2C1A0E' }}
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(232,133,90,0.1)' }}>
+                <X size={16} strokeWidth={2} className="text-sienna" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-sienna text-[14px] font-semibold leading-none mb-0.5">Remove from Library</p>
+                <p className="text-rust text-[11px]">You'll no longer have access to this scrapbook</p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => setSharedOptionsShareId(null)}
               className="w-full py-3 text-center text-rust font-semibold text-[15px] active:opacity-70"
             >
               Cancel

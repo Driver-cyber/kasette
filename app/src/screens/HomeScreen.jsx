@@ -129,9 +129,34 @@ export default function HomeScreen() {
   const [deleting, setDeleting] = useState(false)
   const [sharedOptionsShareId, setSharedOptionsShareId] = useState(null)
   const [showVersion, setShowVersion] = useState(false) // Version popup
+  const [displayName, setDisplayName] = useState(null)
+   
+   const greetings = [
+     "Hello",
+     "Hey there",
+     "Good day",
+     "Top o' the mornin'",
+     "Welcome back",
+     "Howdy",
+     "G'day",
+     "Greetings",
+   ]
+   const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)]
   const searchInputRef = useRef(null)
   const coverChangeInputRef = useRef(null)
 
+useEffect(() => {
+     if (!session) return
+     supabase
+       .from('profiles')
+       .select('display_name')
+       .eq('user_id', session.user.id)
+       .single()
+       .then(({ data }) => {
+         if (data) setDisplayName(data.display_name)
+       })
+   }, [session])
+  
   useEffect(() => {
     if (!session) return
     setLoading(true)
@@ -317,6 +342,15 @@ export default function HomeScreen() {
         </div>
       </header>
 
+{/* Whimsical greeting */}
+   {displayName && !showSearch && (
+     <div className="px-6 pt-2 pb-1">
+       <p className="font-display italic text-wheat/60 text-[15px]">
+         {randomGreeting}, {displayName}
+       </p>
+     </div>
+   )}
+      
       {/* Search input */}
       {showSearch && (
         <div className="px-6 pb-4 flex-shrink-0">

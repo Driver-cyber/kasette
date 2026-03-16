@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import { loadFFmpeg } from './lib/remux'
 import LoginScreen from './screens/LoginScreen'
 import InstallPrompt from './components/InstallPrompt'
+import ErrorBoundary from './components/ErrorBoundary'
 
 const HomeScreen      = lazy(() => import('./screens/HomeScreen'))
 const IntakeScreen    = lazy(() => import('./screens/IntakeScreen'))
@@ -121,11 +122,13 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <AppInit>
-          <AppRoutes />
-        </AppInit>
-      </AuthProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <AppInit>
+            <AppRoutes />
+          </AppInit>
+        </AuthProvider>
+      </ErrorBoundary>
     </BrowserRouter>
   )
 }

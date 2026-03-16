@@ -49,7 +49,7 @@ function extractStoragePath(url) {
   return idx >= 0 ? url.slice(idx + marker.length) : null
 }
 
-function ScrapbookCard({ scrapbook, onClick, onOptionsPress }) {
+function ScrapbookCard({ scrapbook, onClick, onOptionsPress, readOnly = false, isNew = false }) {
   const clips = scrapbook.clips ?? []
   const totalDuration = clips.reduce((sum, c) => {
     const out = c.trim_out ?? c.duration ?? 0
@@ -83,14 +83,23 @@ function ScrapbookCard({ scrapbook, onClick, onOptionsPress }) {
           style={{ background: 'linear-gradient(180deg, rgba(44,26,14,0) 40%, rgba(44,26,14,0.85) 100%)' }}
         />
 
-        {/* Options button — top left */}
-        <button
-          onClick={(e) => { e.stopPropagation(); onOptionsPress() }}
-          className="absolute top-2.5 left-2.5 w-8 h-8 rounded-full flex items-center justify-center active:opacity-70"
-          style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}
-        >
-          <MoreHorizontal size={15} strokeWidth={1.75} className="text-wheat/70" />
-        </button>
+        {/* Options button — top left (owner only) */}
+        {!readOnly ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); onOptionsPress() }}
+            className="absolute top-2.5 left-2.5 w-8 h-8 rounded-full flex items-center justify-center active:opacity-70"
+            style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}
+          >
+            <MoreHorizontal size={15} strokeWidth={1.75} className="text-wheat/70" />
+          </button>
+        ) : isNew ? (
+          <div
+            className="absolute top-3 left-3 px-2 py-0.5 rounded-full"
+            style={{ background: 'rgba(242,162,74,0.9)' }}
+          >
+            <span className="text-walnut font-sans font-bold text-[10px] tracking-wide">NEW</span>
+          </div>
+        ) : null}
 
         {/* Clip count badge */}
         <div
@@ -127,6 +136,7 @@ export default function HomeScreen() {
   const { session } = useAuth()
   const [scrapbooks, setScrapbooks] = useState([])
   const [loading, setLoading] = useState(true)
+  const [sharedScrapbooks, setSharedScrapbooks] = useState([]) // { id, seen, scrapbooks: {...} }
   const [showSearch, setShowSearch] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [optionsId, setOptionsId] = useState(null)
@@ -147,6 +157,18 @@ export default function HomeScreen() {
       .then(({ data, error }) => {
         if (!error && data) setScrapbooks(data)
         setLoading(false)
+      })
+  }, [session])
+
+  useEffect(() => {
+    if (!session) return
+    supabase
+      .from('scrapbook_shares')
+      .select('id, seen, scrapbooks(*, clips(id, video_url, duration, trim_in, trim_out, recorded_at))')
+      .eq('shared_with_id', session.user.id)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (data) setSharedScrapbooks(data)
       })
   }, [session])
 
@@ -220,6 +242,14 @@ export default function HomeScreen() {
         sb.id === sbId ? { ...sb, cover_image_url: publicUrl } : sb
       ))
     }
+  }
+
+  async function handleSharedCardTap(share) {
+    if (!share.seen) {
+      setSharedScrapbooks(prev => prev.map(s => s.id === share.id ? { ...s, seen: true } : s))
+      supabase.from('scrapbook_shares').update({ seen: true }).eq('id', share.id).then(() => {})
+    }
+    navigate(`/scrapbook/${share.scrapbooks.id}`)
   }
 
   async function deleteScrapbook() {
@@ -403,6 +433,27 @@ export default function HomeScreen() {
                 )}
               </div>
             ))}
+
+            {/* Shared with you */}
+            {sharedScrapbooks.length > 0 && (
+              <div className="mt-8 mb-2">
+                <div className="flex items-baseline gap-2.5 py-3" style={{ paddingTop: years.length === 0 ? 4 : 20 }}>
+                  <span className="font-display font-bold text-[26px] text-wheat leading-none">Shared</span>
+                  <span className="text-rust text-[11px] font-semibold">with you</span>
+                </div>
+                <div className="flex flex-col gap-3.5 pb-2">
+                  {sharedScrapbooks.map((share) => (
+                    <ScrapbookCard
+                      key={share.id}
+                      scrapbook={share.scrapbooks}
+                      onClick={() => handleSharedCardTap(share)}
+                      readOnly
+                      isNew={!share.seen}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>

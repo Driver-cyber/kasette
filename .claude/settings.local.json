@@ -6,7 +6,8 @@
       "Bash(/usr/local/bin/node --version)",
       "Bash(echo $SHELL)",
       "Bash(export:*)",
-      "Bash(/opt/homebrew/bin/node:*)"
+      "Bash(/opt/homebrew/bin/node:*)",
+      "Bash(cd:*)"
     ]
   }
 }

@@ -12,7 +12,7 @@ export default function ShareScreen() {
   const [scrapbook, setScrapbook] = useState(null)
   const [shares, setShares] = useState([])
   const [loading, setLoading] = useState(true)
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [addStatus, setAddStatus] = useState('idle') // 'idle' | 'sending' | 'not_found' | 'already_shared' | 'self' | 'error'
 
   async function loadShares() {
@@ -34,11 +34,11 @@ export default function ShareScreen() {
   }, [id])
 
   async function handleAdd() {
-    const lookup = email.trim().toLowerCase()
+    const lookup = username.trim().toLowerCase()
     if (!lookup) return
     setAddStatus('sending')
     try {
-      const { data: recipientId, error: rpcErr } = await supabase.rpc('get_user_id_by_email', { lookup_email: lookup })
+      const { data: recipientId, error: rpcErr } = await supabase.rpc('get_user_id_by_username', { p_username: lookup })
       if (rpcErr || !recipientId) { setAddStatus('not_found'); return }
       if (recipientId === session.user.id) { setAddStatus('self'); return }
       if (shares.some(s => s.shared_with_id === recipientId)) { setAddStatus('already_shared'); return }
@@ -49,7 +49,7 @@ export default function ShareScreen() {
       })
       if (insertErr) { setAddStatus(insertErr.code === '23505' ? 'already_shared' : 'error'); return }
       await loadShares()
-      setEmail('')
+      setUsername('')
       setAddStatus('idle')
     } catch {
       setAddStatus('error')
@@ -136,17 +136,19 @@ export default function ShareScreen() {
         </p>
 
         <input
-          type="email"
-          value={email}
-          onChange={e => { setEmail(e.target.value); setAddStatus('idle') }}
+          type="text"
+          value={username}
+          onChange={e => { setUsername(e.target.value); setAddStatus('idle') }}
           onKeyDown={e => e.key === 'Enter' && handleAdd()}
-          placeholder="family@example.com"
+          placeholder="e.g. joelle"
+          autoCapitalize="none"
+          autoCorrect="off"
           className="w-full rounded-xl px-4 py-3.5 font-sans text-base text-wheat placeholder:text-rust/50 outline-none border-[1.5px] border-walnut-light focus:border-amber transition-colors mb-3 caret-amber"
           style={{ background: '#3D2410' }}
         />
 
         {addStatus === 'not_found' && (
-          <p className="text-sienna text-xs mb-3">No Cassette account found for that email.</p>
+          <p className="text-sienna text-xs mb-3">No Cassette user found with that name.</p>
         )}
         {addStatus === 'already_shared' && (
           <p className="text-amber text-xs mb-3">Already shared with this person.</p>
@@ -160,7 +162,7 @@ export default function ShareScreen() {
 
         <button
           onClick={handleAdd}
-          disabled={!email.trim() || addStatus === 'sending'}
+          disabled={!username.trim() || addStatus === 'sending'}
           className="w-full bg-amber text-walnut font-sans font-bold text-[15px] rounded-2xl py-4 active:opacity-85 transition-opacity disabled:opacity-40"
         >
           {addStatus === 'sending' ? 'Adding…' : 'Share with this person'}

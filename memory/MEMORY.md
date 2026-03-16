@@ -99,7 +99,18 @@ React app lives in `app/` subdirectory. Design assets (HTML mockups) in root —
 - Run locally: `cd app && npm run dev`
 - Before first run: `node copy-ffmpeg.js` to copy FFmpeg files to `public/ffmpeg/`
 
-## Approved Backlog (not yet built)
-- **Rename scrapbook** — from Home card options or Playback action sheet
-- **Caption burning on export** — re-encode to bake captions into video. Slow on mobile, parked for v2. Caption data already stored correctly — safe to add captions now.
-- **Reorder 1-step UX** — parked, hard due to onClick/touchend conflict
+## Known Bugs (fix next session)
+- **HomeScreen signOut navigate bug** — `navigate('/login')` after signOut, but `/login` doesn't exist. Remove the navigate call; AuthGate handles redirect automatically.
+- **Cover image cache** — uploads use `cacheControl: '3600'` (1hr). Changed covers take an hour to propagate. Fix: `cacheControl: '0'` on cover uploads.
+- **ShareScreen avatar crash** — `share.email[0].toUpperCase()` throws if email is null. Fix: `(share.email?.[0] ?? '?').toUpperCase()`.
+- **export.js: no FS cleanup on error** — FFmpeg virtual FS accumulates files if export fails. Add try/finally cleanup.
+- **No React ErrorBoundary** — any thrown error = white screen. Needs a global fallback.
+
+## Approved Backlog (not yet built, priority order)
+1. **Fix bugs above** — small, high-value
+2. **Rename scrapbook** — Home options menu, simple text input sheet
+3. **Pull-to-refresh on Home** — natural iOS pattern
+4. **Supabase image transforms on thumbnails** — append `?width=400` to cover/poster URLs for faster Home load
+5. **Error boundary screen** — prevents white-screen crashes
+6. **Reorder 1-step UX** — parked, hard due to onClick/touchend conflict
+7. **Caption burning on export** — v2, slow on mobile, data already stored correctly

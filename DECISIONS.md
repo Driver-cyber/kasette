@@ -456,3 +456,60 @@ profiles (user_id, username UNIQUE, display_name, created_at)
 - **Background music / audio track** — v2.
 - **Native iOS app** — if PWA proves too limiting for video handling.
 - **Light mode** — not a Cassette experience. Maybe never.
+
+---
+
+## 🔍 Code Review — [2026-03-15]
+
+Full review of all source files after v1 feature completion.
+
+### Bugs / Risks (fix soon)
+
+**1. Wrong signOut redirect in HomeScreen**
+`HomeScreen` version popup calls `navigate('/login')` after `signOut()`, but there is no `/login` route. `AuthGate` handles the redirect automatically when session goes null. Fix: remove the `navigate('/login')` call — let AuthGate do its job.
+
+**2. Cover image cache too long**
+Cover uploads use `cacheControl: '3600'` (1 hour). If a user changes a cover, others won't see the update for up to an hour. Fix: use `cacheControl: '0'` on cover uploads, or append a `?v=timestamp` query string to bust the cache after upload.
+
+**3. No error boundary**
+If any screen throws a JS error, the entire app goes white. No recovery path. Fix: wrap `<App>` routes in a React `ErrorBoundary` component that shows a friendly "Something went wrong — tap to reload" screen.
+
+**4. `export.js` virtual FS not cleaned up on error**
+The FFmpeg virtual filesystem accumulates input files if an export fails mid-way. No `try/finally` cleanup. Low risk today (export runs rarely), but will cause mysterious failures if the WASM FS fills up over time.
+
+**5. ShareScreen avatar can throw if email is empty**
+`share.email[0].toUpperCase()` — if the RPC ever returns a row with a null/empty email (e.g. a user with no email on record), this throws. Fix: `(share.email?.[0] ?? '?').toUpperCase()`.
+
+**6. Tech stack table says React Router v6 — it's actually v7**
+Minor doc inconsistency in the `Active Tech Stack` table above.
+
+### Architecture Observations (good patterns to keep)
+
+- **Stale closure fix** (capture values before `setClips`) — correctly and consistently applied in trim, reorder, and caption drag interactions. Do not regress this.
+- **Document-level drag listeners** — correct approach. React's `onTouchMove` is passive; document-level lets you call `preventDefault()` to block scroll. Keep this pattern for all future drag features.
+- **FFmpeg singleton + custom `fetchToBlobURL`** — hard-won. Do not touch without good reason. The three-piece constraint (ESM files + custom fetch + COOP/COEP headers) must all stay in place.
+- **Optimistic UI** — used correctly in HomeScreen (delete), ShareScreen (remove share), WorkspaceScreen (clip removal). Good pattern for mobile latency.
+- **RLS everywhere** — all tables scoped to `user_id`. Correct. Don't add any table without RLS.
+- **Lazy screen loading** — all screens are `React.lazy` + `Suspense`. Build stays lean.
+
+### Performance Notes
+
+- **Video preloading** — `preload="auto"` on prev/next clips is aggressive on slow connections. Consider `preload="metadata"` for the clip that's 2 positions ahead, and `preload="auto"` only for immediate prev/next.
+- **No image optimization** — cover images and thumbnails are stored and served full-size from Supabase Storage. Supabase has image transforms (add `?width=400` to any public URL). Home card thumbnails should use this.
+- **`sharedScrapbooks` has no loading state** — if the shares query is slow, the "Shared with you" section just doesn't appear yet with no indicator. Minor, but noticeable on first load.
+
+### UX Improvements for Next Session
+
+| Idea | Effort | Value |
+|---|---|---|
+| **Rename scrapbook** | Low | High — already approved |
+| **Pull-to-refresh on Home** | Low | High — natural iOS pattern |
+| **Skeleton loading cards** | Medium | Medium — polish, replaces spinner |
+| **Toast notifications** | Medium | Medium — replaces inline status text (e.g. "Share added ✓") |
+| **Swipe-to-delete on scrapbook cards** | Medium | Medium — more intuitive than ⋯ menu |
+| **Error boundary screen** | Low | High — prevents white-screen crashes |
+| **Supabase image transforms for thumbnails** | Low | Medium — faster Home load |
+| **Cover cache-busting** | Low | Medium — fixes stale cover display |
+| **Haptic feedback** | Low | Low/Medium — `navigator.vibrate()` on key taps |
+| **Offline indicator banner** | Low | Medium — graceful network loss handling |
+| **"New clips" badge on shared scrapbooks** | High | High — v2 sharing enhancement |

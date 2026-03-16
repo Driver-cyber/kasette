@@ -14,14 +14,16 @@ React app lives in `app/` subdirectory. Design assets (HTML mockups) in root —
 - **Discovery** ✅ horizontal + vertical swipe, hold-to-pause, scrub bar, shuffled playlist
 - **Export** ✅ CONFIRMED WORKING (2026-03-15) — FFmpeg WASM loads, trims + stitches clips, Save/Share delivers MP4
 
-## In Progress — Scrapbook Sharing
-- Share a scrapbook with another Cassette user by email
-- View-only access — shared user can watch but not edit
-- Auto-appears in recipient's "Shared with you" section on Home
-- New share banner (one-time) when app opens after receiving a share
-- SQL already run: `scrapbook_shares` table + RLS policies + `get_user_id_by_email` RPC
-- Share option lives in PlaybackScreen action sheet (owner only)
-- Code changes NOT yet written — next session picks up here
+## Scrapbook Sharing — Built & Testing (2026-03-15)
+- Share a scrapbook with another Cassette user by email (owner only, via PlaybackScreen ⋯ menu)
+- View-only access — shared user can watch but not edit, no options button on card
+- Appears in recipient's "Shared with you" section on Home, with amber NEW badge until tapped
+- SQL done: `scrapbook_shares` table + RLS policies + `get_user_id_by_email` RPC
+- Bug fixed: shared section was inside own-scrapbooks branch — recipients with empty library couldn't see shared cards
+
+## Approved Backlog (not yet built)
+- **Unshare:** Simple "Remove all shares" button on owner's side. Likely in PlaybackScreen action sheet or Workspace. Deletes all `scrapbook_shares` rows for that scrapbook_id + owner_id.
+- **Rename scrapbook** — from Home card options or Playback action sheet
 
 ## Deployment
 - GitHub repo: `https://github.com/Driver-cyber/kasette` (private)

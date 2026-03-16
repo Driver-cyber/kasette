@@ -392,9 +392,21 @@ scrapbook_shares (id, scrapbook_id, owner_id, shared_with_id, seen, created_at)
 **UI built:**
 - PlaybackScreen ⋯ → "Share Scrapbook" (owner only) → navigates to ShareScreen
 - `ShareScreen` (`/scrapbook/:id/share`) — lists who has access with initial avatar + X to remove, username input to add new people
-- HomeScreen "Shared with you" collapsible section — amber NEW badge on unseen shares, marks seen on tap, shared cards are view-only (no options button)
+- HomeScreen "Shared with you" collapsible section — amber NEW badge on unseen shares, marks seen on tap, shared cards have `•••` menu → "Remove from Library"
 
 **Bug fixed:** Shared section was nested inside own-scrapbooks branch — recipients with empty library saw empty state instead of shared cards.
+
+---
+
+### [2026-03-16] — Shared Scrapbook Self-Remove ✅ Complete
+
+**Feature:** Recipients of a shared scrapbook can remove their own access from the HomeScreen.
+
+**UI:** Shared scrapbook cards now show a `•••` (MoreHorizontal) button in the top-left corner, matching the owner card treatment. Tapping it opens a bottom sheet with a single action: "Remove from Library" (sienna/danger styling, subtitle: "You'll no longer have access to this scrapbook"). Tapping it immediately removes the card (optimistic UI) and deletes the `scrapbook_shares` row. Owner is not notified.
+
+**Implementation:** `HomeScreen.jsx` — ScrapbookCard `•••` button condition changed from `!readOnly` to `!!onOptionsPress`, so any card with a handler gets the button. Shared cards pass `onOptionsPress={() => setSharedOptionsShareId(share.id)}`. New state: `sharedOptionsShareId`. New function: `removeFromLibrary(shareId)`. New bottom sheet renders when `sharedOptionsShareId` is set.
+
+**No DB changes required** — existing RLS already allows shared users to DELETE their own rows from `scrapbook_shares`.
 
 ---
 

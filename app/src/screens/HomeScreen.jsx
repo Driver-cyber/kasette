@@ -333,12 +333,6 @@ useEffect(() => {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => navigate('/settings')}
-            className="w-10 h-10 flex items-center justify-center rounded-full active:opacity-70"
-          >
-            <Settings size={18} strokeWidth={2} className="text-wheat/50" />
-          </button>
-          <button
             onClick={() => navigate('/discover')}
             className="w-10 h-10 flex items-center justify-center rounded-full active:opacity-70"
           >
@@ -355,6 +349,13 @@ useEffect(() => {
             ) : (
               <Search size={18} strokeWidth={2} className="text-wheat/50" />
             )}
+          </button>
+
+          <button
+            onClick={() => navigate('/settings')}
+            className="w-10 h-10 flex items-center justify-center rounded-full active:opacity-70"
+          >
+            <Settings size={18} strokeWidth={2} className="text-wheat/50" />
           </button>
         </div>
       </header>

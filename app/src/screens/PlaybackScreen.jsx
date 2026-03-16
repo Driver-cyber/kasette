@@ -27,6 +27,7 @@ export default function PlaybackScreen() {
   const [showActionSheet, setShowActionSheet] = useState(false)
   const [progress, setProgress] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [videoLoading, setVideoLoading] = useState(true)
 
   // Export
   const [exportState, setExportState] = useState(null) // null | { phase, current, total } | 'done' | { error: string }
@@ -423,10 +424,18 @@ export default function PlaybackScreen() {
             onEnded={() => goToClip(currentIndex + 1)}
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
+            onLoadStart={() => setVideoLoading(true)}
+            onCanPlay={() => setVideoLoading(false)}
+            onWaiting={() => setVideoLoading(true)}
             playsInline
             preload="auto"
             poster={currentClip?.thumbnail_url || undefined}
           />
+          {videoLoading && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="w-9 h-9 rounded-full border-2 border-amber border-t-transparent animate-spin" />
+            </div>
+          )}
           <div className="absolute inset-x-0 top-0 h-44 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%)' }} />
           <div className="absolute inset-x-0 bottom-0 h-56 pointer-events-none" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)' }} />
           {currentClip?.caption_text && (

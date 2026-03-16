@@ -17,7 +17,15 @@ export default function ShareScreen() {
 
   async function loadShares() {
     const { data } = await supabase.rpc('get_scrapbook_shares', { p_scrapbook_id: id })
-    if (data) setShares(data)
+    if (!data) return
+    // Enrich with display_name/username from profiles
+    const ids = data.map(s => s.shared_with_id)
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('user_id, display_name, username')
+      .in('user_id', ids)
+    const profileMap = Object.fromEntries((profiles || []).map(p => [p.user_id, p]))
+    setShares(data.map(s => ({ ...s, ...profileMap[s.shared_with_id] })))
   }
 
   useEffect(() => {
@@ -114,10 +122,12 @@ export default function ShareScreen() {
                   style={{ background: 'rgba(242,162,74,0.15)' }}
                 >
                   <span className="text-amber font-bold text-[13px]">
-                    {share.email[0].toUpperCase()}
+                    {(share.display_name || share.username || share.email || '?')[0].toUpperCase()}
                   </span>
                 </div>
-                <span className="flex-1 text-wheat text-[14px] font-sans truncate">{share.email}</span>
+                <span className="flex-1 text-wheat text-[14px] font-sans truncate">
+                  {share.display_name || share.username || share.email}
+                </span>
                 <button
                   onClick={() => handleRemove(share.share_id)}
                   className="w-8 h-8 rounded-full flex items-center justify-center active:opacity-60 flex-shrink-0"

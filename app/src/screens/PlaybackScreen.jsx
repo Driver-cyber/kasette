@@ -32,10 +32,6 @@ export default function PlaybackScreen() {
   const [exportState, setExportState] = useState(null) // null | { phase, current, total } | 'done' | { error: string }
   const [exportBlob, setExportBlob] = useState(null)
 
-  // Share
-  const [showShareSheet, setShowShareSheet] = useState(false)
-  const [shareEmail, setShareEmail] = useState('')
-  const [shareStatus, setShareStatus] = useState('idle') // 'idle' | 'sending' | 'sent' | 'not_found' | 'already_shared' | 'self' | 'error'
 
   // Scrub bar
   const [isScrubbing, setIsScrubbing] = useState(false)
@@ -204,29 +200,6 @@ export default function PlaybackScreen() {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-  }
-
-  async function handleShareScrapbook() {
-    const email = shareEmail.trim().toLowerCase()
-    if (!email) return
-    setShareStatus('sending')
-    try {
-      const { data: recipientId, error: rpcErr } = await supabase.rpc('get_user_id_by_email', { lookup_email: email })
-      if (rpcErr || !recipientId) { setShareStatus('not_found'); return }
-      if (recipientId === session.user.id) { setShareStatus('self'); return }
-      const { error: insertErr } = await supabase.from('scrapbook_shares').insert({
-        scrapbook_id: id,
-        owner_id: session.user.id,
-        shared_with_id: recipientId,
-      })
-      if (insertErr) {
-        setShareStatus(insertErr.code === '23505' ? 'already_shared' : 'error')
-        return
-      }
-      setShareStatus('sent')
-    } catch {
-      setShareStatus('error')
-    }
   }
 
   function exportPhaseLabel(state) {
@@ -665,13 +638,13 @@ export default function PlaybackScreen() {
             </button>
             {isOwner && (
               <button
-                onClick={() => { setShowActionSheet(false); setShowShareSheet(true) }}
+                onClick={() => navigate(`/scrapbook/${id}/share`)}
                 className="w-full flex items-center gap-3.5 px-2 py-4 border-b border-walnut-light active:opacity-70 text-left"
               >
                 <Share2 size={20} strokeWidth={1.75} className="text-amber flex-shrink-0" />
                 <div>
                   <p className="text-wheat font-semibold text-[15px]">Share Scrapbook</p>
-                  <p className="text-rust text-[11px] mt-0.5">Send to another Cassette user</p>
+                  <p className="text-rust text-[11px] mt-0.5">Manage who can view this</p>
                 </div>
               </button>
             )}
@@ -691,86 +664,6 @@ export default function PlaybackScreen() {
             >
               Cancel
             </button>
-          </div>
-        </>
-      )}
-      {/* Share sheet */}
-      {showShareSheet && (
-        <>
-          <div
-            className="absolute inset-0 z-30"
-            style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
-            onClick={() => { setShowShareSheet(false); setShareEmail(''); setShareStatus('idle') }}
-          />
-          <div
-            className="absolute bottom-0 left-0 right-0 z-40 rounded-t-[20px] border-t border-walnut-light px-5 pb-10"
-            style={{ background: '#3D2410' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-10 h-1 rounded-full bg-walnut-light mx-auto mt-3.5 mb-6" />
-
-            {shareStatus === 'sent' ? (
-              <div className="text-center py-2 pb-2">
-                <p className="font-display italic text-amber text-3xl mb-2">Shared!</p>
-                <p className="text-wheat/60 text-sm mb-8">
-                  They'll see it in their Cassette library.
-                </p>
-                <button
-                  onClick={() => { setShowShareSheet(false); setShareEmail(''); setShareStatus('idle') }}
-                  className="w-full bg-amber text-walnut font-sans font-bold text-[15px] rounded-2xl py-4 active:opacity-80"
-                >
-                  Done
-                </button>
-              </div>
-            ) : (
-              <>
-                <h2 className="font-display font-bold text-2xl text-amber mb-1">
-                  Share <em className="font-light text-sienna">this.</em>
-                </h2>
-                <p className="text-rust text-xs leading-relaxed mb-6">
-                  Enter the email of another Cassette user. They'll see this scrapbook in their library.
-                </p>
-
-                <p className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase mb-2">Email address</p>
-                <input
-                  type="email"
-                  value={shareEmail}
-                  onChange={e => { setShareEmail(e.target.value); setShareStatus('idle') }}
-                  onKeyDown={e => e.key === 'Enter' && handleShareScrapbook()}
-                  placeholder="family@example.com"
-                  autoFocus
-                  className="w-full rounded-xl px-4 py-3.5 font-sans text-base text-wheat placeholder:text-rust/50 outline-none border-[1.5px] border-walnut-light focus:border-amber transition-colors mb-3 caret-amber"
-                  style={{ background: '#2C1A0E' }}
-                />
-
-                {shareStatus === 'not_found' && (
-                  <p className="text-sienna text-xs mb-3">No Cassette account found for that email.</p>
-                )}
-                {shareStatus === 'already_shared' && (
-                  <p className="text-amber text-xs mb-3">Already shared with this person.</p>
-                )}
-                {shareStatus === 'self' && (
-                  <p className="text-sienna text-xs mb-3">That's you!</p>
-                )}
-                {shareStatus === 'error' && (
-                  <p className="text-sienna text-xs mb-3">Something went wrong. Try again.</p>
-                )}
-
-                <button
-                  onClick={handleShareScrapbook}
-                  disabled={!shareEmail.trim() || shareStatus === 'sending'}
-                  className="w-full bg-amber text-walnut font-sans font-bold text-[15px] rounded-2xl py-4 active:opacity-85 transition-opacity disabled:opacity-40 mb-3"
-                >
-                  {shareStatus === 'sending' ? 'Sharing…' : 'Share Scrapbook'}
-                </button>
-                <button
-                  onClick={() => { setShowShareSheet(false); setShareEmail(''); setShareStatus('idle') }}
-                  className="w-full py-3 text-center text-rust font-semibold text-[15px] active:opacity-70"
-                >
-                  Cancel
-                </button>
-              </>
-            )}
           </div>
         </>
       )}

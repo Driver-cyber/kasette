@@ -185,6 +185,7 @@ export default function HomeScreen() {
   }
 
   const [collapsedYears, setCollapsedYears] = useState(new Set())
+  const [sharedCollapsed, setSharedCollapsed] = useState(false)
 
   function toggleYear(year) {
     setCollapsedYears(prev => {
@@ -425,21 +426,36 @@ export default function HomeScreen() {
             {/* Shared with you */}
             {sharedScrapbooks.length > 0 && (
               <div className="mb-2" style={{ marginTop: filteredScrapbooks.length > 0 ? 32 : 4 }}>
-                <div className="flex items-baseline gap-2.5 py-3">
-                  <span className="font-display font-bold text-[26px] text-wheat leading-none">Shared</span>
-                  <span className="text-rust text-[11px] font-semibold">with you</span>
-                </div>
-                <div className="flex flex-col gap-3.5 pb-2">
-                  {sharedScrapbooks.map((share) => (
-                    <ScrapbookCard
-                      key={share.id}
-                      scrapbook={share.scrapbooks}
-                      onClick={() => handleSharedCardTap(share)}
-                      readOnly
-                      isNew={!share.seen}
-                    />
-                  ))}
-                </div>
+                <button
+                  onClick={() => setSharedCollapsed(c => !c)}
+                  className="w-full flex items-center justify-between py-3 active:opacity-70"
+                >
+                  <div className="flex items-baseline gap-2.5">
+                    <span className="font-display font-bold text-[26px] text-wheat leading-none">Shared</span>
+                    <span className="text-rust text-[11px] font-semibold">
+                      with you · {sharedScrapbooks.length} {sharedScrapbooks.length === 1 ? 'scrapbook' : 'scrapbooks'}
+                    </span>
+                  </div>
+                  <ChevronDown
+                    size={16}
+                    strokeWidth={2}
+                    className="text-wheat/30 transition-transform duration-200"
+                    style={{ transform: sharedCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+                  />
+                </button>
+                {!sharedCollapsed && (
+                  <div className="flex flex-col gap-3.5 pb-2">
+                    {sharedScrapbooks.map((share) => (
+                      <ScrapbookCard
+                        key={share.id}
+                        scrapbook={share.scrapbooks}
+                        onClick={() => handleSharedCardTap(share)}
+                        readOnly
+                        isNew={!share.seen}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

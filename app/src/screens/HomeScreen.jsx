@@ -376,68 +376,56 @@ export default function HomeScreen() {
           <div className="flex items-center justify-center pt-20">
             <div className="w-7 h-7 rounded-full border-2 border-amber border-t-transparent animate-spin" />
           </div>
-        ) : filteredScrapbooks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center pt-20 gap-3 text-center">
-            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="opacity-20">
-              <circle cx="16" cy="22" r="8" stroke="#F5DEB3" strokeWidth="3" fill="none"/>
-              <circle cx="32" cy="22" r="8" stroke="#F5DEB3" strokeWidth="3" fill="none"/>
-              <circle cx="16" cy="22" r="2.5" fill="#F5DEB3"/>
-              <circle cx="32" cy="22" r="2.5" fill="#F5DEB3"/>
-              <rect x="14" y="31" width="20" height="3" rx="1.5" fill="#F5DEB3"/>
-            </svg>
-            <p className="font-display font-semibold text-xl text-wheat opacity-60">
-              {searchQuery ? `No results for "${searchQuery}"` : 'No scrapbooks yet'}
-            </p>
-            {!searchQuery && (
-              <p className="text-rust text-sm leading-relaxed max-w-[220px]">
-                Tap <strong className="text-amber">New</strong> to import videos from your camera roll and create your first scrapbook.
-              </p>
-            )}
-          </div>
         ) : (
           <div className="flex flex-col">
-            {years.map((year, yi) => (
-              <div key={year}>
-                {/* Year header */}
-                <button
-                  onClick={() => toggleYear(year)}
-                  className="w-full flex items-center justify-between py-3 active:opacity-70"
-                  style={{ paddingTop: yi === 0 ? 4 : 20 }}
-                >
-                  <div className="flex items-baseline gap-2.5">
-                    <span className="font-display font-bold text-[26px] text-wheat leading-none">{year}</span>
-                    <span className="text-rust text-[11px] font-semibold">
-                      {groupedByYear[year].length} {groupedByYear[year].length === 1 ? 'scrapbook' : 'scrapbooks'}
-                    </span>
-                  </div>
-                  <ChevronDown
-                    size={16}
-                    strokeWidth={2}
-                    className="text-wheat/30 transition-transform duration-200"
-                    style={{ transform: collapsedYears.has(year) ? 'rotate(-90deg)' : 'rotate(0deg)' }}
-                  />
-                </button>
-
-                {/* Cards */}
-                {!collapsedYears.has(year) && (
-                  <div className="flex flex-col gap-3.5 pb-2">
-                    {groupedByYear[year].map((sb) => (
-                      <ScrapbookCard
-                        key={sb.id}
-                        scrapbook={sb}
-                        onClick={() => navigate(`/scrapbook/${sb.id}`)}
-                        onOptionsPress={() => setOptionsId(sb.id)}
-                      />
-                    ))}
-                  </div>
-                )}
+            {/* Own scrapbooks */}
+            {filteredScrapbooks.length === 0 && !searchQuery ? null : filteredScrapbooks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center pt-16 gap-3 text-center">
+                <p className="font-display font-semibold text-xl text-wheat opacity-60">
+                  No results for "{searchQuery}"
+                </p>
               </div>
-            ))}
+            ) : (
+              years.map((year, yi) => (
+                <div key={year}>
+                  <button
+                    onClick={() => toggleYear(year)}
+                    className="w-full flex items-center justify-between py-3 active:opacity-70"
+                    style={{ paddingTop: yi === 0 ? 4 : 20 }}
+                  >
+                    <div className="flex items-baseline gap-2.5">
+                      <span className="font-display font-bold text-[26px] text-wheat leading-none">{year}</span>
+                      <span className="text-rust text-[11px] font-semibold">
+                        {groupedByYear[year].length} {groupedByYear[year].length === 1 ? 'scrapbook' : 'scrapbooks'}
+                      </span>
+                    </div>
+                    <ChevronDown
+                      size={16}
+                      strokeWidth={2}
+                      className="text-wheat/30 transition-transform duration-200"
+                      style={{ transform: collapsedYears.has(year) ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+                    />
+                  </button>
+                  {!collapsedYears.has(year) && (
+                    <div className="flex flex-col gap-3.5 pb-2">
+                      {groupedByYear[year].map((sb) => (
+                        <ScrapbookCard
+                          key={sb.id}
+                          scrapbook={sb}
+                          onClick={() => navigate(`/scrapbook/${sb.id}`)}
+                          onOptionsPress={() => setOptionsId(sb.id)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
 
             {/* Shared with you */}
             {sharedScrapbooks.length > 0 && (
-              <div className="mt-8 mb-2">
-                <div className="flex items-baseline gap-2.5 py-3" style={{ paddingTop: years.length === 0 ? 4 : 20 }}>
+              <div className="mb-2" style={{ marginTop: filteredScrapbooks.length > 0 ? 32 : 4 }}>
+                <div className="flex items-baseline gap-2.5 py-3">
                   <span className="font-display font-bold text-[26px] text-wheat leading-none">Shared</span>
                   <span className="text-rust text-[11px] font-semibold">with you</span>
                 </div>
@@ -452,6 +440,23 @@ export default function HomeScreen() {
                     />
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Empty state — no own scrapbooks and nothing shared */}
+            {filteredScrapbooks.length === 0 && sharedScrapbooks.length === 0 && !searchQuery && (
+              <div className="flex flex-col items-center justify-center pt-20 gap-3 text-center">
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="opacity-20">
+                  <circle cx="16" cy="22" r="8" stroke="#F5DEB3" strokeWidth="3" fill="none"/>
+                  <circle cx="32" cy="22" r="8" stroke="#F5DEB3" strokeWidth="3" fill="none"/>
+                  <circle cx="16" cy="22" r="2.5" fill="#F5DEB3"/>
+                  <circle cx="32" cy="22" r="2.5" fill="#F5DEB3"/>
+                  <rect x="14" y="31" width="20" height="3" rx="1.5" fill="#F5DEB3"/>
+                </svg>
+                <p className="font-display font-semibold text-xl text-wheat opacity-60">No scrapbooks yet</p>
+                <p className="text-rust text-sm leading-relaxed max-w-[220px]">
+                  Tap <strong className="text-amber">New</strong> to import videos from your camera roll and create your first scrapbook.
+                </p>
               </div>
             )}
           </div>

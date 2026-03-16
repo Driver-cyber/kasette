@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { loadFFmpeg } from './lib/remux'
 import LoginScreen from './screens/LoginScreen'
+import InstallPrompt from './components/InstallPrompt'
 
 const HomeScreen      = lazy(() => import('./screens/HomeScreen'))
 const IntakeScreen    = lazy(() => import('./screens/IntakeScreen'))
@@ -56,6 +57,20 @@ function AppInit({ children }) {
 
 function AuthGate({ children }) {
   const { session } = useAuth()
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false)
+
+  useEffect(() => {
+    if (session) {
+      // User just logged in, check if we should show install prompt
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+      const hasDismissed = localStorage.getItem('installPromptDismissed')
+      
+      if (!isStandalone && !hasDismissed) {
+        // Small delay so it doesn't overlap with any auth redirects
+        setTimeout(() => setShowInstallPrompt(true), 500)
+      }
+    }
+  }, [session])
 
   if (session === undefined) {
     return (
@@ -66,7 +81,15 @@ function AuthGate({ children }) {
   }
 
   if (!session) return <LoginScreen />
-  return children
+  
+  return (
+    <>
+      {showInstallPrompt && (
+        <InstallPrompt onDismiss={() => setShowInstallPrompt(false)} />
+      )}
+      {children}
+    </>
+  )
 }
 
 function AppRoutes() {

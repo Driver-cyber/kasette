@@ -329,25 +329,24 @@ All screens are built and confirmed working in the browser:
 
 ---
 
-### [2026-03-15] — FFmpeg Loading: Final Architecture (Hard-Won)
+### [2026-03-15] — FFmpeg Loading: Final Architecture (Hard-Won, Confirmed Working)
 
 **Problem:** `@ffmpeg/ffmpeg` v0.12 consistently failed with `"failed to import ffmpeg-core.js"` in production on Cloudflare Pages.
 
 **Root causes discovered (in order):**
 1. Original CDN approach (`jsdelivr.net` via `toBlobURL`) — failed; CDN unreliable in production worker context
-2. `COEP: credentialless` header added to fix SharedArrayBuffer — broke CDN fetch, replaced one error with another
+2. `COEP: credentialless` header — caused `toBlobURL`'s default `fetch()` to return **opaque responses** (empty body) for cross-origin resources. Empty blob → `importScripts(emptyBlob)` → `createFFmpegCore` never defined.
 3. Self-hosting via Cloudflare Pages — blocked by **25MB per-file limit** (ffmpeg-core.wasm is 31MB)
-4. Direct Supabase URL without `toBlobURL` — worker dynamic `import()` fails without correct MIME type enforcement
-5. Supabase URL + `toBlobURL` without COOP/COEP — SharedArrayBuffer unavailable, FFmpeg init fails
+4. UMD vs ESM mismatch — the `@ffmpeg/ffmpeg` worker is an **ES module**. ES module workers cannot call `importScripts()`, so they fall back to `await import(blobURL)`. Dynamic `import()` needs `export default` — only the **ESM** version of `ffmpeg-core.js` has this. The UMD version silently fails.
 
 **Final working configuration (all three parts required together):**
-- **Files hosted in Supabase Storage:** `cassette-media/ffmpeg/ffmpeg-core.js` + `ffmpeg-core.wasm` — no size limits, public bucket, CORS built in. Uploaded once via Supabase Dashboard UI from `node_modules/@ffmpeg/core/dist/umd/`.
-- **`toBlobURL()`** in `remux.js` — fetches files and creates same-origin blob URLs, forcing correct MIME types (`text/javascript`, `application/wasm`) so the worker's dynamic `import()` succeeds.
-- **`_headers` file** with `Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: credentialless` — enables SharedArrayBuffer (required by FFmpeg WASM) without blocking cross-origin Supabase fetches. `credentialless` is essential — `require-corp` would break Supabase storage access.
+- **ESM files in Supabase Storage:** `cassette-media/ffmpeg/ffmpeg-core.js` + `ffmpeg-core.wasm` — uploaded from `node_modules/@ffmpeg/core/dist/esm/` (NOT `umd/`). WASM is identical between both directories.
+- **Custom `fetchToBlobURL()`** in `remux.js` using `fetch(url, { mode: 'cors', credentials: 'omit' })` — forces a real CORS request so Supabase responds with accessible body. Do NOT use `toBlobURL` from `@ffmpeg/util`.
+- **`_headers` file** with `Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: credentialless` — enables SharedArrayBuffer. `credentialless` (not `require-corp`) allows Supabase fetches to work.
 
 **Key constraint:** All three pieces must be present. Remove any one and FFmpeg fails.
 
-**Status as of 2026-03-15:** Still failing despite all three pieces in place. Diagnostic logging deployed in `remux.js` — next session open console, trigger export, look for `[ffmpeg]` log lines to find the exact failure point.
+**Status: ✅ CONFIRMED WORKING as of 2026-03-15.** Export produces a playable MP4, Save/Share delivers to device.
 
 **For local dev:** `node copy-ffmpeg.js` copies files from `node_modules/@ffmpeg/core/dist/umd/` to `public/ffmpeg/`. That directory is gitignored.
 
@@ -360,14 +359,58 @@ All screens are built and confirmed working in the browser:
 
 ---
 
+### [2026-03-15] — Export as MP4: Save/Share Fixed
+
+- `handleShare` in PlaybackScreen wrapped in try/catch — `navigator.share()` was silently throwing on desktop (dismissed or unsupported), leaving button dead
+- Anchor download fallback fixed: `document.body.appendChild(a)` before `.click()`, then `removeChild` — non-DOM anchors are unreliable in some browsers
+- On mobile: native share sheet. On desktop: file download.
+
+---
+
+### [2026-03-15] — Supabase Storage Limits Updated
+
+- **Max upload size per file raised to 2GB** (was 50MB default) — bucket setting in Supabase Dashboard
+- Pro plan includes 100GB storage total. Track usage at Settings → Billing → Storage Size.
+- At typical iPhone video bitrates: 50MB ≈ 15–40 sec; 500MB ≈ 3–6 min; 2GB = full long events
+
+---
+
+### [2026-03-15] — Scrapbook Sharing (IN PROGRESS)
+
+**Feature:** Share a scrapbook with another Cassette user by email. View-only. Auto-appears in recipient's library.
+
+**Data model:**
+```sql
+scrapbook_shares (id, scrapbook_id, owner_id, shared_with_id, seen, created_at)
+-- UNIQUE(scrapbook_id, shared_with_id)
+```
+
+**RLS:** Owners manage their shares (ALL). Shared users can SELECT + UPDATE (seen flag only). Scrapbooks + clips SELECT policies extended to allow shared users to read.
+
+**RPC:** `get_user_id_by_email(lookup_email text)` — SECURITY DEFINER function to look up `auth.users` by email without exposing the table.
+
+**SQL:** ✅ Already run in Supabase (table + RLS + RPC function).
+
+**UI plan:**
+- "Share Scrapbook" option in PlaybackScreen action sheet (owner only) → email input sheet
+- HomeScreen "Shared with you" section below own scrapbooks
+- New share banner (one-time, dismisses on tap, marks `seen = true` in DB)
+- Shared cards have no options button — view only
+
+**Code:** NOT YET WRITTEN — next session picks up here.
+
+---
+
 ## ✅ Completed Feature Backlog
 
 | Feature | Notes |
 |---|---|
-| Year tag on Home | User sets year at intake (← YEAR →), collapsible year groups on Home. SQL: `ALTER TABLE scrapbooks ADD COLUMN year integer;` |
-| Cover photo | Intake step 2 picker + Home card "Change cover" option. Uploads to `cassette-media/{userId}/covers/{scrapbookId}.ext` |
-| Caption drag placement | Caption mode expands preview full-screen. Caption draggable on frame, saves caption_x/caption_y. |
-| Discovery screen | `/discover` — shuffled playlist of all clips. Swipe up/down, tap for scrapbook info + "Watch scrapbook →". Reshuffle button. |
+| Year tag on Home | User sets year at intake (← YEAR →), collapsible year groups on Home. |
+| Cover photo | Intake step 2 picker + Home card "Change cover" option. |
+| Caption drag placement | Caption mode expands preview full-screen. Draggable on frame, saves x/y. |
+| Discovery screen | `/discover` — shuffled playlist of all clips. Swipe up/down/left/right. |
+| Export as MP4 | FFmpeg trim + concat → Web Share API or download. ✅ Working. |
+| Multi-user / signup | `/signup` public route, RLS user_id-scoped, each user sees own data only. |
 
 ---
 
@@ -375,21 +418,19 @@ All screens are built and confirmed working in the browser:
 
 | # | Feature | Notes |
 |---|---|---|
-| 1 | **Reorder 2-step → 1-step UX** | Tap to select + same gesture drags. Hard: `onClick` fires after `touchend`. Parked. |
-| 2 | **Rename scrapbook** | From Home card options menu or Playback action sheet. Simple text input sheet. |
-| 3 | **Delete clip storage on remove** | ✅ Done — `removeClip` in WorkspaceScreen now deletes video + thumbnail from storage. |
+| 1 | **Scrapbook sharing** | SQL done. Code not yet written. See decision log above. |
+| 2 | **Reorder 2-step → 1-step UX** | Tap to select + same gesture drags. Hard: `onClick` fires after `touchend`. Parked. |
+| 3 | **Rename scrapbook** | From Home card options menu or Playback action sheet. Simple text input sheet. |
 
 ---
 
 ## 💡 Parking Lot (Good Ideas, Not Yet)
 
-- **First-time user tutorial / tip screen** — on first login, show a brief guide: how playback works, how to trim, that captions won't export, clip length limits, etc. Could be a swipeable card stack or a simple overlay.
-- **Caption burning on export** — re-encode captioned clips to bake text into the video. Slow on mobile but complete. v2 of export.
-- **Video compression on upload** — iPhone videos are large (100MB+). Client-side canvas re-encode or server-side worker would dramatically improve load speed. Biggest real-world performance lever.
-- **Cover image extraction** — auto-pull first frame. Needs canvas extraction or server processing.
+- **First-time user tutorial / tip screen** — brief guide on first login: how playback works, trim, captions won't export, etc.
+- **Caption burning on export** — re-encode captioned clips to bake text into video. Slow on mobile. v2.
+- **Video compression on upload** — iPhone videos are 100MB+. Client-side canvas re-encode or server worker. Biggest perf lever.
+- **Cover image extraction** — auto-pull first frame. Needs canvas or server processing.
 - **Background music / audio track** — v2.
-- **Multi-user / shared scrapbooks** — requires data model rethink. v2.
-- **Public share links (grandparent view)** — read-only link. High value, v2.
+- **Public share links (grandparent view)** — read-only link, no account needed. High value, v2.
 - **Native iOS app** — if PWA proves too limiting for video handling.
 - **Light mode** — not a Cassette experience. Maybe never.
-- **Scrapbook sharing between users** — share a scrapbook with another Cassette user (e.g. husband/wife) so they can view it in their own account. Requires a `shared_scrapbooks` join table or invite link system. High value for families.

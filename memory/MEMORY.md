@@ -4,7 +4,7 @@
 `/Users/Shared/Claude-Projects/Personal Projects/Casette/`
 React app lives in `app/` subdirectory. Design assets (HTML mockups) in root — not deployed.
 
-## Build Status — All 6 Screens Done
+## Build Status — All 6 Screens Done + Export Working
 - **Login** ✅ tested, working
 - **Signup** ✅ `/signup` public route, texted to new users to create accounts
 - **Home** ✅ tested, working (real Supabase data, gradient cards, year groups)
@@ -12,6 +12,16 @@ React app lives in `app/` subdirectory. Design assets (HTML mockups) in root —
 - **Playback** ✅ swipe nav, hold-to-pause, scrub bar, export, captions, action sheet
 - **Workspace** ✅ trim handles, caption tool, reorder mode, orphan storage cleanup on remove
 - **Discovery** ✅ horizontal + vertical swipe, hold-to-pause, scrub bar, shuffled playlist
+- **Export** ✅ CONFIRMED WORKING (2026-03-15) — FFmpeg WASM loads, trims + stitches clips, Save/Share delivers MP4
+
+## In Progress — Scrapbook Sharing
+- Share a scrapbook with another Cassette user by email
+- View-only access — shared user can watch but not edit
+- Auto-appears in recipient's "Shared with you" section on Home
+- New share banner (one-time) when app opens after receiving a share
+- SQL already run: `scrapbook_shares` table + RLS policies + `get_user_id_by_email` RPC
+- Share option lives in PlaybackScreen action sheet (owner only)
+- Code changes NOT yet written — next session picks up here
 
 ## Deployment
 - GitHub repo: `https://github.com/Driver-cyber/kasette` (private)
@@ -24,12 +34,22 @@ React app lives in `app/` subdirectory. Design assets (HTML mockups) in root —
 - Plan: **Pro** (upgraded 2026-03-14)
 - Project URL: `https://ybjbsylocgqcgghmgxeh.supabase.co`
 - Anon key: in `app/.env.local` (gitignored)
-- Tables: `scrapbooks` (has `year` column), `clips` (has `thumbnail_url` column) with RLS, user_id-scoped
-- Storage bucket: `cassette-media` (public)
+- Tables: `scrapbooks` (has `year` column), `clips` (has `thumbnail_url` column), `scrapbook_shares` (new) — all with RLS, user_id-scoped
+- Storage bucket: `cassette-media` (public) — **max upload size set to 2GB**
+- Storage usage tracked at: Supabase Dashboard → Settings → Billing → Storage Size (currently 0 GB, 100 GB included on Pro)
 - Multi-user: RLS is user_id-scoped — multiple accounts just work, no code changes needed
 - **FFmpeg files hosted in Supabase Storage:** `cassette-media/ffmpeg/ffmpeg-core.js` + `ffmpeg-core.wasm`
   - Uploaded manually via Supabase Dashboard (one-time setup, already done)
-  - Source files: `node_modules/@ffmpeg/core/dist/umd/`
+  - **IMPORTANT: Must be the ESM version** — `node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js`
+  - NOT the umd/ version — the @ffmpeg/ffmpeg worker uses dynamic `import()` which needs `export default`
+  - WASM is identical between esm/ and umd/ directories
+
+## FFmpeg Loading Strategy (CONFIRMED WORKING 2026-03-15)
+- Core files hosted in **Supabase Storage** `cassette-media/ffmpeg/` (ESM version, uploaded manually)
+- Loaded via **custom `fetchToBlobURL()`** with explicit `{ mode: 'cors', credentials: 'omit' }`
+  - Do NOT use `toBlobURL` from `@ffmpeg/util` — under COEP:credentialless it returns opaque responses (empty body)
+- COOP/COEP headers in `app/public/_headers` enable SharedArrayBuffer
+- All three pieces are required — remove any one and it breaks
 
 ## Tech Stack
 - React 18 + Vite + Tailwind v4 (`@theme` block, `@tailwindcss/vite`)
@@ -38,13 +58,6 @@ React app lives in `app/` subdirectory. Design assets (HTML mockups) in root —
 - **@ffmpeg/core v0.12.6** — in `package.json` dependencies (used for local dev copy script)
 - Google Fonts: Fraunces (display/italic) + Plus Jakarta Sans (UI)
 - `vite.config.js`: `optimizeDeps: { exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'] }`
-
-## FFmpeg Loading Strategy (IN PROGRESS — still debugging)
-- Core files hosted in **Supabase Storage** `cassette-media/ffmpeg/` (uploaded manually, already done)
-- Loaded via **`toBlobURL()`** + COOP/COEP: credentialless headers
-- **Still failing with `"failed to import ffmpeg-core.js"`** — root cause unknown
-- **Diagnostic logging deployed** (latest commit) — next session: try export → save full console log → look for `[ffmpeg]` lines to see exactly which step fails (fetch? blob creation? ff.load()?)
-- Do NOT remove the diagnostic logging until we identify the root cause
 
 ## Routes
 - `/` → HomeScreen (protected)

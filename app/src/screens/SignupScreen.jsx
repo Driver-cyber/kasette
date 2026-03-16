@@ -74,6 +74,9 @@ export default function SignupScreen() {
             Tap it to activate your account, then sign in as{' '}
             <span className="text-amber font-semibold">{displayName}</span>.
           </p>
+          <p className="text-rust/60 text-xs leading-relaxed mt-3">
+            The email will come from <span className="text-wheat/50">no-reply@mail.app.supabase.io</span> — check your spam folder if you don't see it.
+          </p>
         </div>
         <button
           onClick={() => navigate('/')}

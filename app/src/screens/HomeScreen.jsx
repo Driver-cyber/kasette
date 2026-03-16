@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Play, Search, X, MoreHorizontal, ChevronDown, Image, Shuffle, Pencil } from 'lucide-react'
+import { Plus, Play, Search, X, MoreHorizontal, ChevronDown, Image, Shuffle, Pencil, Settings } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { APP_VERSION } from '../version'
@@ -332,6 +332,12 @@ useEffect(() => {
         </button>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/settings')}
+            className="w-10 h-10 flex items-center justify-center rounded-full active:opacity-70"
+          >
+            <Settings size={18} strokeWidth={2} className="text-wheat/50" />
+          </button>
           <button
             onClick={() => navigate('/discover')}
             className="w-10 h-10 flex items-center justify-center rounded-full active:opacity-70"

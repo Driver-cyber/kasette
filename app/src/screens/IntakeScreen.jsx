@@ -224,7 +224,25 @@ export default function IntakeScreen() {
         .single()
       if (sbErr) throw sbErr
 
-      // 3. Upload cover image if provided
+      // 3. Auto-share with defaults (silent — never blocks scrapbook creation)
+      try {
+        const { data: shareDefaults } = await supabase
+          .from('sharing_defaults')
+          .select('recipient_id')
+          .eq('user_id', session.user.id)
+        if (shareDefaults && shareDefaults.length > 0) {
+          await supabase.from('scrapbook_shares').upsert(
+            shareDefaults.map(d => ({
+              scrapbook_id: sb.id,
+              owner_id: session.user.id,
+              shared_with_id: d.recipient_id,
+            })),
+            { onConflict: 'scrapbook_id,shared_with_id', ignoreDuplicates: true }
+          )
+        }
+      } catch { /* never block creation */ }
+
+      // 4. Upload cover image if provided
       if (coverFile) {
         const ext = coverFile.name.split('.').pop()?.toLowerCase() || 'jpg'
         const coverPath = `${session.user.id}/covers/${sb.id}.${ext}`

@@ -635,16 +635,18 @@ export default function PlaybackScreen() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-10 h-1 rounded-full bg-walnut-light mx-auto mt-3.5 mb-5" />
-            <button
-              onClick={() => navigate(`/scrapbook/${id}/edit`)}
-              className="w-full flex items-center gap-3.5 px-2 py-4 border-b border-walnut-light active:opacity-70 text-left"
-            >
-              <Edit size={20} strokeWidth={1.75} className="text-amber flex-shrink-0" />
-              <div>
-                <p className="text-wheat font-semibold text-[15px]">Edit Scrapbook</p>
-                <p className="text-rust text-[11px] mt-0.5">Trim clips, add captions, reorder</p>
-              </div>
-            </button>
+            {isOwner && (
+              <button
+                onClick={() => navigate(`/scrapbook/${id}/edit`)}
+                className="w-full flex items-center gap-3.5 px-2 py-4 border-b border-walnut-light active:opacity-70 text-left"
+              >
+                <Edit size={20} strokeWidth={1.75} className="text-amber flex-shrink-0" />
+                <div>
+                  <p className="text-wheat font-semibold text-[15px]">Edit Scrapbook</p>
+                  <p className="text-rust text-[11px] mt-0.5">Trim clips, add captions, reorder</p>
+                </div>
+              </button>
+            )}
             {isOwner && (
               <button
                 onClick={() => navigate(`/scrapbook/${id}/share`)}

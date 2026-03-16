@@ -3,7 +3,7 @@
 
 export const APP_VERSION = {
   // Version number (e.g., "0.4.0", "1.0.0", "2.1.3")
-  number: "0.4.5",
+  number: "0.5.0",
   
   // Build date/info (e.g., "March 2026", "Spring 2026", "2026-03-05")
   build: "March 2026",

@@ -2,8 +2,13 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
+function toUsername(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
 export default function SignupScreen() {
   const navigate = useNavigate()
+  const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -15,6 +20,11 @@ export default function SignupScreen() {
     e.preventDefault()
     setError(null)
 
+    const username = toUsername(displayName)
+    if (!username) {
+      setError('Please enter your name.')
+      return
+    }
     if (password !== confirm) {
       setError("Passwords don't match.")
       return
@@ -25,7 +35,22 @@ export default function SignupScreen() {
     }
 
     setLoading(true)
-    const { error: signUpError } = await supabase.auth.signUp({ email, password })
+
+    // Check username availability
+    const { data: available } = await supabase.rpc('check_username_available', { p_username: username })
+    if (!available) {
+      setError(`The name "${displayName}" is already taken. Try a different one.`)
+      setLoading(false)
+      return
+    }
+
+    const { error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { username, display_name: displayName },
+      },
+    })
     setLoading(false)
 
     if (signUpError) {
@@ -46,7 +71,8 @@ export default function SignupScreen() {
           <p className="text-wheat font-display font-semibold text-xl mb-2">Check your email</p>
           <p className="text-rust text-sm leading-relaxed">
             We sent a confirmation link to <span className="text-wheat">{email}</span>.
-            Tap it to activate your account, then come back here to sign in.
+            Tap it to activate your account, then sign in as{' '}
+            <span className="text-amber font-semibold">{displayName}</span>.
           </p>
         </div>
         <button
@@ -69,9 +95,26 @@ export default function SignupScreen() {
       </div>
 
       <form onSubmit={handleSubmit} className="w-full max-w-sm flex flex-col gap-4">
+        <div>
+          <input
+            type="text"
+            placeholder="Your name (e.g. Joelle)"
+            autoComplete="name"
+            value={displayName}
+            onChange={e => setDisplayName(e.target.value)}
+            required
+            className="w-full bg-walnut-mid border border-walnut-light rounded-xl px-4 py-4 text-wheat font-sans placeholder:text-rust focus:outline-none focus:border-amber transition-colors"
+          />
+          {displayName && (
+            <p className="text-rust text-[11px] mt-1.5 px-1">
+              You'll sign in as <span className="text-amber font-semibold">{toUsername(displayName)}</span>
+            </p>
+          )}
+        </div>
+
         <input
           type="email"
-          placeholder="Email"
+          placeholder="Email (for account recovery)"
           autoComplete="email"
           value={email}
           onChange={e => setEmail(e.target.value)}

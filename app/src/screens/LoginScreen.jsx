@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabase'
 
 export default function LoginScreen() {
   const { signIn } = useAuth()
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -13,9 +14,19 @@ export default function LoginScreen() {
     setError(null)
     setLoading(true)
     try {
+      let email = identifier.trim()
+      if (!email.includes('@')) {
+        const { data } = await supabase.rpc('get_email_by_username', { p_username: email.toLowerCase() })
+        if (!data) {
+          setError('Name not found. Try your email address instead.')
+          setLoading(false)
+          return
+        }
+        email = data
+      }
       await signIn(email, password)
-    } catch (err) {
-      setError('Wrong email or password.')
+    } catch {
+      setError('Wrong name or password.')
     } finally {
       setLoading(false)
     }
@@ -23,7 +34,6 @@ export default function LoginScreen() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-walnut px-6">
-      {/* Logo */}
       <div className="mb-10 text-center">
         <h1 className="font-display italic text-5xl text-amber leading-none tracking-tight">
           Cassette
@@ -31,14 +41,13 @@ export default function LoginScreen() {
         <p className="mt-2 text-rust text-sm font-sans">your family video scrapbook</p>
       </div>
 
-      {/* Form */}
       <form onSubmit={handleSubmit} className="w-full max-w-sm flex flex-col gap-4">
         <input
-          type="email"
-          placeholder="Email"
-          autoComplete="email"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
+          type="text"
+          placeholder="Name or email"
+          autoComplete="username"
+          value={identifier}
+          onChange={e => setIdentifier(e.target.value)}
           required
           className="w-full bg-walnut-mid border border-walnut-light rounded-xl px-4 py-4 text-wheat font-sans placeholder:text-rust focus:outline-none focus:border-amber transition-colors"
         />

@@ -4,62 +4,16 @@
 `/Users/Shared/Claude-Projects/Personal Projects/Casette/`
 React app lives in `app/` subdirectory. Design assets (HTML mockups) in root — not deployed.
 
-## Build Status — All 6 Screens Done + Export Working
-- **Login** ✅ tested, working
-- **Signup** ✅ `/signup` public route, texted to new users to create accounts
-- **Home** ✅ tested, working (real Supabase data, gradient cards, year groups)
-- **Intake** ✅ tested, working (FFmpeg FastStart remux → upload, poster thumbnails)
-- **Playback** ✅ swipe nav, hold-to-pause, scrub bar, export, captions, action sheet
-- **Workspace** ✅ trim handles, caption tool, reorder mode, orphan storage cleanup on remove
-- **Discovery** ✅ horizontal + vertical swipe, hold-to-pause, scrub bar, shuffled playlist
-- **Export** ✅ CONFIRMED WORKING (2026-03-15) — FFmpeg WASM loads, trims + stitches clips, Save/Share delivers MP4
-
-## Scrapbook Sharing — Built & Testing (2026-03-15)
-- Share a scrapbook with another Cassette user by email (owner only, via PlaybackScreen ⋯ menu)
-- View-only access — shared user can watch but not edit, no options button on card
-- Appears in recipient's "Shared with you" section on Home, with amber NEW badge until tapped
-- SQL done: `scrapbook_shares` table + RLS policies + `get_user_id_by_email` RPC
-- Bug fixed: shared section was inside own-scrapbooks branch — recipients with empty library couldn't see shared cards
-
-## Approved Backlog (not yet built)
-- **Unshare:** Simple "Remove all shares" button on owner's side. Likely in PlaybackScreen action sheet or Workspace. Deletes all `scrapbook_shares` rows for that scrapbook_id + owner_id.
-- **Rename scrapbook** — from Home card options or Playback action sheet
-
-## Deployment
-- GitHub repo: `https://github.com/Driver-cyber/kasette` (private)
-- Pushed via GitHub Desktop from `app/` folder
-- Cloudflare Pages: build cmd `npm run build`, output `dist`, root `app`
-- Env vars on Cloudflare: `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`
-- **Cloudflare Pages 25MB file size limit** — cannot host FFmpeg WASM (31MB) there
-
-## Supabase
-- Plan: **Pro** (upgraded 2026-03-14)
-- Project URL: `https://ybjbsylocgqcgghmgxeh.supabase.co`
-- Anon key: in `app/.env.local` (gitignored)
-- Tables: `scrapbooks` (has `year` column), `clips` (has `thumbnail_url` column), `scrapbook_shares` (new) — all with RLS, user_id-scoped
-- Storage bucket: `cassette-media` (public) — **max upload size set to 2GB**
-- Storage usage tracked at: Supabase Dashboard → Settings → Billing → Storage Size (currently 0 GB, 100 GB included on Pro)
-- Multi-user: RLS is user_id-scoped — multiple accounts just work, no code changes needed
-- **FFmpeg files hosted in Supabase Storage:** `cassette-media/ffmpeg/ffmpeg-core.js` + `ffmpeg-core.wasm`
-  - Uploaded manually via Supabase Dashboard (one-time setup, already done)
-  - **IMPORTANT: Must be the ESM version** — `node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js`
-  - NOT the umd/ version — the @ffmpeg/ffmpeg worker uses dynamic `import()` which needs `export default`
-  - WASM is identical between esm/ and umd/ directories
-
-## FFmpeg Loading Strategy (CONFIRMED WORKING 2026-03-15)
-- Core files hosted in **Supabase Storage** `cassette-media/ffmpeg/` (ESM version, uploaded manually)
-- Loaded via **custom `fetchToBlobURL()`** with explicit `{ mode: 'cors', credentials: 'omit' }`
-  - Do NOT use `toBlobURL` from `@ffmpeg/util` — under COEP:credentialless it returns opaque responses (empty body)
-- COOP/COEP headers in `app/public/_headers` enable SharedArrayBuffer
-- All three pieces are required — remove any one and it breaks
-
-## Tech Stack
-- React 18 + Vite + Tailwind v4 (`@theme` block, `@tailwindcss/vite`)
-- React Router v7, Supabase JS v2, Lucide React
-- **@ffmpeg/ffmpeg + @ffmpeg/util v0.12** — singleton in `app/src/lib/remux.js`
-- **@ffmpeg/core v0.12.6** — in `package.json` dependencies (used for local dev copy script)
-- Google Fonts: Fraunces (display/italic) + Plus Jakarta Sans (UI)
-- `vite.config.js`: `optimizeDeps: { exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'] }`
+## Build Status — All Screens Done ✅
+- **Login** ✅ — accepts name or email, username lookup via RPC
+- **Signup** ✅ — name + username preview + email (recovery only) + password. Trigger auto-creates profile.
+- **Home** ✅ — year-grouped cards, collapsible, "Shared with you" collapsible section, NEW badge
+- **Intake** ✅ — FFmpeg FastStart remux → upload, poster thumbnails
+- **Playback** ✅ — swipe nav, hold-to-pause, scrub bar, export, captions, Share + Export in action sheet
+- **Workspace** ✅ — trim handles, caption tool, reorder mode, orphan storage cleanup
+- **Discovery** ✅ — horizontal + vertical swipe, hold-to-pause, scrub bar, shuffled playlist
+- **Export** ✅ — FFmpeg WASM trim + concat → Web Share API or download
+- **ShareScreen** ✅ — `/scrapbook/:id/share`, lists access by username, add/remove individuals
 
 ## Routes
 - `/` → HomeScreen (protected)
@@ -67,15 +21,66 @@ React app lives in `app/` subdirectory. Design assets (HTML mockups) in root —
 - `/intake` → IntakeScreen (protected)
 - `/scrapbook/:id` → PlaybackScreen (protected)
 - `/scrapbook/:id/edit` → WorkspaceScreen (protected)
+- `/scrapbook/:id/share` → ShareScreen (protected, owner only)
 - `/discover` → DiscoveryScreen (protected)
 
+## Supabase
+- Plan: **Pro** — project URL: `https://ybjbsylocgqcgghmgxeh.supabase.co`
+- Anon key: in `app/.env.local` (gitignored)
+- **Tables:** `scrapbooks`, `clips`, `scrapbook_shares`, `profiles` — all RLS-enabled
+- Storage bucket: `cassette-media` (public) — **max upload 2GB**, 100GB total on Pro
+- **FFmpeg files in Supabase Storage:** `cassette-media/ffmpeg/ffmpeg-core.js` + `ffmpeg-core.wasm`
+  - Must be **ESM version** from `node_modules/@ffmpeg/core/dist/esm/` — NOT umd/
+
+## Supabase RPCs (all SECURITY DEFINER)
+- `get_user_id_by_email(lookup_email)` — shares legacy, returns uuid
+- `get_scrapbook_shares(p_scrapbook_id)` — returns share list with emails for ShareScreen
+- `get_email_by_username(p_username)` — login: name → email
+- `check_username_available(p_username)` — signup validation
+- `get_user_id_by_username(p_username)` — ShareScreen: share by name
+- `handle_new_user()` trigger — auto-inserts into profiles on every new auth.users row
+  - **Must use** `SECURITY DEFINER SET search_path = public` and `public.profiles` — bare `profiles` fails in Supabase trigger context
+
+## Username Login System
+- `profiles` table: `user_id`, `username` (UNIQUE), `display_name`
+- Login: type "chad" → `get_email_by_username` → sign in with real email
+- Signup: name field → username auto-derived (lowercase, alphanumeric only) → preview shown
+- Existing users: chad (`382ec0eb-...`) + joelle (`3e2d3a4b-...`) backfilled directly
+- Email still used by Supabase Auth under the hood — password reset goes to real email
+
+## Scrapbook Sharing
+- Owner taps ⋯ → "Share Scrapbook" → ShareScreen
+- ShareScreen: lists current shares (initial avatar + email), X to remove, username input to add
+- Home: "Shared with you" collapsible section, amber NEW badge until tapped, marks `seen=true`
+- Shared cards: no options button (view only), can navigate to playback
+- Recipient with empty own library: fixed — shared section renders independently of own-scrapbooks branch
+
+## FFmpeg Loading (CONFIRMED WORKING 2026-03-15)
+- Custom `fetchToBlobURL()` with `{ mode: 'cors', credentials: 'omit' }` — do NOT use `toBlobURL` from `@ffmpeg/util`
+- COOP/COEP headers in `app/public/_headers` — required for SharedArrayBuffer
+- All three pieces required together: ESM files + custom fetch + headers
+
+## Deployment
+- GitHub repo: `https://github.com/Driver-cyber/kasette` (private)
+- Push via **GitHub Desktop** (no GitHub CLI installed)
+- Cloudflare Pages: build cmd `npm run build`, output `dist`, root `app`
+- Env vars on Cloudflare: `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`
+- **Cloudflare 25MB file limit** — cannot host FFmpeg WASM there (31MB), hosted in Supabase Storage instead
+- PWA updates automatically on relaunch. If stuck: open Safari → kasette.pages.dev → relaunch.
+
+## Tech Stack
+- React 18 + Vite + Tailwind v4 (`@theme` block, `@tailwindcss/vite`)
+- React Router v7, Supabase JS v2, Lucide React (`strokeWidth={1.75}`)
+- `@ffmpeg/ffmpeg + @ffmpeg/util v0.12` — singleton in `app/src/lib/remux.js`
+- Google Fonts: Fraunces (display/italic) + Plus Jakarta Sans (UI)
+- `vite.config.js`: `optimizeDeps: { exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'] }`
+
 ## Key Files
-- `app/src/lib/remux.js` — FFmpeg singleton loader + `remuxWithFaststart(file)`
-- `app/src/lib/export.js` — `exportScrapbook(clips, onProgress)` → Blob (trim + concat)
-- `app/src/lib/supabase.js` — Supabase client
+- `app/src/lib/remux.js` — FFmpeg singleton + `remuxWithFaststart(file)`
+- `app/src/lib/export.js` — `exportScrapbook(clips, onProgress)` → Blob
 - `app/src/context/AuthContext.jsx` — Auth context, persistent session
 - `app/public/_headers` — COOP/COEP headers (required for FFmpeg WASM)
-- `app/copy-ffmpeg.js` — copies FFmpeg core files from node_modules to public/ffmpeg/ for local dev
+- `app/copy-ffmpeg.js` — copies FFmpeg files from node_modules → public/ffmpeg/ for local dev
 
 ## Key Patterns
 - Bottom sheets: `absolute bottom-0 left-0 right-0 z-20 rounded-t-3xl` inside root div
@@ -83,17 +88,18 @@ React app lives in `app/` subdirectory. Design assets (HTML mockups) in root —
 - Always add both touch AND mouse handlers for drag features
 - Stale closure fix: capture values as local vars before calling `setClips`
 - Hold-to-pause: 200ms `setTimeout` → `holdOccurredRef` + `wasPlayingBeforeHold` refs
-- `holdOccurredRef` bridges `touchEnd` → `onClick` to block navigation after hold
-- Scrub bar: `clientY > window.innerHeight * 0.75` detection → amber timeline, drag to seek
 
 ## Brand Tokens (Tailwind)
-`bg-walnut`, `bg-walnut-mid`, `bg-walnut-light`, `bg-deep`
-`text-amber`, `text-wheat`, `text-rust`, `text-sienna`
-`font-display` (Fraunces), `font-sans` (Plus Jakarta Sans)
-Lucide icons: `strokeWidth={1.75}`
+`bg-walnut` `bg-walnut-mid` `bg-walnut-light` `bg-deep`
+`text-amber` `text-wheat` `text-rust` `text-sienna`
+`font-display` (Fraunces) `font-sans` (Plus Jakarta Sans)
 
 ## Dev Setup
 - Node via Homebrew: `/opt/homebrew/bin/npm`
 - Run locally: `cd app && npm run dev`
-- No GitHub CLI installed — use GitHub Desktop for pushes
-- Before first `npm run dev`: run `node copy-ffmpeg.js` to copy FFmpeg files to `public/ffmpeg/`
+- Before first run: `node copy-ffmpeg.js` to copy FFmpeg files to `public/ffmpeg/`
+
+## Approved Backlog (not yet built)
+- **Rename scrapbook** — from Home card options or Playback action sheet
+- **Caption burning on export** — re-encode to bake captions into video. Slow on mobile, parked for v2. Caption data already stored correctly — safe to add captions now.
+- **Reorder 1-step UX** — parked, hard due to onClick/touchend conflict

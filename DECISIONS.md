@@ -375,9 +375,9 @@ All screens are built and confirmed working in the browser:
 
 ---
 
-### [2026-03-15] — Scrapbook Sharing (IN PROGRESS)
+### [2026-03-15] — Scrapbook Sharing ✅ Complete
 
-**Feature:** Share a scrapbook with another Cassette user by email. View-only. Auto-appears in recipient's library.
+**Feature:** Share a scrapbook with another Cassette user by username. View-only. Auto-appears in recipient's library.
 
 **Data model:**
 ```sql
@@ -387,17 +387,38 @@ scrapbook_shares (id, scrapbook_id, owner_id, shared_with_id, seen, created_at)
 
 **RLS:** Owners manage their shares (ALL). Shared users can SELECT + UPDATE (seen flag only). Scrapbooks + clips SELECT policies extended to allow shared users to read.
 
-**RPC:** `get_user_id_by_email(lookup_email text)` — SECURITY DEFINER function to look up `auth.users` by email without exposing the table.
+**RPCs:** `get_user_id_by_email`, `get_scrapbook_shares(p_scrapbook_id)`, `get_user_id_by_username(p_username)` — all SECURITY DEFINER.
 
-**SQL:** ✅ Already run in Supabase (table + RLS + RPC function).
+**UI built:**
+- PlaybackScreen ⋯ → "Share Scrapbook" (owner only) → navigates to ShareScreen
+- `ShareScreen` (`/scrapbook/:id/share`) — lists who has access with initial avatar + X to remove, username input to add new people
+- HomeScreen "Shared with you" collapsible section — amber NEW badge on unseen shares, marks seen on tap, shared cards are view-only (no options button)
 
-**UI plan:**
-- "Share Scrapbook" option in PlaybackScreen action sheet (owner only) → email input sheet
-- HomeScreen "Shared with you" section below own scrapbooks
-- New share banner (one-time, dismisses on tap, marks `seen = true` in DB)
-- Shared cards have no options button — view only
+**Bug fixed:** Shared section was nested inside own-scrapbooks branch — recipients with empty library saw empty state instead of shared cards.
 
-**Code:** NOT YET WRITTEN — next session picks up here.
+---
+
+### [2026-03-15] — Username Login ✅ Complete
+
+**Feature:** Users sign in by first name (e.g. "chad", "joelle") instead of email.
+
+**Data model:**
+```sql
+profiles (user_id, username UNIQUE, display_name, created_at)
+```
+
+**How it works:**
+- `profiles` table maps username → user_id. Public read (needed for login lookup).
+- `handle_new_user()` trigger (SECURITY DEFINER SET search_path = public) auto-inserts profile row on every new signup, reading `raw_user_meta_data` for username + display_name.
+- `get_email_by_username(p_username)` RPC — login screen calls this if input has no `@`, gets the real email, then signs in via Supabase Auth normally.
+- `check_username_available(p_username)` RPC — signup checks before submitting.
+- `get_user_id_by_username(p_username)` RPC — ShareScreen uses this for sharing by name.
+
+**LoginScreen:** Single "Name or email" field. If no `@`, does username lookup first.
+**SignupScreen:** "Your name" field + username preview + email (labelled "for account recovery") + password.
+**Existing accounts:** Chad + Joelle backfilled via direct INSERT into profiles.
+
+**Note:** Email is still the Supabase Auth credential under the hood. Password reset emails go to the real email address.
 
 ---
 
@@ -411,6 +432,8 @@ scrapbook_shares (id, scrapbook_id, owner_id, shared_with_id, seen, created_at)
 | Discovery screen | `/discover` — shuffled playlist of all clips. Swipe up/down/left/right. |
 | Export as MP4 | FFmpeg trim + concat → Web Share API or download. ✅ Working. |
 | Multi-user / signup | `/signup` public route, RLS user_id-scoped, each user sees own data only. |
+| Scrapbook sharing | Share by username. ShareScreen manages access. Shared with you on Home. ✅ |
+| Username login | Sign in as "chad" or "joelle". profiles table + trigger + RPCs. ✅ |
 
 ---
 
@@ -418,19 +441,18 @@ scrapbook_shares (id, scrapbook_id, owner_id, shared_with_id, seen, created_at)
 
 | # | Feature | Notes |
 |---|---|---|
-| 1 | **Scrapbook sharing** | SQL done. Code not yet written. See decision log above. |
-| 2 | **Reorder 2-step → 1-step UX** | Tap to select + same gesture drags. Hard: `onClick` fires after `touchend`. Parked. |
-| 3 | **Rename scrapbook** | From Home card options menu or Playback action sheet. Simple text input sheet. |
+| 1 | **Reorder 2-step → 1-step UX** | Tap to select + same gesture drags. Hard: `onClick` fires after `touchend`. Parked. |
+| 2 | **Rename scrapbook** | From Home card options menu or Playback action sheet. Simple text input sheet. |
 
 ---
 
 ## 💡 Parking Lot (Good Ideas, Not Yet)
 
-- **First-time user tutorial / tip screen** — brief guide on first login: how playback works, trim, captions won't export, etc.
-- **Caption burning on export** — re-encode captioned clips to bake text into video. Slow on mobile. v2.
+- **Caption burning on export** — re-encode captioned clips to bake text into video. Slow on mobile. v2. Caption metadata is already stored correctly — safe to add captions now.
+- **First-time user tutorial** — brief guide on first login: how playback works, trim, captions won't export, etc.
 - **Video compression on upload** — iPhone videos are 100MB+. Client-side canvas re-encode or server worker. Biggest perf lever.
 - **Cover image extraction** — auto-pull first frame. Needs canvas or server processing.
-- **Background music / audio track** — v2.
 - **Public share links (grandparent view)** — read-only link, no account needed. High value, v2.
+- **Background music / audio track** — v2.
 - **Native iOS app** — if PWA proves too limiting for video handling.
 - **Light mode** — not a Cassette experience. Maybe never.

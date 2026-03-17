@@ -27,6 +27,7 @@ export default function PlaybackScreen() {
   const [showActionSheet, setShowActionSheet] = useState(false)
   const [progress, setProgress] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [videoLoading, setVideoLoading] = useState(true)
 
   // Export
   const [exportState, setExportState] = useState(null) // null | { phase, current, total } | 'done' | { error: string }
@@ -423,10 +424,18 @@ export default function PlaybackScreen() {
             onEnded={() => goToClip(currentIndex + 1)}
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
+            onLoadStart={() => setVideoLoading(true)}
+            onCanPlay={() => setVideoLoading(false)}
+            onWaiting={() => setVideoLoading(true)}
             playsInline
             preload="auto"
             poster={currentClip?.thumbnail_url || undefined}
           />
+          {videoLoading && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="w-9 h-9 rounded-full border-2 border-amber border-t-transparent animate-spin" />
+            </div>
+          )}
           <div className="absolute inset-x-0 top-0 h-44 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%)' }} />
           <div className="absolute inset-x-0 bottom-0 h-56 pointer-events-none" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)' }} />
           {currentClip?.caption_text && (
@@ -626,16 +635,18 @@ export default function PlaybackScreen() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-10 h-1 rounded-full bg-walnut-light mx-auto mt-3.5 mb-5" />
-            <button
-              onClick={() => navigate(`/scrapbook/${id}/edit`)}
-              className="w-full flex items-center gap-3.5 px-2 py-4 border-b border-walnut-light active:opacity-70 text-left"
-            >
-              <Edit size={20} strokeWidth={1.75} className="text-amber flex-shrink-0" />
-              <div>
-                <p className="text-wheat font-semibold text-[15px]">Edit Scrapbook</p>
-                <p className="text-rust text-[11px] mt-0.5">Trim clips, add captions, reorder</p>
-              </div>
-            </button>
+            {isOwner && (
+              <button
+                onClick={() => navigate(`/scrapbook/${id}/edit`)}
+                className="w-full flex items-center gap-3.5 px-2 py-4 border-b border-walnut-light active:opacity-70 text-left"
+              >
+                <Edit size={20} strokeWidth={1.75} className="text-amber flex-shrink-0" />
+                <div>
+                  <p className="text-wheat font-semibold text-[15px]">Edit Scrapbook</p>
+                  <p className="text-rust text-[11px] mt-0.5">Trim clips, add captions, reorder</p>
+                </div>
+              </button>
+            )}
             {isOwner && (
               <button
                 onClick={() => navigate(`/scrapbook/${id}/share`)}

@@ -398,6 +398,44 @@ scrapbook_shares (id, scrapbook_id, owner_id, shared_with_id, seen, created_at)
 
 ---
 
+### [2026-03-16] — Auto-Share Defaults ✅ Complete
+
+**Feature:** Users configure a global list of people who automatically receive access to every new scrapbook they create. Managed from a new Settings screen.
+
+**New DB table (user runs SQL in Supabase):**
+```sql
+sharing_defaults (id, user_id, recipient_id, created_at)
+-- UNIQUE(user_id, recipient_id)
+-- RLS: user_id = auth.uid() on SELECT/INSERT/DELETE
+-- ON DELETE CASCADE on both FK columns
+```
+
+**UI:** Gear icon in Home header (far right, order: shuffle → search → gear) → `/settings` route → `SettingsScreen.jsx`
+- Add by username → two-step: resolves name, then shows radio toggle: *New scrapbooks only* vs *All scrapbooks (N)* (defaults to all — retroactive bulk-inserts `scrapbook_shares`)
+- Remove → bottom sheet with radio toggle: *Stop future shares only* vs *Remove all access · N scrapbooks* (defaults to all, sienna styling)
+- Footnote: "To share a single scrapbook, use the ⋯ menu inside that scrapbook."
+
+**IntakeScreen hook:** After scrapbook INSERT, silently fetches `sharing_defaults` and bulk-inserts `scrapbook_shares` rows. Wrapped in try/catch — never blocks creation.
+
+**Per-scrapbook unsharing is fully compatible:** auto-share fires once at creation. Owner can remove a recipient from a specific scrapbook via ShareScreen; that row is deleted but the default is untouched. Next scrapbook auto-shares to them again. Enables "share everything by default, opt specific ones out."
+
+**Family members:** Chad (creator), Joelle, Holly, Danielle (Chad's mom).
+
+---
+
+### [2026-03-16] — Family Feedback Sprint ✅ Complete
+
+**Fixes shipped:**
+- **InstallPrompt** — Step 1 now shows both ⋯ menu (newer iPhones) and Share button (older iPhones) with labels
+- **ShareScreen names** — enriches share list with `profiles` table client-side; shows `display_name → username → email`
+- **PlaybackScreen loading** — `videoLoading` state + `onLoadStart/onCanPlay/onWaiting` events + amber spinner overlay on current video
+- **Edit access blocked for shared recipients** — PlaybackScreen Edit button wrapped in `{isOwner && ...}`; WorkspaceScreen now fetches `user_id`, checks ownership, redirects non-owners to playback
+- **Rename scrapbook** — "Rename" option in Home card ⋯ menu → bottom sheet with pre-filled input
+- **Error boundary** — `ErrorBoundary.jsx` wraps entire app; JS crashes show friendly "Reload" screen instead of white screen
+- **Cover cache-busting** — `cacheControl: '0'` + `?v=timestamp` on cover uploads so family sees changes immediately
+
+---
+
 ### [2026-03-16] — Shared Scrapbook Self-Remove ✅ Complete
 
 **Feature:** Recipients of a shared scrapbook can remove their own access from the HomeScreen.
@@ -446,6 +484,9 @@ profiles (user_id, username UNIQUE, display_name, created_at)
 | Multi-user / signup | `/signup` public route, RLS user_id-scoped, each user sees own data only. |
 | Scrapbook sharing | Share by username. ShareScreen manages access. Shared with you on Home. ✅ |
 | Username login | Sign in as "chad" or "joelle". profiles table + trigger + RPCs. ✅ |
+| Rename scrapbook | Home card ⋯ menu → bottom sheet with text input. ✅ |
+| Auto-share defaults | Settings screen. Global defaults auto-share new scrapbooks. Retroactive + selective remove. ✅ |
+| Error boundary | Wraps entire app. Friendly reload screen on crash. ✅ |
 
 ---
 
@@ -454,7 +495,7 @@ profiles (user_id, username UNIQUE, display_name, created_at)
 | # | Feature | Notes |
 |---|---|---|
 | 1 | **Reorder 2-step → 1-step UX** | Tap to select + same gesture drags. Hard: `onClick` fires after `touchend`. Parked. |
-| 2 | **Rename scrapbook** | From Home card options menu or Playback action sheet. Simple text input sheet. |
+| 1 | **Reorder 2-step → 1-step UX** | Tap to select + same gesture drags. Hard: `onClick` fires after `touchend`. Parked. |
 
 ---
 

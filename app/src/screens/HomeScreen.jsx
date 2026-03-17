@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Play, Search, X, MoreHorizontal, ChevronDown, Image, Shuffle } from 'lucide-react'
+import { Plus, Play, Search, X, MoreHorizontal, ChevronDown, Image, Shuffle, Pencil, Settings } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { APP_VERSION } from '../version'
@@ -128,10 +128,37 @@ export default function HomeScreen() {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [sharedOptionsShareId, setSharedOptionsShareId] = useState(null)
+  const [renameId, setRenameId] = useState(null)
+  const [renameDraft, setRenameDraft] = useState('')
   const [showVersion, setShowVersion] = useState(false) // Version popup
+  const [displayName, setDisplayName] = useState(null)
+   
+   const greetings = [
+     "Hello",
+     "Hey there",
+     "Good day",
+     "Top o' the mornin'",
+     "Welcome back",
+     "Howdy",
+     "G'day",
+     "Greetings",
+   ]
+   const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)]
   const searchInputRef = useRef(null)
   const coverChangeInputRef = useRef(null)
 
+useEffect(() => {
+     if (!session) return
+     supabase
+       .from('profiles')
+       .select('display_name')
+       .eq('user_id', session.user.id)
+       .single()
+       .then(({ data }) => {
+         if (data) setDisplayName(data.display_name)
+       })
+   }, [session])
+  
   useEffect(() => {
     if (!session) return
     setLoading(true)
@@ -220,14 +247,15 @@ export default function HomeScreen() {
     const coverPath = `${session.user.id}/covers/${sbId}.${ext}`
     const { error } = await supabase.storage
       .from('cassette-media')
-      .upload(coverPath, file, { cacheControl: '3600', upsert: true })
+      .upload(coverPath, file, { cacheControl: '0', upsert: true })
     if (!error) {
       const { data: { publicUrl } } = supabase.storage
         .from('cassette-media')
         .getPublicUrl(coverPath)
-      await supabase.from('scrapbooks').update({ cover_image_url: publicUrl }).eq('id', sbId)
+      const bustUrl = `${publicUrl}?v=${Date.now()}`
+      await supabase.from('scrapbooks').update({ cover_image_url: bustUrl }).eq('id', sbId)
       setScrapbooks(prev => prev.map(sb =>
-        sb.id === sbId ? { ...sb, cover_image_url: publicUrl } : sb
+        sb.id === sbId ? { ...sb, cover_image_url: bustUrl } : sb
       ))
     }
   }
@@ -272,6 +300,14 @@ export default function HomeScreen() {
     await supabase.from('scrapbook_shares').delete().eq('id', shareId)
   }
 
+  async function handleRename() {
+    const name = renameDraft.trim()
+    if (!name || !renameId) return
+    setScrapbooks(prev => prev.map(sb => sb.id === renameId ? { ...sb, name } : sb))
+    setRenameId(null)
+    await supabase.from('scrapbooks').update({ name }).eq('id', renameId)
+  }
+
   return (
     <div className="flex flex-col h-screen bg-walnut">
 
@@ -314,9 +350,25 @@ export default function HomeScreen() {
               <Search size={18} strokeWidth={2} className="text-wheat/50" />
             )}
           </button>
+
+          <button
+            onClick={() => navigate('/settings')}
+            className="w-10 h-10 flex items-center justify-center rounded-full active:opacity-70"
+          >
+            <Settings size={18} strokeWidth={2} className="text-wheat/50" />
+          </button>
         </div>
       </header>
 
+{/* Whimsical greeting */}
+   {displayName && !showSearch && (
+     <div className="px-6 pt-2 pb-1">
+       <p className="font-display italic text-wheat/60 text-[15px]">
+         {randomGreeting}, {displayName}
+       </p>
+     </div>
+   )}
+      
       {/* Search input */}
       {showSearch && (
         <div className="px-6 pb-4 flex-shrink-0">
@@ -506,6 +558,22 @@ export default function HomeScreen() {
               </div>
             </button>
 
+            {/* Rename */}
+            <button
+              onClick={() => { setOptionsId(null); setRenameDraft(optionsScrapbook?.name || ''); setRenameId(optionsId) }}
+              className="w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl mb-2 active:opacity-75"
+              style={{ background: '#2C1A0E' }}
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(242,162,74,0.1)' }}>
+                <Pencil size={16} strokeWidth={1.75} className="text-amber" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-wheat text-[14px] font-semibold leading-none mb-0.5">Rename</p>
+                <p className="text-rust text-[11px]">Change the scrapbook name</p>
+              </div>
+            </button>
+
             {/* Delete */}
             <button
               onClick={() => {
@@ -527,6 +595,47 @@ export default function HomeScreen() {
 
             <button
               onClick={() => setOptionsId(null)}
+              className="w-full py-3 text-center text-rust font-semibold text-[15px] active:opacity-70"
+            >
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Rename sheet */}
+      {renameId && (
+        <>
+          <div
+            className="absolute inset-0 bg-black/50 z-10"
+            onClick={() => setRenameId(null)}
+          />
+          <div
+            className="absolute bottom-0 left-0 right-0 z-20 rounded-t-3xl border-t border-walnut-light px-5 pb-10 pt-1"
+            style={{ background: '#3D2410' }}
+          >
+            <div className="w-10 h-1 rounded-full bg-walnut-light mx-auto mt-3 mb-5" />
+            <p className="font-display font-semibold text-lg text-wheat mb-4 px-1">Rename Scrapbook</p>
+            <input
+              type="text"
+              value={renameDraft}
+              onChange={e => setRenameDraft(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleRename()}
+              autoFocus
+              maxLength={60}
+              className="w-full px-4 py-3.5 rounded-2xl text-wheat text-[15px] font-sans outline-none mb-3"
+              style={{ background: '#2C1A0E', border: '1px solid #4A2E18' }}
+            />
+            <button
+              onClick={handleRename}
+              disabled={!renameDraft.trim()}
+              className="w-full py-3.5 rounded-2xl font-sans font-bold text-[15px] mb-2 active:opacity-80 disabled:opacity-30"
+              style={{ background: '#F2A24A', color: '#2C1A0E' }}
+            >
+              Save
+            </button>
+            <button
+              onClick={() => setRenameId(null)}
               className="w-full py-3 text-center text-rust font-semibold text-[15px] active:opacity-70"
             >
               Cancel

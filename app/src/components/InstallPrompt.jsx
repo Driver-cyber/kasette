@@ -31,20 +31,35 @@ export default function InstallPrompt({ onDismiss }) {
         <p className="text-[13px] text-rust text-center mb-5">Four easy steps</p>
         
         <div className="flex flex-col gap-3">
-          {/* Step 1: Three dots */}
+          {/* Step 1: Three dots OR Share button */}
           <div className="relative">
             <div className="absolute -top-1.5 -left-1.5 w-6 h-6 rounded-full bg-amber/20 text-amber flex items-center justify-center font-medium text-xs z-10">1</div>
             <div className="bg-walnut-mid rounded-lg p-3 pl-7 border border-walnut-light">
-              <p className="text-[13px] font-medium mb-1.5 text-wheat">Tap the three dots</p>
-              <div className="flex items-center gap-1.5">
-                <div className="px-2.5 py-1.5 bg-deep rounded-full inline-flex items-center justify-center">
-                  <div className="flex gap-0.5">
-                    <div className="w-[3px] h-[3px] bg-wheat rounded-full"></div>
-                    <div className="w-[3px] h-[3px] bg-wheat rounded-full"></div>
-                    <div className="w-[3px] h-[3px] bg-wheat rounded-full"></div>
+              <p className="text-[13px] font-medium mb-2 text-wheat">Tap the Share button at the bottom of Safari</p>
+              <div className="flex items-center gap-2.5">
+                {/* Three dots option */}
+                <div className="flex flex-col items-center gap-1">
+                  <div className="px-2.5 py-1.5 bg-deep rounded-full inline-flex items-center justify-center">
+                    <div className="flex gap-0.5">
+                      <div className="w-[3px] h-[3px] bg-wheat rounded-full"></div>
+                      <div className="w-[3px] h-[3px] bg-wheat rounded-full"></div>
+                      <div className="w-[3px] h-[3px] bg-wheat rounded-full"></div>
+                    </div>
                   </div>
+                  <p className="text-[10px] text-rust">Newer iPhones</p>
                 </div>
-                <p className="text-[11px] text-rust">← Bottom right corner</p>
+                <p className="text-[11px] text-rust">or</p>
+                {/* Share icon option */}
+                <div className="flex flex-col items-center gap-1">
+                  <div className="px-2 py-1.5 bg-deep rounded-full inline-flex items-center justify-center">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F5DEB3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/>
+                      <polyline points="16 6 12 2 8 6"/>
+                      <line x1="12" y1="2" x2="12" y2="15"/>
+                    </svg>
+                  </div>
+                  <p className="text-[10px] text-rust">Older iPhones</p>
+                </div>
               </div>
             </div>
           </div>

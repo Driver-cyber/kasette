@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import { loadFFmpeg } from './lib/remux'
 import LoginScreen from './screens/LoginScreen'
 import InstallPrompt from './components/InstallPrompt'
+import ErrorBoundary from './components/ErrorBoundary'
 
 const HomeScreen      = lazy(() => import('./screens/HomeScreen'))
 const IntakeScreen    = lazy(() => import('./screens/IntakeScreen'))
@@ -12,6 +13,7 @@ const WorkspaceScreen = lazy(() => import('./screens/WorkspaceScreen'))
 const DiscoveryScreen = lazy(() => import('./screens/DiscoveryScreen'))
 const SignupScreen    = lazy(() => import('./screens/SignupScreen'))
 const ShareScreen     = lazy(() => import('./screens/ShareScreen'))
+const SettingsScreen  = lazy(() => import('./screens/SettingsScreen'))
 
 const FF_READY_KEY = 'cassette_ff_ready'
 
@@ -109,6 +111,7 @@ function AppRoutes() {
               <Route path="/scrapbook/:id/edit" element={<WorkspaceScreen />} />
               <Route path="/scrapbook/:id/share" element={<ShareScreen />} />
               <Route path="/discover" element={<DiscoveryScreen />} />
+              <Route path="/settings" element={<SettingsScreen />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </AuthGate>
@@ -121,11 +124,13 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <AppInit>
-          <AppRoutes />
-        </AppInit>
-      </AuthProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <AppInit>
+            <AppRoutes />
+          </AppInit>
+        </AuthProvider>
+      </ErrorBoundary>
     </BrowserRouter>
   )
 }

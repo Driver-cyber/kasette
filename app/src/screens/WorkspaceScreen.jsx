@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Play, Pause, Type, Eye, Trash2, Check, GripVertical, Volume2, VolumeX } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -37,6 +38,7 @@ const LONG_PRESS_MS = 400
 export default function WorkspaceScreen() {
   const navigate = useNavigate()
   const { id } = useParams()
+  const { session } = useAuth()
   const videoRef = useRef(null)
   const filmstripRef = useRef(null)
   const previewRef = useRef(null)
@@ -79,10 +81,13 @@ export default function WorkspaceScreen() {
   // ── Fetch ──────────────────────────────────────────────────────────────
   useEffect(() => {
     Promise.all([
-      supabase.from('scrapbooks').select('id, name').eq('id', id).single(),
+      supabase.from('scrapbooks').select('id, name, user_id').eq('id', id).single(),
       supabase.from('clips').select('*').eq('scrapbook_id', id).order('order', { ascending: true }),
     ]).then(([{ data: sb }, { data: cl }]) => {
-      if (sb) setScrapbook(sb)
+      if (sb) {
+        if (sb.user_id !== session?.user?.id) { navigate(`/scrapbook/${id}`, { replace: true }); return }
+        setScrapbook(sb)
+      }
       if (cl && cl.length) {
         setClips(cl)
         setActiveClipId(cl[0].id)

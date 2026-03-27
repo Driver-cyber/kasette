@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Play, Pause, Type, Trash2, Check, GripVertical, Volume2, VolumeX, PlusCircle } from 'lucide-react'
+import { ArrowLeft, Play, Pause, Type, Trash2, Check, GripVertical, Volume2, VolumeX, PlusCircle, ChevronUp, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
@@ -58,6 +58,7 @@ export default function WorkspaceScreen() {
   const [confirmRemoveId, setConfirmRemoveId] = useState(null)
   const [trimHandlesActive, setTrimHandlesActive] = useState(false) // Tap-to-activate trim handles
   const [reorderMode, setReorderMode] = useState(false) // Full-screen reorder mode
+  const [clipsExpanded, setClipsExpanded] = useState(false) // Clip list collapsed by default
 
   // Reorder drag state
   const dragState = useRef(null)
@@ -528,11 +529,11 @@ export default function WorkspaceScreen() {
           ref={previewRef}
           className="mx-4 rounded-2xl overflow-hidden relative bg-deep"
           style={{
-            flexGrow: isCaption ? 1 : 0,
-            flexShrink: isCaption ? 1 : 0,
-            minHeight: isCaption ? 0 : undefined,
-            height: isCaption ? undefined : 210,
-            transition: 'height 0.3s ease',
+            flexGrow: (isCaption || !clipsExpanded) ? 1 : 0,
+            flexShrink: (isCaption || !clipsExpanded) ? 1 : 0,
+            minHeight: (isCaption || !clipsExpanded) ? 0 : undefined,
+            height: (isCaption || !clipsExpanded) ? undefined : 210,
+            transition: 'flex-grow 0.3s ease, height 0.3s ease',
           }}
         >
         <video
@@ -756,7 +757,7 @@ export default function WorkspaceScreen() {
                 onClick={() => {
                   if (key === 'addclips') navigate(`/intake?addTo=${id}`)
                   else if (key === 'remove') setConfirmRemoveId(activeClipId)
-                  else if (key === 'reorder') setReorderMode(!reorderMode)
+                  else if (key === 'reorder') { setReorderMode(!reorderMode); if (!reorderMode) setClipsExpanded(true) }
                   else if (key === 'mute') toggleMute()
                   else toggleTool(key)
                 }}
@@ -784,9 +785,9 @@ export default function WorkspaceScreen() {
 
       {/* ── Clip list header ── */}
       {!isCaption && (
-        <div className="flex items-center justify-between px-5 py-2.5 flex-shrink-0">
+        <div className="flex items-center justify-between px-5 py-2.5 flex-shrink-0 border-t border-walnut-light">
           <span className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase">
-            {reorderMode ? 'Hold & drag to reorder' : 'All clips'}
+            {reorderMode ? 'Hold & drag to reorder' : clipsExpanded ? 'All clips' : 'Current clip'}
           </span>
           {reorderMode ? (
             <button
@@ -796,20 +797,23 @@ export default function WorkspaceScreen() {
               Done
             </button>
           ) : (
-            <span className="text-wheat/30 text-[10px] font-medium">
-              {editedCount > 0
-                ? `${editedCount} of ${clips.length} edited`
-                : `${clips.length} clips · hold to reorder`
+            <button
+              onClick={() => setClipsExpanded(e => !e)}
+              className="flex items-center gap-1 text-wheat/40 text-[10px] font-medium active:opacity-70"
+            >
+              {clipsExpanded
+                ? <><ChevronDown size={13} strokeWidth={2} /> Collapse</>
+                : <><ChevronUp size={13} strokeWidth={2} /> {clips.length} clips</>
               }
-            </span>
+            </button>
           )}
         </div>
       )}
 
       {/* ── Clip list ── */}
       {!isCaption && (
-        <div data-clip-list className="flex-1 overflow-y-auto px-4 pb-6 flex flex-col gap-1.5">
-          {clips.map((clip, i) => {
+        <div data-clip-list className={clipsExpanded ? 'flex-1 overflow-y-auto px-4 pb-6 flex flex-col gap-1.5' : 'flex-shrink-0 px-4 pb-4 flex flex-col gap-1.5'}>
+          {(clipsExpanded ? clips : clips.filter(c => c.id === activeClipId)).map((clip, i) => {
             const active = clip.id === activeClipId
             const edited = isEdited(clip)
             const isDragging = isActiveDragging && ghostClip?.id === clip.id
@@ -836,7 +840,7 @@ export default function WorkspaceScreen() {
                 type="button"
                 onClick={() => {
                   // Guard: if touch action ended in a drag, don't also select
-                  if (!wasReorderDrag.current) setActiveClipId(clip.id)
+                  if (!wasReorderDrag.current) { setActiveClipId(clip.id); setClipsExpanded(false) }
                 }}
                 onTouchStart={(e) => handleClipTouchStart(e, i)}
                 onTouchMove={handleClipTouchMove}

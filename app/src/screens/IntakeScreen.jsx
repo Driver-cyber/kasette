@@ -120,6 +120,32 @@ export default function IntakeScreen() {
   const [coverPreview, setCoverPreview] = useState(null)
   const nameInputRef = useRef(null)
   const coverInputRef = useRef(null)
+  const wakeLockRef = useRef(null)
+
+  // ── Wake lock helpers ────────────────────────────────────────────────────
+  async function acquireWakeLock() {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLockRef.current = await navigator.wakeLock.request('screen')
+      }
+    } catch { /* not supported or denied — continue without it */ }
+  }
+
+  function releaseWakeLock() {
+    try { wakeLockRef.current?.release() } catch {}
+    wakeLockRef.current = null
+  }
+
+  // Re-acquire wake lock if page comes back into view while still uploading
+  // (iOS releases it automatically when the app is backgrounded)
+  useEffect(() => {
+    if (!uploading) return
+    function onVisibilityChange() {
+      if (document.visibilityState === 'visible') acquireWakeLock()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange)
+  }, [uploading])
 
   const selectedItems = useMemo(() => items.filter(i => i.selected), [items])
   const totalDuration = useMemo(
@@ -205,6 +231,7 @@ export default function IntakeScreen() {
     if (!name.trim() || !selectedItems.length || uploading) return
     setUploading(true)
     setError(null)
+    await acquireWakeLock()
 
     try {
       // 1. Remux all clips with faststart
@@ -309,9 +336,11 @@ export default function IntakeScreen() {
         if (clipErr) throw clipErr
       }
 
+      releaseWakeLock()
       navigate(`/scrapbook/${sb.id}`)
     } catch (err) {
       console.error(err)
+      releaseWakeLock()
       setError(err.message || 'Upload failed. Please try again.')
       setUploading(false)
     }
@@ -321,6 +350,7 @@ export default function IntakeScreen() {
     if (!selectedItems.length || uploading) return
     setUploading(true)
     setError(null)
+    await acquireWakeLock()
 
     try {
       // 1. Remux all clips with faststart
@@ -392,9 +422,11 @@ export default function IntakeScreen() {
         if (clipErr) throw clipErr
       }
 
+      releaseWakeLock()
       navigate(`/scrapbook/${addToId}/edit`)
     } catch (err) {
       console.error(err)
+      releaseWakeLock()
       setError(err.message || 'Upload failed. Please try again.')
       setUploading(false)
     }
@@ -427,6 +459,7 @@ export default function IntakeScreen() {
             style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
           />
         </div>
+        <p className="text-rust/50 text-[11px]">Keep this screen open until it's done</p>
       </div>
     )
   }

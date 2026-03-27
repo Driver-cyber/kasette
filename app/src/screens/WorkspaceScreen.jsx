@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Play, Pause, Type, Eye, Trash2, Check, GripVertical, Volume2, VolumeX } from 'lucide-react'
+import { ArrowLeft, Play, Pause, Type, Trash2, Check, GripVertical, Volume2, VolumeX, PlusCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
@@ -531,7 +531,7 @@ export default function WorkspaceScreen() {
             flexGrow: isCaption ? 1 : 0,
             flexShrink: isCaption ? 1 : 0,
             minHeight: isCaption ? 0 : undefined,
-            height: isCaption ? undefined : 280, // Increased from 220
+            height: isCaption ? undefined : 210,
             transition: 'height 0.3s ease',
           }}
         >
@@ -744,7 +744,7 @@ export default function WorkspaceScreen() {
           {[
             { key: 'mute', Icon: activeClip?.muted ? VolumeX : Volume2, label: activeClip?.muted ? 'Unmute' : 'Mute', danger: false },
             { key: 'caption', Icon: Type, label: 'Caption', danger: false },
-            { key: 'preview', Icon: Eye, label: 'Preview', danger: false },
+            { key: 'addclips', Icon: PlusCircle, label: 'Add Clips', danger: false },
             { key: 'reorder', Icon: GripVertical, label: 'Reorder', danger: false },
             { key: 'remove', Icon: Trash2, label: 'Remove', danger: true },
           ].map(({ key, Icon, label, danger }) => {
@@ -754,7 +754,7 @@ export default function WorkspaceScreen() {
               <button
                 key={key}
                 onClick={() => {
-                  if (key === 'preview') navigate(`/scrapbook/${id}`)
+                  if (key === 'addclips') navigate(`/intake?addTo=${id}`)
                   else if (key === 'remove') setConfirmRemoveId(activeClipId)
                   else if (key === 'reorder') setReorderMode(!reorderMode)
                   else if (key === 'mute') toggleMute()
@@ -796,12 +796,12 @@ export default function WorkspaceScreen() {
               Done
             </button>
           ) : (
-            <button
-              onClick={() => navigate(`/intake?addTo=${id}`)}
-              className="flex items-center gap-1 text-amber font-sans font-bold text-[12px] active:opacity-70"
-            >
-              <span className="text-[16px] leading-none">+</span> Add clips
-            </button>
+            <span className="text-wheat/30 text-[10px] font-medium">
+              {editedCount > 0
+                ? `${editedCount} of ${clips.length} edited`
+                : `${clips.length} clips · hold to reorder`
+              }
+            </span>
           )}
         </div>
       )}

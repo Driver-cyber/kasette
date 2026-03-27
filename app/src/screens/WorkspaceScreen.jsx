@@ -314,11 +314,12 @@ export default function WorkspaceScreen() {
     setClips(next)
     setTrimMode(null)
 
-    await supabase.from('clips').update({ trim_out: splitTime }).eq('id', activeClip.id)
-    await supabase.from('clips').insert(newClip)
+    // Shift existing clips first to avoid order conflicts, then insert new clip
     for (let i = activeIndex + 1; i < clips.length; i++) {
       await supabase.from('clips').update({ order: clips[i].order + 1 }).eq('id', clips[i].id)
     }
+    await supabase.from('clips').update({ trim_out: splitTime }).eq('id', activeClip.id)
+    await supabase.from('clips').insert(newClip)
   }
 
   // ── Preview swipe to navigate clips ─────────────────────────────────────
@@ -631,11 +632,11 @@ export default function WorkspaceScreen() {
           {scrapbook?.name}
         </h1>
         <button
-          onClick={() => navigate(`/scrapbook/${id}/watch`)}
+          onClick={() => navigate(`/scrapbook/${id}`)}
           className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-[13px] rounded-full px-5 py-2 active:opacity-80"
         >
-          <Play size={11} fill="#2C1A0E" strokeWidth={0} />
-          Watch
+          <Check size={13} strokeWidth={2.5} />
+          Save
         </button>
       </header>
 

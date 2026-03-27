@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Play, Pause, Type, Trash2, Check, GripVertical, Volume2, VolumeX, PlusCircle, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Scissors } from 'lucide-react'
+import { ArrowLeft, Play, Pause, Type, Trash2, Check, GripVertical, Volume2, VolumeX, PlusCircle, ChevronLeft, ChevronRight, Scissors, Wrench } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
@@ -42,6 +42,7 @@ export default function WorkspaceScreen() {
   const videoRef = useRef(null)
   const filmstripRef = useRef(null)
   const previewRef = useRef(null)
+  const clipStripRef = useRef(null)
   const captionInputRef = useRef(null)
   const captionRef = useRef(null)
 
@@ -58,7 +59,7 @@ export default function WorkspaceScreen() {
   const [confirmRemoveId, setConfirmRemoveId] = useState(null)
   const [trimHandlesActive, setTrimHandlesActive] = useState(false) // Tap-to-activate trim handles
   const [reorderMode, setReorderMode] = useState(false) // Full-screen reorder mode
-  const [clipsExpanded, setClipsExpanded] = useState(false) // Clip list collapsed by default
+  const [toolsExpanded, setToolsExpanded] = useState(false) // Tools row collapsed by default
   const [trimMode, setTrimMode] = useState(null) // null | 'trim' | 'split'
   const [splitPct, setSplitPct] = useState(50)  // split marker position as % of full duration
 
@@ -70,6 +71,13 @@ export default function WorkspaceScreen() {
   const [dragFromIndex, setDragFromIndex] = useState(null)
   const clipsRef = useRef(clips)
   useEffect(() => { clipsRef.current = clips }, [clips])
+
+  // Auto-scroll horizontal strip to active card
+  useEffect(() => {
+    if (!clipStripRef.current || !activeClipId) return
+    const card = clipStripRef.current.querySelector(`[data-clip-card="${activeClipId}"]`)
+    if (card) card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+  }, [activeClipId])
 
   // Ghost drag card state
   const [ghostClip, setGhostClip] = useState(null)
@@ -305,7 +313,6 @@ export default function WorkspaceScreen() {
     const next = [...updated.slice(0, activeIndex + 1), newClip, ...updated.slice(activeIndex + 1)]
     setClips(next)
     setTrimMode(null)
-    setClipsExpanded(true)
 
     await supabase.from('clips').update({ trim_out: splitTime }).eq('id', activeClip.id)
     await supabase.from('clips').insert(newClip)
@@ -328,10 +335,8 @@ export default function WorkspaceScreen() {
     const activeIndex = clips.findIndex(c => c.id === activeClipId)
     if (dx < 0 && activeIndex < clips.length - 1) {
       setActiveClipId(clips[activeIndex + 1].id)
-      setClipsExpanded(false)
     } else if (dx > 0 && activeIndex > 0) {
       setActiveClipId(clips[activeIndex - 1].id)
-      setClipsExpanded(false)
     }
   }
 
@@ -640,11 +645,8 @@ export default function WorkspaceScreen() {
           ref={previewRef}
           className="mx-4 rounded-2xl overflow-hidden relative bg-deep"
           style={{
-            flexGrow: (isCaption || !clipsExpanded) ? 1 : 0,
-            flexShrink: (isCaption || !clipsExpanded) ? 1 : 0,
-            minHeight: (isCaption || !clipsExpanded) ? 0 : undefined,
-            height: (isCaption || !clipsExpanded) ? undefined : 210,
-            transition: 'flex-grow 0.3s ease, height 0.3s ease',
+            flex: '1 1 0',
+            minHeight: 0,
             touchAction: isCaption ? 'none' : 'pan-y',
           }}
           onTouchStart={isCaption ? undefined : handlePreviewTouchStart}
@@ -777,6 +779,19 @@ export default function WorkspaceScreen() {
               <span className="text-[10px] font-bold tracking-[0.14em] uppercase"
                 style={{ color: trimMode === 'split' ? '#E8855A' : '#7A3B1E' }}>Split</span>
             </button>
+            <div className="w-px h-3 bg-walnut-light mx-0.5" />
+            <button
+              onClick={() => setToolsExpanded(e => !e)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg active:opacity-70 transition-all"
+              style={{
+                background: toolsExpanded ? 'rgba(242,162,74,0.15)' : 'transparent',
+                border: toolsExpanded ? '1px solid rgba(242,162,74,0.3)' : '1px solid transparent',
+              }}
+            >
+              <Wrench size={10} style={{ color: toolsExpanded ? '#F2A24A' : '#7A3B1E' }} />
+              <span className="text-[10px] font-bold tracking-[0.14em] uppercase"
+                style={{ color: toolsExpanded ? '#F2A24A' : '#7A3B1E' }}>Tools</span>
+            </button>
           </div>
           {trimMode && (
             <div className="flex items-center gap-1.5">
@@ -902,7 +917,7 @@ export default function WorkspaceScreen() {
       )}
 
       {/* ── Tool row ── */}
-      {!isCaption && !reorderMode && (
+      {!isCaption && !reorderMode && toolsExpanded && (
         <div className="flex items-center justify-around px-4 py-2 border-b border-walnut-light flex-shrink-0">
           {[
             { key: 'mute', Icon: activeClip?.muted ? VolumeX : Volume2, label: activeClip?.muted ? 'Unmute' : 'Mute', danger: false },
@@ -919,7 +934,7 @@ export default function WorkspaceScreen() {
                 onClick={() => {
                   if (key === 'addclips') navigate(`/intake?addTo=${id}`)
                   else if (key === 'remove') setConfirmRemoveId(activeClipId)
-                  else if (key === 'reorder') { setReorderMode(!reorderMode); if (!reorderMode) setClipsExpanded(true) }
+                  else if (key === 'reorder') setReorderMode(!reorderMode)
                   else if (key === 'mute') toggleMute()
                   else toggleTool(key)
                 }}
@@ -945,126 +960,155 @@ export default function WorkspaceScreen() {
         </div>
       )}
 
-      {/* ── Clip list header ── */}
-      {!isCaption && (
-        <div className="flex items-center justify-between px-5 py-2.5 flex-shrink-0 border-t border-walnut-light">
-          <span className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase">
-            {reorderMode ? 'Hold & drag to reorder' : clipsExpanded ? 'All clips' : 'Current clip'}
-          </span>
-          {reorderMode ? (
-            <button
-              onClick={() => setReorderMode(false)}
-              className="text-amber font-bold text-sm active:opacity-70"
-            >
-              Done
-            </button>
-          ) : (
-            <button
-              onClick={() => setClipsExpanded(e => !e)}
-              className="flex items-center gap-1 text-wheat/40 text-[10px] font-medium active:opacity-70"
-            >
-              {clipsExpanded
-                ? <><ChevronDown size={13} strokeWidth={2} /> Collapse</>
-                : <><ChevronUp size={13} strokeWidth={2} /> {clips.length} clips</>
-              }
-            </button>
-          )}
+      {/* ── Horizontal clip strip ── */}
+      {!isCaption && !reorderMode && (
+        <div
+          ref={clipStripRef}
+          className="flex-shrink-0 overflow-x-auto border-t border-walnut-light"
+          style={{ scrollbarWidth: 'none', paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+        >
+          <div className="flex gap-2 px-4 pt-3 pb-1">
+            {clips.map((clip, i) => {
+              const active = clip.id === activeClipId
+              const hasTrim = (clip.trim_in > 0) || (clip.trim_out && clip.trim_out < (clip.duration || Infinity))
+              const clipKept = (clip.trim_out ?? clip.duration) - (clip.trim_in || 0)
+              return (
+                <button
+                  key={clip.id}
+                  data-clip-card={clip.id}
+                  onClick={() => setActiveClipId(clip.id)}
+                  className="flex-shrink-0 flex flex-col items-center gap-1 active:opacity-70"
+                >
+                  <div
+                    className="rounded-xl border flex flex-col items-center justify-between"
+                    style={{
+                      width: 64,
+                      height: 64,
+                      padding: '7px 4px 6px',
+                      background: active ? 'rgba(242,162,74,0.1)' : '#3D2410',
+                      borderColor: active ? '#F2A24A' : '#4A2E18',
+                    }}
+                  >
+                    <span className="text-[13px] font-bold leading-none"
+                      style={{ color: active ? '#F2A24A' : '#7A3B1E' }}>
+                      {i + 1}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      {hasTrim && <Scissors size={10} style={{ color: active ? '#F2A24A' : '#7A3B1E' }} />}
+                      {clip.caption_text && <Type size={10} style={{ color: '#E8855A' }} />}
+                      {clip.muted && <VolumeX size={10} style={{ color: '#7A3B1E' }} />}
+                      {!hasTrim && !clip.caption_text && !clip.muted && (
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ background: active ? '#F2A24A' : '#4A2E18' }} />
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-semibold"
+                    style={{ color: active ? '#F2A24A' : '#5A3A20' }}>
+                    {fmt(clipKept || clip.duration)}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         </div>
       )}
 
-      {/* ── Clip list ── */}
-      {!isCaption && (
-        <div data-clip-list className={clipsExpanded ? 'flex-1 overflow-y-auto px-4 pb-6 flex flex-col gap-1.5' : 'flex-shrink-0 px-4 pb-4 flex flex-col gap-1.5'}>
-          {(clipsExpanded ? clips : clips.filter(c => c.id === activeClipId)).map((clip, i) => {
-            const active = clip.id === activeClipId
-            const edited = isEdited(clip)
-            const isDragging = isActiveDragging && ghostClip?.id === clip.id
+      {/* ── Reorder mode: header + vertical drag list ── */}
+      {reorderMode && (
+        <>
+          <div className="flex items-center justify-between px-5 py-2.5 flex-shrink-0 border-t border-walnut-light">
+            <span className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase">Hold &amp; drag to reorder</span>
+            <button onClick={() => setReorderMode(false)} className="text-amber font-bold text-sm active:opacity-70">Done</button>
+          </div>
+          <div data-clip-list className="flex-1 overflow-y-auto px-4 pb-6 flex flex-col gap-1.5">
+            {clips.map((clip, i) => {
+              const active = clip.id === activeClipId
+              const edited = isEdited(clip)
+              const isDragging = isActiveDragging && ghostClip?.id === clip.id
 
-            // While this item is being dragged, show a dashed placeholder in its place
-            if (isDragging) {
+              if (isDragging) {
+                return (
+                  <div
+                    key={clip.id}
+                    className="rounded-xl border-2 border-dashed flex-shrink-0"
+                    style={{
+                      height: ROW_H,
+                      borderColor: 'rgba(242,162,74,0.3)',
+                      background: 'rgba(242,162,74,0.04)',
+                    }}
+                  />
+                )
+              }
+
               return (
-                <div
+                <button
                   key={clip.id}
-                  className="rounded-xl border-2 border-dashed flex-shrink-0"
-                  style={{
-                    height: ROW_H,
-                    borderColor: 'rgba(242,162,74,0.3)',
-                    background: 'rgba(242,162,74,0.04)',
+                  data-clip-row
+                  type="button"
+                  onClick={() => {
+                    if (!wasReorderDrag.current) setActiveClipId(clip.id)
                   }}
-                />
-              )
-            }
-
-            return (
-              <button
-                key={clip.id}
-                data-clip-row
-                type="button"
-                onClick={() => {
-                  // Guard: if touch action ended in a drag, don't also select
-                  if (!wasReorderDrag.current) { setActiveClipId(clip.id); setClipsExpanded(false) }
-                }}
-                onTouchStart={(e) => handleClipTouchStart(e, i)}
-                onTouchMove={handleClipTouchMove}
-                onTouchEnd={handleClipTouchEnd}
-                className="w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 border text-left flex-shrink-0 active:opacity-80"
-                style={{
-                  background: '#3D2410',
-                  borderColor: active ? '#F2A24A' : '#4A2E18',
-                  minHeight: ROW_H,
-                }}
-              >
-                {/* Drag handle — always visible, subtle. Mouse drag target. */}
-                <div
-                  className="flex flex-col gap-[4px] px-1 py-3 flex-shrink-0 cursor-grab"
-                  style={{ opacity: isActiveDragging ? 0.55 : 0.22 }}
-                  onMouseDown={(e) => startDragFromMouse(i, e)}
+                  onTouchStart={(e) => handleClipTouchStart(e, i)}
+                  onTouchMove={handleClipTouchMove}
+                  onTouchEnd={handleClipTouchEnd}
+                  className="w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 border text-left flex-shrink-0 active:opacity-80"
+                  style={{
+                    background: '#3D2410',
+                    borderColor: active ? '#F2A24A' : '#4A2E18',
+                    minHeight: ROW_H,
+                  }}
                 >
-                  {[0, 1, 2].map(n => (
-                    <span key={n} className="block w-4 h-0.5 bg-wheat rounded" />
-                  ))}
-                </div>
+                  <div
+                    className="flex flex-col gap-[4px] px-1 py-3 flex-shrink-0 cursor-grab"
+                    style={{ opacity: isActiveDragging ? 0.55 : 0.22 }}
+                    onMouseDown={(e) => startDragFromMouse(i, e)}
+                  >
+                    {[0, 1, 2].map(n => (
+                      <span key={n} className="block w-4 h-0.5 bg-wheat rounded" />
+                    ))}
+                  </div>
 
-                <span className="text-[10px] font-bold w-3.5 text-center flex-shrink-0"
-                  style={{ color: active ? '#F2A24A' : '#5A3A20' }}>
-                  {i + 1}
-                </span>
+                  <span className="text-[10px] font-bold w-3.5 text-center flex-shrink-0"
+                    style={{ color: active ? '#F2A24A' : '#5A3A20' }}>
+                    {i + 1}
+                  </span>
 
-                <div className="w-12 h-9 rounded-md flex-shrink-0 overflow-hidden"
-                  style={{ background: STRIP_COLORS[i % STRIP_COLORS.length] }} />
+                  <div className="w-12 h-9 rounded-md flex-shrink-0 overflow-hidden"
+                    style={{ background: STRIP_COLORS[i % STRIP_COLORS.length] }} />
 
-                <div className="flex-1 min-w-0">
-                  <p className="text-wheat/75 text-[12px] font-semibold truncate mb-1">
-                    {fmtClipDate(clip.recorded_at) || fmt(clip.duration)}
-                  </p>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {(!clip.trim_in || clip.trim_in === 0) && (!clip.trim_out || clip.trim_out >= (clip.duration || Infinity))
-                      ? <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-walnut-light text-wheat/55">{fmt(clip.duration)}</span>
-                      : <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full border text-amber" style={{ background: 'rgba(242,162,74,0.1)', borderColor: 'rgba(242,162,74,0.22)' }}>trimmed</span>
-                    }
-                    {clip.caption_text && (
-                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full border text-sienna" style={{ background: 'rgba(232,133,90,0.1)', borderColor: 'rgba(232,133,90,0.2)' }}>caption</span>
-                    )}
-                    {clip.muted && (
-                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full border text-rust" style={{ background: 'rgba(122,59,30,0.1)', borderColor: 'rgba(122,59,30,0.25)' }}>muted</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-wheat/75 text-[12px] font-semibold truncate mb-1">
+                      {fmtClipDate(clip.recorded_at) || fmt(clip.duration)}
+                    </p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {(!clip.trim_in || clip.trim_in === 0) && (!clip.trim_out || clip.trim_out >= (clip.duration || Infinity))
+                        ? <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-walnut-light text-wheat/55">{fmt(clip.duration)}</span>
+                        : <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full border text-amber" style={{ background: 'rgba(242,162,74,0.1)', borderColor: 'rgba(242,162,74,0.22)' }}>trimmed</span>
+                      }
+                      {clip.caption_text && (
+                        <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full border text-sienna" style={{ background: 'rgba(232,133,90,0.1)', borderColor: 'rgba(232,133,90,0.2)' }}>caption</span>
+                      )}
+                      {clip.muted && (
+                        <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full border text-rust" style={{ background: 'rgba(122,59,30,0.1)', borderColor: 'rgba(122,59,30,0.25)' }}>muted</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex-shrink-0">
+                    {edited ? (
+                      <div className="w-[15px] h-[15px] rounded-full flex items-center justify-center" style={{ background: 'rgba(242,162,74,0.15)' }}>
+                        <Check size={9} strokeWidth={2.5} className="text-amber" />
+                      </div>
+                    ) : (
+                      <div className="w-[15px] h-[15px] rounded-full border"
+                        style={{ borderColor: active ? '#F2A24A' : 'rgba(74,46,24,0.8)' }} />
                     )}
                   </div>
-                </div>
-
-                <div className="flex-shrink-0">
-                  {edited ? (
-                    <div className="w-[15px] h-[15px] rounded-full flex items-center justify-center" style={{ background: 'rgba(242,162,74,0.15)' }}>
-                      <Check size={9} strokeWidth={2.5} className="text-amber" />
-                    </div>
-                  ) : (
-                    <div className="w-[15px] h-[15px] rounded-full border"
-                      style={{ borderColor: active ? '#F2A24A' : 'rgba(74,46,24,0.8)' }} />
-                  )}
-                </div>
-              </button>
-            )
-          })}
-        </div>
+                </button>
+              )
+            })}
+          </div>
+        </>
       )}
 
       {/* ── Ghost drag card — floats with finger during active drag ── */}

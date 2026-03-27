@@ -681,13 +681,24 @@ export default function WorkspaceScreen() {
         <h1 className="font-display font-semibold text-[18px] text-wheat truncate mx-3 max-w-[160px]">
           {scrapbook?.name}
         </h1>
-        <button
-          onClick={() => navigate(`/scrapbook/${id}`)}
-          className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-[13px] rounded-full px-5 py-2 active:opacity-80"
-        >
-          <Check size={13} strokeWidth={2.5} />
-          Save
-        </button>
+        <div className="flex items-center gap-2">
+          {undoable && (
+            <button
+              onClick={handleUndo}
+              className="w-8 h-8 rounded-full flex items-center justify-center active:opacity-70"
+              style={{ background: 'rgba(242,162,74,0.1)', border: '1px solid rgba(242,162,74,0.25)' }}
+            >
+              <Undo2 size={15} style={{ color: '#F2A24A' }} />
+            </button>
+          )}
+          <button
+            onClick={() => navigate(`/scrapbook/${id}`)}
+            className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-[13px] rounded-full px-5 py-2 active:opacity-80"
+          >
+            <Check size={13} strokeWidth={2.5} />
+            Save
+          </button>
+        </div>
       </header>
 
       {/* ── Preview zone ── */}
@@ -844,26 +855,60 @@ export default function WorkspaceScreen() {
                 style={{ color: toolsExpanded ? '#F2A24A' : '#7A3B1E' }}>Tools</span>
             </button>
           </div>
-          <div className="flex items-center gap-2">
-            {trimMode && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-amber text-[10px] font-bold">{fmt(trimIn)}</span>
-                <span className="text-rust/50 text-[9px]">→</span>
-                <span className="text-amber text-[10px] font-bold">{fmt(trimOut)}</span>
-                <span className="text-rust/40 text-[9px]">·</span>
-                <span className="text-wheat/35 text-[10px]">{fmt(keptDuration)} kept</span>
-              </div>
+          {trimMode && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-amber text-[10px] font-bold">{fmt(trimIn)}</span>
+              <span className="text-rust/50 text-[9px]">→</span>
+              <span className="text-amber text-[10px] font-bold">{fmt(trimOut)}</span>
+              <span className="text-rust/40 text-[9px]">·</span>
+              <span className="text-wheat/35 text-[10px]">{fmt(keptDuration)} kept</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Mini clip timeline — visible when no trim/split mode ── */}
+      {!reorderMode && !isCaption && !trimMode && activeClip && (
+        <div className="px-4 pt-2.5 pb-2 border-b border-walnut-light flex-shrink-0">
+          <div className="relative" style={{ height: 28 }}>
+            {/* Track */}
+            <div
+              ref={filmstripRef}
+              className="absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-full overflow-hidden"
+              style={{ height: 6, background: '#2C1A0E' }}
+            >
+              {/* Trimmed-out left */}
+              {trimInPct > 0 && (
+                <div className="absolute left-0 top-0 bottom-0" style={{ width: `${trimInPct}%`, background: '#2C1A0E' }} />
+              )}
+              {/* Kept region */}
+              <div
+                className="absolute top-0 bottom-0 rounded-full"
+                style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%`, background: 'rgba(242,162,74,0.45)' }}
+              />
+              {/* Trimmed-out right */}
+              {trimOutPct < 100 && (
+                <div className="absolute right-0 top-0 bottom-0" style={{ width: `${100 - trimOutPct}%`, background: '#2C1A0E' }} />
+              )}
+              {/* Playhead */}
+              <div
+                className="absolute top-0 bottom-0 w-[2px]"
+                style={{ left: `${playheadPct}%`, background: 'rgba(255,255,255,0.75)' }}
+              />
+            </div>
+            {/* Trim in marker */}
+            {trimInPct > 0 && (
+              <div className="absolute top-0 bottom-0 w-[2px] rounded-full" style={{ left: `${trimInPct}%`, background: '#F2A24A' }} />
             )}
-            {undoable && (
-              <button
-                onClick={handleUndo}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg active:opacity-70"
-                style={{ background: 'rgba(242,162,74,0.08)', border: '1px solid rgba(242,162,74,0.2)' }}
-              >
-                <Undo2 size={10} style={{ color: '#F2A24A' }} />
-                <span className="text-[10px] font-bold tracking-[0.1em] uppercase" style={{ color: '#F2A24A' }}>Undo</span>
-              </button>
+            {/* Trim out marker */}
+            {trimOutPct < 100 && (
+              <div className="absolute top-0 bottom-0 w-[2px] rounded-full" style={{ left: `${trimOutPct}%`, background: '#F2A24A' }} />
             )}
+          </div>
+          <div className="flex justify-between mt-1">
+            <span className="text-[8px] font-semibold" style={{ color: trimInPct > 0 ? '#F2A24A' : '#7A3B1E' }}>{fmt(trimIn || 0)}</span>
+            <span className="text-rust text-[8px]">{fmt(keptDuration)} kept</span>
+            <span className="text-[8px] font-semibold" style={{ color: trimOutPct < 100 ? '#F2A24A' : '#7A3B1E' }}>{fmt(trimOut)}</span>
           </div>
         </div>
       )}

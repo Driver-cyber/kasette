@@ -4,6 +4,7 @@ import { ArrowLeft, Play, Pause, MoreHorizontal, Edit, Download, Share2 } from '
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { exportScrapbook } from '../lib/export'
+import { getBlob, preloadClip } from '../lib/blobCache'
 
 function formatTime(secs) {
   if (!secs || isNaN(secs) || secs < 0) return '0:00'
@@ -70,13 +71,15 @@ export default function PlaybackScreen() {
   const prevClip = currentIndex > 0 ? clips[currentIndex - 1] : null
   const isOwner = session?.user?.id === scrapbook?.user_id
 
-  // Preload next video
+  // Preload next video — use blob if cached, otherwise URL hint
   useEffect(() => {
     const nextVideo = nextVideoRef.current
     if (nextVideo && nextClip) {
-      nextVideo.src = nextClip.video_url
+      nextVideo.src = getBlob(nextClip.video_url)
       nextVideo.currentTime = nextClip.trim_in || 0
       nextVideo.load()
+      // Also kick off blob fetch in background so it's ready when needed
+      preloadClip(nextClip.video_url)
     }
   }, [nextClip])
 
@@ -84,13 +87,14 @@ export default function PlaybackScreen() {
   useEffect(() => {
     const prevVideo = prevVideoRef.current
     if (prevVideo && prevClip) {
-      prevVideo.src = prevClip.video_url
+      prevVideo.src = getBlob(prevClip.video_url)
       prevVideo.currentTime = prevClip.trim_in || 0
       prevVideo.load()
+      preloadClip(prevClip.video_url)
     }
   }, [prevClip])
 
-  // Load + play when clip changes
+  // Load + play when clip changes — use blob URL if available for instant start
   useEffect(() => {
     const video = videoRef.current
     if (!video || !currentClip) return
@@ -98,7 +102,7 @@ export default function PlaybackScreen() {
     setDragOffset(0)
     dragOffsetRef.current = 0
     setDragTransitioning(false)
-    video.src = currentClip.video_url
+    video.src = getBlob(currentClip.video_url)
     video.currentTime = currentClip.trim_in || 0
     video.load()
     video.play().catch(() => {})

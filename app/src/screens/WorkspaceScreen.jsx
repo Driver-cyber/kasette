@@ -626,7 +626,7 @@ export default function WorkspaceScreen() {
           {scrapbook?.name}
         </h1>
         <button
-          onClick={() => navigate(`/scrapbook/${id}`)}
+          onClick={() => navigate(`/scrapbook/${id}/watch`)}
           className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-[13px] rounded-full px-5 py-2 active:opacity-80"
         >
           <Play size={11} fill="#2C1A0E" strokeWidth={0} />

@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { exportScrapbook } from '../lib/export'
 import { getBlob, preloadClip } from '../lib/blobCache'
+import { getCached, cacheScrapbook } from '../lib/dataCache'
 
 function formatTime(secs) {
   if (!secs || isNaN(secs) || secs < 0) return '0:00'
@@ -54,15 +55,22 @@ export default function PlaybackScreen() {
   const dragStartY = useRef(0)
   const dragStartX = useRef(0)
 
-  // Fetch scrapbook + clips
+  // Fetch scrapbook + clips — use cache first for instant render
   useEffect(() => {
+    const cached = getCached(id)
+    if (cached?.scrapbook) {
+      setScrapbook(cached.scrapbook)
+      setClips(cached.clips)
+      setLoading(false)
+    }
+
     Promise.all([
       supabase.from('scrapbooks').select('id, name, user_id').eq('id', id).single(),
       supabase.from('clips').select('id, video_url, thumbnail_url, duration, trim_in, trim_out, caption_text, caption_x, caption_y, caption_size, order').eq('scrapbook_id', id).order('order', { ascending: true }),
     ]).then(([{ data: sb }, { data: cl }]) => {
-      if (sb) setScrapbook(sb)
+      if (sb) { setScrapbook(sb); cacheScrapbook(id, sb, cl || []) }
       if (cl) setClips(cl)
-      setLoading(false)
+      if (!cached) setLoading(false)
     })
   }, [id])
 
@@ -406,6 +414,7 @@ export default function PlaybackScreen() {
               playsInline
               preload="auto"
               muted
+              poster={prevClip?.thumbnail_url || undefined}
             />
             <div className="absolute inset-x-0 top-0 h-44 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%)' }} />
             <div className="absolute inset-x-0 bottom-0 h-56 pointer-events-none" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)' }} />
@@ -468,6 +477,7 @@ export default function PlaybackScreen() {
               playsInline
               preload="auto"
               muted
+              poster={nextClip?.thumbnail_url || undefined}
             />
             <div className="absolute inset-x-0 top-0 h-44 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%)' }} />
             <div className="absolute inset-x-0 bottom-0 h-56 pointer-events-none" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)' }} />

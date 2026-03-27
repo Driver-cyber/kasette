@@ -4,6 +4,7 @@ import { ArrowLeft, Play, Edit3, Share2, Image, Pencil, Trash2 } from 'lucide-re
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { preloadClips, preloadRest } from '../lib/blobCache'
+import { cacheScrapbook } from '../lib/dataCache'
 import { exportScrapbook } from '../lib/export'
 
 const CARD_GRADIENTS = [
@@ -75,7 +76,7 @@ export default function ScrapbookDetailScreen() {
     Promise.all([
       supabase.from('scrapbooks').select('*').eq('id', id).single(),
       supabase.from('clips')
-        .select('id, video_url, thumbnail_url, duration, trim_in, trim_out, order, recorded_at')
+        .select('id, video_url, thumbnail_url, duration, trim_in, trim_out, caption_text, caption_x, caption_y, caption_size, order, recorded_at, muted')
         .eq('scrapbook_id', id)
         .order('order', { ascending: true }),
     ]).then(([{ data: sb }, { data: cl }]) => {
@@ -83,6 +84,8 @@ export default function ScrapbookDetailScreen() {
       const c = cl || []
       setClips(c)
       setLoading(false)
+      // Populate data cache so workspace/playback can skip their loading spinners
+      if (sb) cacheScrapbook(id, sb, c)
       // Start preloading first 2 clips immediately — by the time they tap Watch, they'll be ready
       if (c.length > 0) {
         preloadClips(c, 2).then(() => preloadRest(c, 2))

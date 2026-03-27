@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Play, Pause, Type, Trash2, Check, GripVertical, Volume2, VolumeX, PlusCircle, ChevronLeft, ChevronRight, Scissors, Wrench, Undo2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { getBlob, preloadClip, preloadRest } from '../lib/blobCache'
+import { getCached, cacheScrapbook } from '../lib/dataCache'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -98,6 +100,20 @@ export default function WorkspaceScreen() {
 
   // ── Fetch ──────────────────────────────────────────────────────────────
   useEffect(() => {
+    // Use cached data immediately so there's no loading spinner on navigation from detail screen
+    const cached = getCached(id)
+    if (cached?.scrapbook) {
+      if (cached.scrapbook.user_id !== session?.user?.id) { navigate(`/scrapbook/${id}`, { replace: true }); return }
+      setScrapbook(cached.scrapbook)
+      if (cached.clips.length) {
+        setClips(cached.clips)
+        setActiveClipId(cached.clips[0].id)
+        preloadRest(cached.clips, 0) // ensure all blobs are fetching
+      }
+      setLoading(false)
+    }
+
+    // Background refresh to pick up any changes since cache was populated
     Promise.all([
       supabase.from('scrapbooks').select('id, name, user_id').eq('id', id).single(),
       supabase.from('clips').select('*').eq('scrapbook_id', id).order('order', { ascending: true }),
@@ -105,27 +121,33 @@ export default function WorkspaceScreen() {
       if (sb) {
         if (sb.user_id !== session?.user?.id) { navigate(`/scrapbook/${id}`, { replace: true }); return }
         setScrapbook(sb)
+        cacheScrapbook(id, sb, cl || []) // keep cache fresh
       }
       if (cl && cl.length) {
         setClips(cl)
-        setActiveClipId(cl[0].id)
+        if (!cached) setActiveClipId(cl[0].id)
+        preloadRest(cl, 0)
       }
-      setLoading(false)
+      if (!cached) setLoading(false)
     })
   }, [id])
 
   const activeClip = clips.find(c => c.id === activeClipId)
 
-  // Load video when active clip changes
+  // Load video when active clip changes — use blob URL if cached for instant start
   useEffect(() => {
     const video = videoRef.current
     if (!video || !activeClip) return
-    video.src = activeClip.video_url
+    video.src = getBlob(activeClip.video_url)
     video.currentTime = activeClip.trim_in || 0
-    video.muted = activeClip.muted || false // Apply muted state
+    video.muted = activeClip.muted || false
     video.load()
     setIsPlaying(false)
     setPlayheadPct((activeClip.trim_in || 0) / (activeClip.duration || 1) * 100)
+    // Preload adjacent clips in background
+    const idx = clips.findIndex(c => c.id === activeClipId)
+    if (clips[idx + 1]) preloadClip(clips[idx + 1].video_url)
+    if (clips[idx - 1]) preloadClip(clips[idx - 1].video_url)
   }, [activeClip?.id])
 
   // Caption draft sync
@@ -721,7 +743,8 @@ export default function WorkspaceScreen() {
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
           playsInline
-          preload="metadata"
+          preload="auto"
+          poster={activeClip?.thumbnail_url || undefined}
         />
         <div
           className="absolute inset-0 pointer-events-none"

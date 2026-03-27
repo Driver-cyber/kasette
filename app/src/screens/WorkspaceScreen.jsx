@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Play, Pause, Type, Trash2, Check, GripVertical, Volume2, VolumeX, PlusCircle, ChevronLeft, ChevronRight, Scissors, Wrench } from 'lucide-react'
+import { ArrowLeft, Play, Pause, Type, Trash2, Check, GripVertical, Volume2, VolumeX, PlusCircle, ChevronLeft, ChevronRight, Scissors, Wrench, Undo2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
@@ -61,6 +61,7 @@ export default function WorkspaceScreen() {
   const [reorderMode, setReorderMode] = useState(false) // Full-screen reorder mode
   const [toolsExpanded, setToolsExpanded] = useState(false) // Tools row collapsed by default
   const [trimMode, setTrimMode] = useState(null) // null | 'trim' | 'split'
+  const [undoable, setUndoable] = useState(null) // last undoable action
   const [splitPct, setSplitPct] = useState(50)  // split marker position as % of full duration
 
   // Preview swipe navigation
@@ -78,6 +79,9 @@ export default function WorkspaceScreen() {
     const card = clipStripRef.current.querySelector(`[data-clip-card="${activeClipId}"]`)
     if (card) card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
   }, [activeClipId])
+
+  // Clear undo when switching clips
+  useEffect(() => { setUndoable(null) }, [activeClipId])
 
   // Ghost drag card state
   const [ghostClip, setGhostClip] = useState(null)
@@ -182,8 +186,10 @@ export default function WorkspaceScreen() {
     
     const rect = strip.getBoundingClientRect()
     const duration = activeClip.duration || 1
-    let currentTrimIn = activeClip.trim_in || 0
-    let currentTrimOut = activeClip.trim_out ?? duration
+    const initialTrimIn = activeClip.trim_in || 0
+    const initialTrimOut = activeClip.trim_out ?? duration
+    let currentTrimIn = initialTrimIn
+    let currentTrimOut = initialTrimOut
     
     // Track initial position to prevent swipe-back
     const startX = e.touches ? e.touches[0].clientX : e.clientX
@@ -226,7 +232,8 @@ export default function WorkspaceScreen() {
       
       // Keep handles visible for 2 seconds after release
       setTimeout(() => setTrimHandlesActive(false), 2000)
-      
+
+      setUndoable({ type: 'clip', clipId: activeClip.id, prev: { trim_in: initialTrimIn, trim_out: initialTrimOut } })
       await supabase.from('clips')
         .update({ trim_in: currentTrimIn, trim_out: currentTrimOut })
         .eq('id', activeClip.id)
@@ -313,6 +320,13 @@ export default function WorkspaceScreen() {
     const next = [...updated.slice(0, activeIndex + 1), newClip, ...updated.slice(activeIndex + 1)]
     setClips(next)
     setTrimMode(null)
+    setUndoable({
+      type: 'split',
+      originalClipId: activeClip.id,
+      prevTrimOut: activeClip.trim_out ?? activeClip.duration,
+      newClipId: newId,
+      shiftedClips: clips.slice(activeIndex + 1).map(c => ({ id: c.id, order: c.order })),
+    })
 
     // Shift existing clips first to avoid order conflicts, then insert new clip
     for (let i = activeIndex + 1; i < clips.length; i++) {
@@ -382,6 +396,7 @@ export default function WorkspaceScreen() {
   async function toggleMute() {
     if (!activeClip) return
     const newMuted = !activeClip.muted
+    setUndoable({ type: 'clip', clipId: activeClip.id, prev: { muted: activeClip.muted || false } })
     await saveClipChanges(activeClip.id, { muted: newMuted })
     
     // Update video element
@@ -394,6 +409,12 @@ export default function WorkspaceScreen() {
   // ── Caption save ───────────────────────────────────────────────────────
   async function saveCaptionDraft() {
     if (!activeClip) return
+    setUndoable({ type: 'clip', clipId: activeClip.id, prev: {
+      caption_text: activeClip.caption_text || null,
+      caption_size: activeClip.caption_size || 24,
+      caption_x: activeClip.caption_x ?? 50,
+      caption_y: activeClip.caption_y ?? 85,
+    }})
     await saveClipChanges(activeClip.id, {
       caption_text: captionDraft.trim() || null,
       caption_size: captionSizeDraft,
@@ -401,6 +422,35 @@ export default function WorkspaceScreen() {
       caption_y: captionPosDraft.y,
     })
     setActiveTool(null)
+  }
+
+  // ── Undo last action ───────────────────────────────────────────────────
+  async function handleUndo() {
+    if (!undoable) return
+    const op = undoable
+    setUndoable(null)
+
+    if (op.type === 'clip') {
+      updateClipLocal(op.clipId, op.prev)
+      if (videoRef.current && op.prev.trim_in !== undefined) {
+        videoRef.current.currentTime = op.prev.trim_in || 0
+      }
+      await supabase.from('clips').update(op.prev).eq('id', op.clipId)
+    } else if (op.type === 'split') {
+      setClips(prev => {
+        let next = prev.filter(c => c.id !== op.newClipId)
+        return next.map(c => {
+          if (c.id === op.originalClipId) return { ...c, trim_out: op.prevTrimOut }
+          const shifted = op.shiftedClips.find(s => s.id === c.id)
+          return shifted ? { ...c, order: shifted.order } : c
+        })
+      })
+      await supabase.from('clips').delete().eq('id', op.newClipId)
+      await supabase.from('clips').update({ trim_out: op.prevTrimOut }).eq('id', op.originalClipId)
+      for (const { id, order } of op.shiftedClips) {
+        await supabase.from('clips').update({ order }).eq('id', id)
+      }
+    }
   }
 
   // ── Remove clip ────────────────────────────────────────────────────────
@@ -794,15 +844,27 @@ export default function WorkspaceScreen() {
                 style={{ color: toolsExpanded ? '#F2A24A' : '#7A3B1E' }}>Tools</span>
             </button>
           </div>
-          {trimMode && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-amber text-[10px] font-bold">{fmt(trimIn)}</span>
-              <span className="text-rust/50 text-[9px]">→</span>
-              <span className="text-amber text-[10px] font-bold">{fmt(trimOut)}</span>
-              <span className="text-rust/40 text-[9px]">·</span>
-              <span className="text-wheat/35 text-[10px]">{fmt(keptDuration)} kept</span>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {trimMode && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-amber text-[10px] font-bold">{fmt(trimIn)}</span>
+                <span className="text-rust/50 text-[9px]">→</span>
+                <span className="text-amber text-[10px] font-bold">{fmt(trimOut)}</span>
+                <span className="text-rust/40 text-[9px]">·</span>
+                <span className="text-wheat/35 text-[10px]">{fmt(keptDuration)} kept</span>
+              </div>
+            )}
+            {undoable && (
+              <button
+                onClick={handleUndo}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg active:opacity-70"
+                style={{ background: 'rgba(242,162,74,0.08)', border: '1px solid rgba(242,162,74,0.2)' }}
+              >
+                <Undo2 size={10} style={{ color: '#F2A24A' }} />
+                <span className="text-[10px] font-bold tracking-[0.1em] uppercase" style={{ color: '#F2A24A' }}>Undo</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
 

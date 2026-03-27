@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { ArrowLeft, Check, Image, ChevronLeft, ChevronRight, X } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { remuxWithFaststart } from '../lib/remux'
@@ -103,6 +103,8 @@ function formatSummaryRange(items) {
 
 export default function IntakeScreen() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const addToId = searchParams.get('addTo') // existing scrapbook id, if adding clips
   const { session } = useAuth()
   const fileInputRef = useRef(null)
 
@@ -315,6 +317,89 @@ export default function IntakeScreen() {
     }
   }
 
+  async function handleAddClips() {
+    if (!selectedItems.length || uploading) return
+    setUploading(true)
+    setError(null)
+
+    try {
+      // 1. Remux all clips with faststart
+      setUploadPhase('remuxing')
+      const remuxedItems = []
+      for (let i = 0; i < selectedItems.length; i++) {
+        setUploadProgress({ current: i + 1, total: selectedItems.length })
+        const remuxedFile = await remuxWithFaststart(selectedItems[i].file)
+        remuxedItems.push({ ...selectedItems[i], file: remuxedFile })
+      }
+
+      // 2. Get current max order in the scrapbook
+      setUploadPhase('uploading')
+      setUploadProgress({ current: 0, total: remuxedItems.length })
+      const { data: existingClips } = await supabase
+        .from('clips')
+        .select('order')
+        .eq('scrapbook_id', addToId)
+        .order('order', { ascending: false })
+        .limit(1)
+      const orderOffset = existingClips?.length > 0 ? (existingClips[0].order + 1) : 0
+
+      // 3. Upload each new clip + thumbnail
+      for (let i = 0; i < remuxedItems.length; i++) {
+        setUploadProgress({ current: i + 1, total: remuxedItems.length })
+        const item = remuxedItems[i]
+        const clipId = crypto.randomUUID()
+        const ext = item.file.name.split('.').pop()?.toLowerCase() || 'mp4'
+        const storagePath = `${session.user.id}/${addToId}/${clipId}.${ext}`
+
+        const { error: uploadErr } = await supabase.storage
+          .from('cassette-media')
+          .upload(storagePath, item.file, { cacheControl: '3600' })
+        if (uploadErr) throw uploadErr
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('cassette-media')
+          .getPublicUrl(storagePath)
+
+        let thumbnailUrl = null
+        if (item.thumbnail) {
+          const thumbBlob = dataURLtoBlob(item.thumbnail)
+          const thumbPath = `${session.user.id}/${addToId}/${clipId}_thumb.jpg`
+          const { error: thumbErr } = await supabase.storage
+            .from('cassette-media')
+            .upload(thumbPath, thumbBlob, { cacheControl: '3600', contentType: 'image/jpeg' })
+          if (!thumbErr) {
+            const { data: { publicUrl: tUrl } } = supabase.storage
+              .from('cassette-media')
+              .getPublicUrl(thumbPath)
+            thumbnailUrl = tUrl
+          }
+        }
+
+        const { error: clipErr } = await supabase
+          .from('clips')
+          .insert({
+            id: clipId,
+            scrapbook_id: addToId,
+            storage_path: storagePath,
+            video_url: publicUrl,
+            thumbnail_url: thumbnailUrl,
+            order: orderOffset + i,
+            duration: item.duration || null,
+            trim_in: 0,
+            trim_out: item.duration || null,
+            recorded_at: item.date.toISOString(),
+          })
+        if (clipErr) throw clipErr
+      }
+
+      navigate(`/scrapbook/${addToId}/edit`)
+    } catch (err) {
+      console.error(err)
+      setError(err.message || 'Upload failed. Please try again.')
+      setUploading(false)
+    }
+  }
+
   const progressPct = items.length > 0
     ? Math.round((selectedItems.length / items.length) * 100)
     : 0
@@ -326,7 +411,7 @@ export default function IntakeScreen() {
         <div className="w-12 h-12 rounded-full border-2 border-amber border-t-transparent animate-spin" />
         <div>
           <p className="font-display font-semibold text-xl text-wheat mb-1">
-            {uploadPhase === 'remuxing' ? 'Optimizing your clips…' : 'Creating your scrapbook…'}
+            {uploadPhase === 'remuxing' ? 'Optimizing your clips…' : addToId ? 'Adding clips…' : 'Creating your scrapbook…'}
           </p>
           <p className="text-rust text-sm">
             {uploadPhase === 'remuxing'
@@ -352,12 +437,14 @@ export default function IntakeScreen() {
       <div className="flex flex-col h-screen bg-walnut">
         <header className="flex items-center gap-3 px-5 pt-8 pb-2 flex-shrink-0">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate(addToId ? `/scrapbook/${addToId}/edit` : '/')}
             className="w-11 h-11 flex items-center justify-center rounded-full bg-walnut-mid active:opacity-80 transition-opacity"
           >
             <ArrowLeft size={22} strokeWidth={2} className="text-wheat" />
           </button>
-          <h1 className="font-display font-semibold text-[19px] text-wheat">New Scrapbook</h1>
+          <h1 className="font-display font-semibold text-[19px] text-wheat">
+            {addToId ? 'Add Clips' : 'New Scrapbook'}
+          </h1>
         </header>
 
         <main className="flex-1 flex flex-col items-center justify-center px-8 gap-6 text-center pb-16">
@@ -402,7 +489,7 @@ export default function IntakeScreen() {
       {/* Nav */}
       <header className="flex items-center justify-between px-5 pt-8 pb-2 flex-shrink-0">
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate(addToId ? `/scrapbook/${addToId}/edit` : '/')}
           className="flex items-center gap-1.5 text-wheat/60 font-sans text-[14px] font-semibold"
         >
           <ArrowLeft size={18} strokeWidth={2} />
@@ -530,11 +617,15 @@ export default function IntakeScreen() {
           </p>
         </div>
         <button
-          onClick={() => selectedItems.length > 0 && setStep('name')}
+          onClick={() => {
+            if (!selectedItems.length) return
+            if (addToId) handleAddClips()
+            else setStep('name')
+          }}
           disabled={selectedItems.length === 0}
           className="bg-amber text-walnut font-sans font-bold text-sm rounded-full px-7 py-3.5 active:opacity-80 transition-opacity disabled:opacity-40"
         >
-          Continue →
+          {addToId ? 'Add to Scrapbook' : 'Continue →'}
         </button>
       </div>
 

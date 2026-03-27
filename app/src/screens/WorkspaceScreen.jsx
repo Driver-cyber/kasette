@@ -789,19 +789,19 @@ export default function WorkspaceScreen() {
             {reorderMode ? 'Hold & drag to reorder' : 'All clips'}
           </span>
           {reorderMode ? (
-            <button 
+            <button
               onClick={() => setReorderMode(false)}
               className="text-amber font-bold text-sm active:opacity-70"
             >
               Done
             </button>
           ) : (
-            <span className="text-wheat/30 text-[10px] font-medium">
-              {editedCount > 0
-                ? `${editedCount} of ${clips.length} edited`
-                : `${clips.length} clips · hold to reorder`
-              }
-            </span>
+            <button
+              onClick={() => navigate(`/intake?addTo=${id}`)}
+              className="flex items-center gap-1 text-amber font-sans font-bold text-[12px] active:opacity-70"
+            >
+              <span className="text-[16px] leading-none">+</span> Add clips
+            </button>
           )}
         </div>
       )}

@@ -359,7 +359,7 @@ export default function DiscoveryScreen() {
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Sliding video container */}
+      {/* Sliding container — prev, current, next panels move together */}
       <div
         className="absolute inset-0"
         style={{
@@ -371,6 +371,16 @@ export default function DiscoveryScreen() {
         }}
         onTransitionEnd={() => setDragTransitioning(false)}
       >
+        {/* Prev clip thumbnail — sits at -100% so it slides in from left */}
+        {prevClip && (
+          <div className="absolute inset-0" style={{ transform: 'translateX(-100%)' }}>
+            {prevClip.thumbnail_url && (
+              <img src={prevClip.thumbnail_url} className="w-full h-full object-cover" />
+            )}
+          </div>
+        )}
+
+        {/* Current clip */}
         <video
           ref={videoRef}
           className="absolute inset-0 w-full h-full object-cover"
@@ -382,12 +392,18 @@ export default function DiscoveryScreen() {
           poster={currentClip?.thumbnail_url || undefined}
         />
         {/* Thumbnail overlay — masks black flash while first frame decodes */}
-        {videoLoading && (
+        {videoLoading && currentClip?.thumbnail_url && (
           <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 1 }}>
-            {currentClip?.thumbnail_url
-              ? <img src={currentClip.thumbnail_url} className="w-full h-full object-cover" />
-              : null
-            }
+            <img src={currentClip.thumbnail_url} className="w-full h-full object-cover" />
+          </div>
+        )}
+
+        {/* Next clip thumbnail — sits at +100% so it slides in from right */}
+        {nextClip && (
+          <div className="absolute inset-0" style={{ transform: 'translateX(100%)' }}>
+            {nextClip.thumbnail_url && (
+              <img src={nextClip.thumbnail_url} className="w-full h-full object-cover" />
+            )}
           </div>
         )}
       </div>

@@ -333,7 +333,7 @@ useEffect(() => {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => navigate('/discover')}
+            onClick={() => navigate('/remix')}
             className="w-10 h-10 flex items-center justify-center rounded-full active:opacity-70"
           >
             <Shuffle size={18} strokeWidth={2} className="text-wheat/50" />

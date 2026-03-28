@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Shuffle } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { ArrowLeft, Shuffle, Disc3 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
@@ -15,7 +15,9 @@ function shuffleArray(arr) {
 
 export default function DiscoveryScreen() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { session } = useAuth()
+  const isRemix = !!location.state?.isRemix
   const videoRef = useRef(null)
   const prevVideoRef = useRef(null)
   const nextVideoRef = useRef(null)
@@ -42,6 +44,14 @@ export default function DiscoveryScreen() {
   const [scrubTime, setScrubTime] = useState(0)
 
   const loadClips = useCallback(async () => {
+    // Remix mode: clips were pre-selected and passed via route state
+    if (isRemix && location.state?.clips?.length) {
+      setClips(location.state.clips)
+      setCurrentIndex(0)
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
     const { data } = await supabase
       .from('scrapbooks')
@@ -63,11 +73,7 @@ export default function DiscoveryScreen() {
       setCurrentIndex(0)
     }
     setLoading(false)
-  }, [session])
-
-  useEffect(() => {
-    loadClips()
-  }, [loadClips])
+  }, [session, isRemix])
 
   const currentClip = clips[currentIndex]
   const prevClip = clips[currentIndex - 1] ?? null
@@ -415,7 +421,7 @@ export default function DiscoveryScreen() {
       {/* ── Top bar ── */}
       <div className="absolute top-0 left-0 right-0 flex items-center justify-between pt-14 px-5 pb-4 pointer-events-none">
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate(isRemix ? '/remix' : '/')}
           className="w-9 h-9 flex items-center justify-center rounded-full active:opacity-70 pointer-events-auto"
           style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(10px)' }}
         >
@@ -426,17 +432,21 @@ export default function DiscoveryScreen() {
           className="px-3.5 py-1.5 rounded-full"
           style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(10px)' }}
         >
-          <span className="text-wheat/80 text-[11px] font-semibold tabular-nums">
-            {currentIndex + 1} / {clips.length}
-          </span>
+          {isRemix
+            ? <span className="font-display italic text-amber text-[12px]">The Remix</span>
+            : <span className="text-wheat/80 text-[11px] font-semibold tabular-nums">{currentIndex + 1} / {clips.length}</span>
+          }
         </div>
 
         <button
-          onClick={reshuffle}
+          onClick={isRemix ? () => navigate('/remix') : reshuffle}
           className="w-9 h-9 flex items-center justify-center rounded-full active:opacity-70 pointer-events-auto"
-          style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(10px)' }}
+          style={{ background: isRemix ? 'rgba(242,162,74,0.2)' : 'rgba(0,0,0,0.45)', backdropFilter: 'blur(10px)' }}
         >
-          <Shuffle size={15} strokeWidth={1.75} className="text-wheat" />
+          {isRemix
+            ? <Disc3 size={15} strokeWidth={1.75} className="text-amber" />
+            : <Shuffle size={15} strokeWidth={1.75} className="text-wheat" />
+          }
         </button>
       </div>
 
@@ -473,7 +483,7 @@ export default function DiscoveryScreen() {
         }}
       >
         <p className="text-rust text-[9px] font-bold tracking-[0.2em] uppercase mb-1">
-          From your library · {currentClip.scrapbook.year}
+          {isRemix ? `The Remix · ${currentClip.scrapbook.year}` : `From your library · ${currentClip.scrapbook.year}`}
         </p>
         <div className="flex items-end justify-between">
           <p className="font-display font-semibold text-[22px] text-wheat leading-tight">

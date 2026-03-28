@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Play, Pause, Type, Eye, Trash2, Check, GripVertical, Volume2, VolumeX } from 'lucide-react'
+import { ArrowLeft, Play, Pause, Type, Trash2, Check, GripVertical, Volume2, VolumeX, PlusCircle, ChevronLeft, ChevronRight, Scissors, Wrench, Undo2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { getBlob, preloadClip, preloadRest } from '../lib/blobCache'
+import { getCached, cacheScrapbook } from '../lib/dataCache'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -42,6 +44,7 @@ export default function WorkspaceScreen() {
   const videoRef = useRef(null)
   const filmstripRef = useRef(null)
   const previewRef = useRef(null)
+  const clipStripRef = useRef(null)
   const captionInputRef = useRef(null)
   const captionRef = useRef(null)
 
@@ -58,12 +61,30 @@ export default function WorkspaceScreen() {
   const [confirmRemoveId, setConfirmRemoveId] = useState(null)
   const [trimHandlesActive, setTrimHandlesActive] = useState(false) // Tap-to-activate trim handles
   const [reorderMode, setReorderMode] = useState(false) // Full-screen reorder mode
+  const [toolsExpanded, setToolsExpanded] = useState(false) // Tools row collapsed by default
+  const [trimMode, setTrimMode] = useState(null) // null | 'trim' | 'split'
+  const [undoable, setUndoable] = useState(null) // last undoable action
+  const [splitPct, setSplitPct] = useState(50)  // split marker position as % of full duration
+  const [showSplitSoon, setShowSplitSoon] = useState(false)
+
+  // Preview swipe navigation
+  const previewSwipeStart = useRef(null)
 
   // Reorder drag state
   const dragState = useRef(null)
   const [dragFromIndex, setDragFromIndex] = useState(null)
   const clipsRef = useRef(clips)
   useEffect(() => { clipsRef.current = clips }, [clips])
+
+  // Auto-scroll horizontal strip to active card
+  useEffect(() => {
+    if (!clipStripRef.current || !activeClipId) return
+    const card = clipStripRef.current.querySelector(`[data-clip-card="${activeClipId}"]`)
+    if (card) card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+  }, [activeClipId])
+
+  // Clear undo when switching clips
+  useEffect(() => { setUndoable(null) }, [activeClipId])
 
   // Ghost drag card state
   const [ghostClip, setGhostClip] = useState(null)
@@ -80,6 +101,20 @@ export default function WorkspaceScreen() {
 
   // ── Fetch ──────────────────────────────────────────────────────────────
   useEffect(() => {
+    // Use cached data immediately so there's no loading spinner on navigation from detail screen
+    const cached = getCached(id)
+    if (cached?.scrapbook) {
+      if (cached.scrapbook.user_id !== session?.user?.id) { navigate(`/scrapbook/${id}`, { replace: true }); return }
+      setScrapbook(cached.scrapbook)
+      if (cached.clips.length) {
+        setClips(cached.clips)
+        setActiveClipId(cached.clips[0].id)
+        preloadRest(cached.clips, 0) // ensure all blobs are fetching
+      }
+      setLoading(false)
+    }
+
+    // Background refresh to pick up any changes since cache was populated
     Promise.all([
       supabase.from('scrapbooks').select('id, name, user_id').eq('id', id).single(),
       supabase.from('clips').select('*').eq('scrapbook_id', id).order('order', { ascending: true }),
@@ -87,27 +122,33 @@ export default function WorkspaceScreen() {
       if (sb) {
         if (sb.user_id !== session?.user?.id) { navigate(`/scrapbook/${id}`, { replace: true }); return }
         setScrapbook(sb)
+        cacheScrapbook(id, sb, cl || []) // keep cache fresh
       }
       if (cl && cl.length) {
         setClips(cl)
-        setActiveClipId(cl[0].id)
+        if (!cached) setActiveClipId(cl[0].id)
+        preloadRest(cl, 0)
       }
-      setLoading(false)
+      if (!cached) setLoading(false)
     })
   }, [id])
 
   const activeClip = clips.find(c => c.id === activeClipId)
 
-  // Load video when active clip changes
+  // Load video when active clip changes — use blob URL if cached for instant start
   useEffect(() => {
     const video = videoRef.current
     if (!video || !activeClip) return
-    video.src = activeClip.video_url
+    video.src = getBlob(activeClip.video_url)
     video.currentTime = activeClip.trim_in || 0
-    video.muted = activeClip.muted || false // Apply muted state
+    video.muted = activeClip.muted || false
     video.load()
     setIsPlaying(false)
     setPlayheadPct((activeClip.trim_in || 0) / (activeClip.duration || 1) * 100)
+    // Preload adjacent clips in background
+    const idx = clips.findIndex(c => c.id === activeClipId)
+    if (clips[idx + 1]) preloadClip(clips[idx + 1].video_url)
+    if (clips[idx - 1]) preloadClip(clips[idx - 1].video_url)
   }, [activeClip?.id])
 
   // Caption draft sync
@@ -168,8 +209,10 @@ export default function WorkspaceScreen() {
     
     const rect = strip.getBoundingClientRect()
     const duration = activeClip.duration || 1
-    let currentTrimIn = activeClip.trim_in || 0
-    let currentTrimOut = activeClip.trim_out ?? duration
+    const initialTrimIn = activeClip.trim_in || 0
+    const initialTrimOut = activeClip.trim_out ?? duration
+    let currentTrimIn = initialTrimIn
+    let currentTrimOut = initialTrimOut
     
     // Track initial position to prevent swipe-back
     const startX = e.touches ? e.touches[0].clientX : e.clientX
@@ -212,7 +255,8 @@ export default function WorkspaceScreen() {
       
       // Keep handles visible for 2 seconds after release
       setTimeout(() => setTrimHandlesActive(false), 2000)
-      
+
+      setUndoable({ type: 'clip', clipId: activeClip.id, prev: { trim_in: initialTrimIn, trim_out: initialTrimOut } })
       await supabase.from('clips')
         .update({ trim_in: currentTrimIn, trim_out: currentTrimOut })
         .eq('id', activeClip.id)
@@ -222,6 +266,116 @@ export default function WorkspaceScreen() {
     document.addEventListener('touchend', onEnd)
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onEnd)
+  }
+
+  // ── Split mode: sync marker to midpoint when activated ──────────────────
+  useEffect(() => {
+    if (trimMode === 'split' && activeClip) {
+      const mid = ((trimIn + trimOut) / 2)
+      const pct = duration > 0 ? (mid / duration) * 100 : 50
+      setSplitPct(pct)
+      if (videoRef.current) videoRef.current.currentTime = mid
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trimMode])
+
+  // ── Split marker drag ───────────────────────────────────────────────────
+  function startSplitDrag(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    const strip = filmstripRef.current
+    if (!strip || !activeClip) return
+    const rect = strip.getBoundingClientRect()
+    const clipDuration = activeClip.duration || 1
+    const inPct = (activeClip.trim_in || 0) / clipDuration * 100
+    const outPct = ((activeClip.trim_out ?? clipDuration) / clipDuration) * 100
+
+    function onMove(ev) {
+      const clientX = ev.touches ? ev.touches[0].clientX : ev.clientX
+      if (ev.touches) ev.preventDefault()
+      const raw = (clientX - rect.left) / rect.width * 100
+      const clamped = Math.max(inPct + 1, Math.min(outPct - 1, raw))
+      setSplitPct(clamped)
+      if (videoRef.current) videoRef.current.currentTime = (clamped / 100) * clipDuration
+    }
+
+    function onEnd() {
+      document.removeEventListener('touchmove', onMove)
+      document.removeEventListener('touchend', onEnd)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onEnd)
+    }
+
+    document.addEventListener('touchmove', onMove, { passive: false })
+    document.addEventListener('touchend', onEnd)
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onEnd)
+  }
+
+  // ── Execute split: current clip → two clips at splitPct ─────────────────
+  async function executeSplit() {
+    if (!activeClip || !duration) return
+    const splitTime = (splitPct / 100) * duration
+    const activeIndex = clips.findIndex(c => c.id === activeClipId)
+    const newId = crypto.randomUUID()
+
+    const newClip = {
+      id: newId,
+      scrapbook_id: activeClip.scrapbook_id,
+      storage_path: activeClip.storage_path,
+      video_url: activeClip.video_url,
+      thumbnail_url: activeClip.thumbnail_url,
+      order: activeClip.order + 1,
+      duration: activeClip.duration,
+      trim_in: splitTime,
+      trim_out: activeClip.trim_out ?? activeClip.duration,
+      recorded_at: activeClip.recorded_at,
+      caption_text: null,
+      caption_x: null,
+      caption_y: null,
+      caption_size: null,
+      muted: activeClip.muted || false,
+    }
+
+    // Shift orders of all subsequent clips
+    const shifted = clips.map((c, i) => i > activeIndex ? { ...c, order: c.order + 1 } : c)
+    const updated = shifted.map(c => c.id === activeClipId ? { ...c, trim_out: splitTime } : c)
+    const next = [...updated.slice(0, activeIndex + 1), newClip, ...updated.slice(activeIndex + 1)]
+    setClips(next)
+    setTrimMode(null)
+    setUndoable({
+      type: 'split',
+      originalClipId: activeClip.id,
+      prevTrimOut: activeClip.trim_out ?? activeClip.duration,
+      newClipId: newId,
+      shiftedClips: clips.slice(activeIndex + 1).map(c => ({ id: c.id, order: c.order })),
+    })
+
+    // Shift existing clips first to avoid order conflicts, then insert new clip
+    for (let i = activeIndex + 1; i < clips.length; i++) {
+      await supabase.from('clips').update({ order: clips[i].order + 1 }).eq('id', clips[i].id)
+    }
+    await supabase.from('clips').update({ trim_out: splitTime }).eq('id', activeClip.id)
+    await supabase.from('clips').insert(newClip)
+  }
+
+  // ── Preview swipe to navigate clips ─────────────────────────────────────
+  function handlePreviewTouchStart(e) {
+    previewSwipeStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+  }
+
+  function handlePreviewTouchEnd(e) {
+    if (!previewSwipeStart.current) return
+    const dx = e.changedTouches[0].clientX - previewSwipeStart.current.x
+    const dy = Math.abs(e.changedTouches[0].clientY - previewSwipeStart.current.y)
+    previewSwipeStart.current = null
+    if (Math.abs(dx) < 50 || dy > Math.abs(dx) * 0.8) return
+    const activeIndex = clips.findIndex(c => c.id === activeClipId)
+    if (dx < 0 && activeIndex < clips.length - 1) {
+      setActiveClipId(clips[activeIndex + 1].id)
+    } else if (dx > 0 && activeIndex > 0) {
+      setActiveClipId(clips[activeIndex - 1].id)
+    }
   }
 
   // ── Caption drag ───────────────────────────────────────────────────────
@@ -265,6 +419,7 @@ export default function WorkspaceScreen() {
   async function toggleMute() {
     if (!activeClip) return
     const newMuted = !activeClip.muted
+    setUndoable({ type: 'clip', clipId: activeClip.id, prev: { muted: activeClip.muted || false } })
     await saveClipChanges(activeClip.id, { muted: newMuted })
     
     // Update video element
@@ -277,6 +432,12 @@ export default function WorkspaceScreen() {
   // ── Caption save ───────────────────────────────────────────────────────
   async function saveCaptionDraft() {
     if (!activeClip) return
+    setUndoable({ type: 'clip', clipId: activeClip.id, prev: {
+      caption_text: activeClip.caption_text || null,
+      caption_size: activeClip.caption_size || 24,
+      caption_x: activeClip.caption_x ?? 50,
+      caption_y: activeClip.caption_y ?? 85,
+    }})
     await saveClipChanges(activeClip.id, {
       caption_text: captionDraft.trim() || null,
       caption_size: captionSizeDraft,
@@ -284,6 +445,35 @@ export default function WorkspaceScreen() {
       caption_y: captionPosDraft.y,
     })
     setActiveTool(null)
+  }
+
+  // ── Undo last action ───────────────────────────────────────────────────
+  async function handleUndo() {
+    if (!undoable) return
+    const op = undoable
+    setUndoable(null)
+
+    if (op.type === 'clip') {
+      updateClipLocal(op.clipId, op.prev)
+      if (videoRef.current && op.prev.trim_in !== undefined) {
+        videoRef.current.currentTime = op.prev.trim_in || 0
+      }
+      await supabase.from('clips').update(op.prev).eq('id', op.clipId)
+    } else if (op.type === 'split') {
+      setClips(prev => {
+        let next = prev.filter(c => c.id !== op.newClipId)
+        return next.map(c => {
+          if (c.id === op.originalClipId) return { ...c, trim_out: op.prevTrimOut }
+          const shifted = op.shiftedClips.find(s => s.id === c.id)
+          return shifted ? { ...c, order: shifted.order } : c
+        })
+      })
+      await supabase.from('clips').delete().eq('id', op.newClipId)
+      await supabase.from('clips').update({ trim_out: op.prevTrimOut }).eq('id', op.originalClipId)
+      for (const { id, order } of op.shiftedClips) {
+        await supabase.from('clips').update({ order }).eq('id', id)
+      }
+    }
   }
 
   // ── Remove clip ────────────────────────────────────────────────────────
@@ -304,7 +494,8 @@ export default function WorkspaceScreen() {
       const p = clip.thumbnail_url.split('/cassette-media/')[1]?.split('?')[0]
       if (p) toDelete.push(decodeURIComponent(p))
     }
-    if (toDelete.length) await supabase.storage.from('cassette-media').remove(toDelete)
+    const storageShared = remaining.some(c => c.storage_path === clip?.storage_path)
+    if (toDelete.length && !storageShared) await supabase.storage.from('cassette-media').remove(toDelete)
     for (let i = 0; i < remaining.length; i++) {
       await supabase.from('clips').update({ order: i }).eq('id', remaining[i].id)
     }
@@ -513,27 +704,38 @@ export default function WorkspaceScreen() {
         <h1 className="font-display font-semibold text-[18px] text-wheat truncate mx-3 max-w-[160px]">
           {scrapbook?.name}
         </h1>
-        <button
-          onClick={() => navigate(`/scrapbook/${id}`)}
-          className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-[13px] rounded-full px-5 py-2 active:opacity-80"
-        >
-          <Play size={11} fill="#2C1A0E" strokeWidth={0} />
-          Watch
-        </button>
+        <div className="flex items-center gap-2">
+          {undoable && (
+            <button
+              onClick={handleUndo}
+              className="w-8 h-8 rounded-full flex items-center justify-center active:opacity-70"
+              style={{ background: 'rgba(242,162,74,0.1)', border: '1px solid rgba(242,162,74,0.25)' }}
+            >
+              <Undo2 size={15} style={{ color: '#F2A24A' }} />
+            </button>
+          )}
+          <button
+            onClick={() => navigate(`/scrapbook/${id}`)}
+            className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-[13px] rounded-full px-5 py-2 active:opacity-80"
+          >
+            <Check size={13} strokeWidth={2.5} />
+            Save
+          </button>
+        </div>
       </header>
 
-      {/* ── Preview zone - LARGER for better viewing ── */}
+      {/* ── Preview zone ── */}
       {!reorderMode && (
         <div
           ref={previewRef}
           className="mx-4 rounded-2xl overflow-hidden relative bg-deep"
           style={{
-            flexGrow: isCaption ? 1 : 0,
-            flexShrink: isCaption ? 1 : 0,
-            minHeight: isCaption ? 0 : undefined,
-            height: isCaption ? undefined : 280, // Increased from 220
-            transition: 'height 0.3s ease',
+            flex: '1 1 0',
+            minHeight: 0,
+            touchAction: isCaption ? 'none' : 'pan-y',
           }}
+          onTouchStart={isCaption ? undefined : handlePreviewTouchStart}
+          onTouchEnd={isCaption ? undefined : handlePreviewTouchEnd}
         >
         <video
           ref={videoRef}
@@ -542,7 +744,8 @@ export default function WorkspaceScreen() {
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
           playsInline
-          preload="metadata"
+          preload="auto"
+          poster={activeClip?.thumbnail_url || undefined}
         />
         <div
           className="absolute inset-0 pointer-events-none"
@@ -565,6 +768,27 @@ export default function WorkspaceScreen() {
             {fmt(keptDuration)}
           </div>
         )}
+
+        {/* Clip navigation indicators */}
+        {!isCaption && clips.length > 1 && (() => {
+          const activeIndex = clips.findIndex(c => c.id === activeClipId)
+          return (
+            <>
+              {activeIndex > 0 && (
+                <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center w-7 h-7 rounded-full"
+                  style={{ background: 'rgba(0,0,0,0.3)' }}>
+                  <ChevronLeft size={16} strokeWidth={2} className="text-wheat/60" />
+                </div>
+              )}
+              {activeIndex < clips.length - 1 && (
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center w-7 h-7 rounded-full"
+                  style={{ background: 'rgba(0,0,0,0.3)' }}>
+                  <ChevronRight size={16} strokeWidth={2} className="text-wheat/60" />
+                </div>
+              )}
+            </>
+          )
+        })()}
 
         {!isCaption && (
           <button
@@ -613,138 +837,220 @@ export default function WorkspaceScreen() {
       </div>
       )}
 
-      {/* ── Trim zone ── */}
-      {!reorderMode && (
-        <div
-          className="px-4 pt-3 pb-2.5 border-b border-walnut-light flex-shrink-0 overflow-hidden"
-          style={{ maxHeight: isCaption ? 0 : 200, transition: 'max-height 0.3s ease', opacity: isCaption ? 0 : 1 }}
-        >
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase">Trim</span>
-          <div className="flex items-center gap-2">
-            <span className="text-amber text-[10px] font-bold px-2 py-0.5 rounded-full border"
-              style={{ background: 'rgba(242,162,74,0.1)', borderColor: 'rgba(242,162,74,0.2)' }}>
-              {fmt(trimIn)}
-            </span>
-            <span className="text-rust/50 text-[9px]">→</span>
-            <span className="text-amber text-[10px] font-bold px-2 py-0.5 rounded-full border"
-              style={{ background: 'rgba(242,162,74,0.1)', borderColor: 'rgba(242,162,74,0.2)' }}>
-              {fmt(trimOut)}
-            </span>
-            <span className="text-rust/50 text-[9px]">·</span>
-            <span className="text-wheat/40 text-[10px] font-semibold">{fmt(keptDuration)} kept</span>
+      {/* ── Trim / Split header — always visible unless caption or reorder ── */}
+      {!reorderMode && !isCaption && (
+        <div className="flex items-center justify-between px-4 py-2 border-b border-walnut-light flex-shrink-0">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setTrimMode(m => m === 'trim' ? null : 'trim')}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg active:opacity-70 transition-all"
+              style={{
+                background: trimMode === 'trim' ? 'rgba(242,162,74,0.15)' : 'transparent',
+                border: trimMode === 'trim' ? '1px solid rgba(242,162,74,0.3)' : '1px solid transparent',
+              }}
+            >
+              <span className="text-[10px] font-bold tracking-[0.14em] uppercase"
+                style={{ color: trimMode === 'trim' ? '#F2A24A' : '#7A3B1E' }}>Trim</span>
+            </button>
+            <div className="w-px h-3 bg-walnut-light mx-0.5" />
+            <button
+              onClick={() => { setShowSplitSoon(true); setTimeout(() => setShowSplitSoon(false), 2500) }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg active:opacity-70 transition-all"
+              style={{ background: 'transparent', border: '1px solid transparent' }}
+            >
+              <Scissors size={10} style={{ color: '#7A3B1E' }} />
+              <span className="text-[10px] font-bold tracking-[0.14em] uppercase" style={{ color: '#7A3B1E' }}>Split</span>
+            </button>
+            <div className="w-px h-3 bg-walnut-light mx-0.5" />
+            <button
+              onClick={() => setToolsExpanded(e => !e)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg active:opacity-70 transition-all"
+              style={{
+                background: toolsExpanded ? 'rgba(242,162,74,0.15)' : 'transparent',
+                border: toolsExpanded ? '1px solid rgba(242,162,74,0.3)' : '1px solid transparent',
+              }}
+            >
+              <Wrench size={10} style={{ color: toolsExpanded ? '#F2A24A' : '#7A3B1E' }} />
+              <span className="text-[10px] font-bold tracking-[0.14em] uppercase"
+                style={{ color: toolsExpanded ? '#F2A24A' : '#7A3B1E' }}>Tools</span>
+            </button>
+          </div>
+          {trimMode && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-amber text-[10px] font-bold">{fmt(trimIn)}</span>
+              <span className="text-rust/50 text-[9px]">→</span>
+              <span className="text-amber text-[10px] font-bold">{fmt(trimOut)}</span>
+              <span className="text-rust/40 text-[9px]">·</span>
+              <span className="text-wheat/35 text-[10px]">{fmt(keptDuration)} kept</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Mini clip timeline — visible when no trim/split mode ── */}
+      {!reorderMode && !isCaption && !trimMode && activeClip && (
+        <div className="px-4 pt-2.5 pb-2 border-b border-walnut-light flex-shrink-0">
+          <div className="relative" style={{ height: 28 }}>
+            {/* Track */}
+            <div
+              ref={filmstripRef}
+              className="absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-full overflow-hidden"
+              style={{ height: 6, background: '#2C1A0E' }}
+            >
+              {/* Trimmed-out left */}
+              {trimInPct > 0 && (
+                <div className="absolute left-0 top-0 bottom-0" style={{ width: `${trimInPct}%`, background: '#2C1A0E' }} />
+              )}
+              {/* Kept region */}
+              <div
+                className="absolute top-0 bottom-0 rounded-full"
+                style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%`, background: 'rgba(242,162,74,0.45)' }}
+              />
+              {/* Trimmed-out right */}
+              {trimOutPct < 100 && (
+                <div className="absolute right-0 top-0 bottom-0" style={{ width: `${100 - trimOutPct}%`, background: '#2C1A0E' }} />
+              )}
+              {/* Playhead */}
+              <div
+                className="absolute top-0 bottom-0 w-[2px]"
+                style={{ left: `${playheadPct}%`, background: 'rgba(255,255,255,0.75)' }}
+              />
+            </div>
+            {/* Trim in marker */}
+            {trimInPct > 0 && (
+              <div className="absolute top-0 bottom-0 w-[2px] rounded-full" style={{ left: `${trimInPct}%`, background: '#F2A24A' }} />
+            )}
+            {/* Trim out marker */}
+            {trimOutPct < 100 && (
+              <div className="absolute top-0 bottom-0 w-[2px] rounded-full" style={{ left: `${trimOutPct}%`, background: '#F2A24A' }} />
+            )}
+          </div>
+          <div className="flex justify-between mt-1">
+            <span className="text-[8px] font-semibold" style={{ color: trimInPct > 0 ? '#F2A24A' : '#7A3B1E' }}>{fmt(trimIn || 0)}</span>
+            <span className="text-rust text-[8px]">{fmt(keptDuration)} kept</span>
+            <span className="text-[8px] font-semibold" style={{ color: trimOutPct < 100 ? '#F2A24A' : '#7A3B1E' }}>{fmt(trimOut)}</span>
           </div>
         </div>
+      )}
 
-        {/* Filmstrip wrapper with padding for edge safety */}
-        <div className="px-6">
-          {/* Tap-to-activate container */}
-          <div 
-            className="relative mb-1 cursor-pointer"
-            onClick={() => {
-              setTrimHandlesActive(true)
-              setTimeout(() => setTrimHandlesActive(false), 3000)
-            }}
-          >
-            {/* Filmstrip visual - h-14 with handles INSIDE */}
-            <div ref={filmstripRef} className="relative h-14 rounded-lg overflow-hidden">
-              <div className="absolute inset-0 flex gap-px">
-                {STRIP_COLORS.map((c, i) => (
-                  <div key={i} className="flex-1 h-full" style={{ background: c }} />
-                ))}
-              </div>
-              <div className="absolute top-0 left-0 bottom-0 rounded-l-lg"
-                style={{ width: `${trimInPct}%`, background: 'rgba(0,0,0,0.62)' }} />
-              <div className="absolute top-0 right-0 bottom-0 rounded-r-lg"
-                style={{ width: `${100 - trimOutPct}%`, background: 'rgba(0,0,0,0.62)' }} />
-              <div className="absolute top-0 h-[3px] bg-amber"
-                style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%` }} />
-              <div className="absolute bottom-0 h-[3px] bg-amber"
-                style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%` }} />
-              <div className="absolute top-0 bottom-0 w-px bg-white/75 pointer-events-none"
-                style={{ left: `${playheadPct}%` }} />
-
-              {/* Handles INSIDE the filmstrip - contained within h-14 */}
-              {/* Trim IN handle */}
-              <div
-                className="absolute top-0 bottom-0 cursor-ew-resize touch-none z-10 transition-all"
-                style={{ 
-                  left: `${trimInPct}%`,
-                  width: '48px',
-                  marginLeft: '-24px',
-                  transform: trimHandlesActive ? 'scale(1.08)' : 'scale(1)',
-                }}
-                onTouchStart={(e) => startTrimDrag('in', e)}
-                onMouseDown={(e) => startTrimDrag('in', e)}
-              >
-                {/* Cozy pillow - full height of filmstrip */}
-                <div 
-                  className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 rounded-full transition-all w-[6px]" 
-                  style={{ 
-                    background: '#F2A24A',
-                    boxShadow: trimHandlesActive 
-                      ? '0 0 12px rgba(242,162,74,0.8)' 
-                      : '0 0 6px rgba(242,162,74,0.5)' 
-                  }} 
-                />
-                {/* Grip dots */}
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-2">
-                  <div className="w-1 h-1 bg-walnut rounded-full" />
-                  <div className="w-1 h-1 bg-walnut rounded-full" />
-                  <div className="w-1 h-1 bg-walnut rounded-full" />
+      {/* ── Filmstrip — visible when trimMode is set ── */}
+      {!reorderMode && !isCaption && trimMode && (
+        <div className="px-4 pt-2.5 pb-2 border-b border-walnut-light flex-shrink-0">
+          {/* Filmstrip with handles outside overflow-hidden so they're grabbable at edges */}
+          <div className="px-3">
+            <div className="relative mb-1">
+              {/* Visual filmstrip */}
+              <div ref={filmstripRef} className="relative h-16 rounded-lg overflow-hidden">
+                <div className="absolute inset-0 flex gap-px">
+                  {STRIP_COLORS.map((c, i) => (
+                    <div key={i} className="flex-1 h-full" style={{ background: c }} />
+                  ))}
                 </div>
+                <div className="absolute top-0 left-0 bottom-0 rounded-l-lg"
+                  style={{ width: `${trimInPct}%`, background: 'rgba(0,0,0,0.62)' }} />
+                <div className="absolute top-0 right-0 bottom-0 rounded-r-lg"
+                  style={{ width: `${100 - trimOutPct}%`, background: 'rgba(0,0,0,0.62)' }} />
+                <div className="absolute top-0 h-[3px] bg-amber"
+                  style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%` }} />
+                <div className="absolute bottom-0 h-[3px] bg-amber"
+                  style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%` }} />
+                <div className="absolute top-0 bottom-0 w-px bg-white/60 pointer-events-none"
+                  style={{ left: `${playheadPct}%` }} />
+                {/* Split excluded zone overlay */}
+                {trimMode === 'split' && (
+                  <div className="absolute top-0 bottom-0 pointer-events-none"
+                    style={{
+                      left: `${splitPct}%`,
+                      right: 0,
+                      background: 'rgba(232,133,90,0.15)',
+                    }} />
+                )}
               </div>
 
-              {/* Trim OUT handle */}
-              <div
-                className="absolute top-0 bottom-0 cursor-ew-resize touch-none z-10 transition-all"
-                style={{ 
-                  left: `${trimOutPct}%`,
-                  width: '48px',
-                  marginLeft: '-24px',
-                  transform: trimHandlesActive ? 'scale(1.08)' : 'scale(1)',
-                }}
-                onTouchStart={(e) => startTrimDrag('out', e)}
-                onMouseDown={(e) => startTrimDrag('out', e)}
-              >
-                {/* Cozy pillow - full height of filmstrip */}
-                <div 
-                  className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 rounded-full transition-all w-[6px]"
-                  style={{ 
-                    background: '#F2A24A',
-                    boxShadow: trimHandlesActive 
-                      ? '0 0 12px rgba(242,162,74,0.8)' 
-                      : '0 0 6px rgba(242,162,74,0.5)' 
-                  }} 
-                />
-                {/* Grip dots */}
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-2">
-                  <div className="w-1 h-1 bg-walnut rounded-full" />
-                  <div className="w-1 h-1 bg-walnut rounded-full" />
-                  <div className="w-1 h-1 bg-walnut rounded-full" />
+              {/* Trim handles — OUTSIDE overflow-hidden, can extend into padding zone */}
+              {trimMode === 'trim' && (
+                <>
+                  {/* IN handle */}
+                  <div
+                    className="absolute top-0 bottom-0 cursor-ew-resize touch-none z-10"
+                    style={{ left: `${trimInPct}%`, width: 52, marginLeft: -26 }}
+                    onTouchStart={(e) => startTrimDrag('in', e)}
+                    onMouseDown={(e) => startTrimDrag('in', e)}
+                  >
+                    <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 rounded-full w-[7px]"
+                      style={{ background: '#F2A24A', boxShadow: '0 0 8px rgba(242,162,74,0.7)' }} />
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-[5px]">
+                      <div className="w-1 h-1 bg-walnut rounded-full" />
+                      <div className="w-1 h-1 bg-walnut rounded-full" />
+                      <div className="w-1 h-1 bg-walnut rounded-full" />
+                    </div>
+                  </div>
+                  {/* OUT handle */}
+                  <div
+                    className="absolute top-0 bottom-0 cursor-ew-resize touch-none z-10"
+                    style={{ left: `${trimOutPct}%`, width: 52, marginLeft: -26 }}
+                    onTouchStart={(e) => startTrimDrag('out', e)}
+                    onMouseDown={(e) => startTrimDrag('out', e)}
+                  >
+                    <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 rounded-full w-[7px]"
+                      style={{ background: '#F2A24A', boxShadow: '0 0 8px rgba(242,162,74,0.7)' }} />
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-[5px]">
+                      <div className="w-1 h-1 bg-walnut rounded-full" />
+                      <div className="w-1 h-1 bg-walnut rounded-full" />
+                      <div className="w-1 h-1 bg-walnut rounded-full" />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Split marker */}
+              {trimMode === 'split' && (
+                <div
+                  className="absolute top-0 bottom-0 cursor-ew-resize touch-none z-10"
+                  style={{ left: `${splitPct}%`, width: 52, marginLeft: -26 }}
+                  onTouchStart={startSplitDrag}
+                  onMouseDown={startSplitDrag}
+                >
+                  <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-[3px]"
+                    style={{ background: '#E8855A', boxShadow: '0 0 8px rgba(232,133,90,0.8)', borderLeft: '2px dashed rgba(255,255,255,0.3)' }} />
+                  <div className="absolute left-1/2 -translate-x-1/2 -top-4 px-1.5 py-0.5 rounded-full text-[9px] font-bold text-walnut whitespace-nowrap"
+                    style={{ background: '#E8855A' }}>
+                    {fmt((splitPct / 100) * duration)}
+                  </div>
                 </div>
-              </div>
+              )}
+            </div>
+
+            <div className="flex justify-between text-rust text-[8px] font-semibold tracking-wide">
+              <span>0:00</span>
+              <span>{fmt(duration * 0.25)}</span>
+              <span>{fmt(duration * 0.5)}</span>
+              <span>{fmt(duration * 0.75)}</span>
+              <span>{fmt(duration)}</span>
             </div>
           </div>
-        </div>
 
-        <div className="flex justify-between text-rust text-[8px] font-semibold tracking-wide px-6">
-          <span>0:00</span>
-          <span>{fmt(duration * 0.25)}</span>
-          <span>{fmt(duration * 0.5)}</span>
-          <span>{fmt(duration * 0.75)}</span>
-          <span>{fmt(duration)}</span>
+          {/* Split confirm button */}
+          {trimMode === 'split' && (
+            <button
+              onClick={executeSplit}
+              className="mt-2.5 w-full py-2.5 rounded-xl font-sans font-bold text-[13px] active:opacity-80 flex items-center justify-center gap-2"
+              style={{ background: 'rgba(232,133,90,0.15)', border: '1px solid rgba(232,133,90,0.3)', color: '#E8855A' }}
+            >
+              <Scissors size={13} />
+              Cut here · {fmt((splitPct / 100) * duration)}
+            </button>
+          )}
         </div>
-      </div>
       )}
 
       {/* ── Tool row ── */}
-      {!isCaption && !reorderMode && (
+      {!isCaption && !reorderMode && toolsExpanded && (
         <div className="flex items-center justify-around px-4 py-2 border-b border-walnut-light flex-shrink-0">
           {[
             { key: 'mute', Icon: activeClip?.muted ? VolumeX : Volume2, label: activeClip?.muted ? 'Unmute' : 'Mute', danger: false },
             { key: 'caption', Icon: Type, label: 'Caption', danger: false },
-            { key: 'preview', Icon: Eye, label: 'Preview', danger: false },
+            { key: 'addclips', Icon: PlusCircle, label: 'Add Clips', danger: false },
             { key: 'reorder', Icon: GripVertical, label: 'Reorder', danger: false },
             { key: 'remove', Icon: Trash2, label: 'Remove', danger: true },
           ].map(({ key, Icon, label, danger }) => {
@@ -754,7 +1060,7 @@ export default function WorkspaceScreen() {
               <button
                 key={key}
                 onClick={() => {
-                  if (key === 'preview') navigate(`/scrapbook/${id}`)
+                  if (key === 'addclips') navigate(`/intake?addTo=${id}`)
                   else if (key === 'remove') setConfirmRemoveId(activeClipId)
                   else if (key === 'reorder') setReorderMode(!reorderMode)
                   else if (key === 'mute') toggleMute()
@@ -782,123 +1088,155 @@ export default function WorkspaceScreen() {
         </div>
       )}
 
-      {/* ── Clip list header ── */}
-      {!isCaption && (
-        <div className="flex items-center justify-between px-5 py-2.5 flex-shrink-0">
-          <span className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase">
-            {reorderMode ? 'Hold & drag to reorder' : 'All clips'}
-          </span>
-          {reorderMode ? (
-            <button 
-              onClick={() => setReorderMode(false)}
-              className="text-amber font-bold text-sm active:opacity-70"
-            >
-              Done
-            </button>
-          ) : (
-            <span className="text-wheat/30 text-[10px] font-medium">
-              {editedCount > 0
-                ? `${editedCount} of ${clips.length} edited`
-                : `${clips.length} clips · hold to reorder`
-              }
-            </span>
-          )}
+      {/* ── Horizontal clip strip ── */}
+      {!isCaption && !reorderMode && (
+        <div
+          ref={clipStripRef}
+          className="flex-shrink-0 overflow-x-auto border-t border-walnut-light"
+          style={{ scrollbarWidth: 'none', paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+        >
+          <div className="flex gap-2 px-4 pt-3 pb-1">
+            {clips.map((clip, i) => {
+              const active = clip.id === activeClipId
+              const hasTrim = (clip.trim_in > 0) || (clip.trim_out && clip.trim_out < (clip.duration || Infinity))
+              const clipKept = (clip.trim_out ?? clip.duration) - (clip.trim_in || 0)
+              return (
+                <button
+                  key={clip.id}
+                  data-clip-card={clip.id}
+                  onClick={() => setActiveClipId(clip.id)}
+                  className="flex-shrink-0 flex flex-col items-center gap-1 active:opacity-70"
+                >
+                  <div
+                    className="rounded-xl border flex flex-col items-center justify-between"
+                    style={{
+                      width: 64,
+                      height: 64,
+                      padding: '7px 4px 6px',
+                      background: active ? 'rgba(242,162,74,0.1)' : '#3D2410',
+                      borderColor: active ? '#F2A24A' : '#4A2E18',
+                    }}
+                  >
+                    <span className="text-[13px] font-bold leading-none"
+                      style={{ color: active ? '#F2A24A' : '#7A3B1E' }}>
+                      {i + 1}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      {hasTrim && <Scissors size={10} style={{ color: active ? '#F2A24A' : '#7A3B1E' }} />}
+                      {clip.caption_text && <Type size={10} style={{ color: '#E8855A' }} />}
+                      {clip.muted && <VolumeX size={10} style={{ color: '#7A3B1E' }} />}
+                      {!hasTrim && !clip.caption_text && !clip.muted && (
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ background: active ? '#F2A24A' : '#4A2E18' }} />
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-semibold"
+                    style={{ color: active ? '#F2A24A' : '#5A3A20' }}>
+                    {fmt(clipKept || clip.duration)}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         </div>
       )}
 
-      {/* ── Clip list ── */}
-      {!isCaption && (
-        <div data-clip-list className="flex-1 overflow-y-auto px-4 pb-6 flex flex-col gap-1.5">
-          {clips.map((clip, i) => {
-            const active = clip.id === activeClipId
-            const edited = isEdited(clip)
-            const isDragging = isActiveDragging && ghostClip?.id === clip.id
+      {/* ── Reorder mode: header + vertical drag list ── */}
+      {reorderMode && (
+        <>
+          <div className="flex items-center justify-between px-5 py-2.5 flex-shrink-0 border-t border-walnut-light">
+            <span className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase">Hold &amp; drag to reorder</span>
+            <button onClick={() => setReorderMode(false)} className="text-amber font-bold text-sm active:opacity-70">Done</button>
+          </div>
+          <div data-clip-list className="flex-1 overflow-y-auto px-4 pb-6 flex flex-col gap-1.5">
+            {clips.map((clip, i) => {
+              const active = clip.id === activeClipId
+              const edited = isEdited(clip)
+              const isDragging = isActiveDragging && ghostClip?.id === clip.id
 
-            // While this item is being dragged, show a dashed placeholder in its place
-            if (isDragging) {
+              if (isDragging) {
+                return (
+                  <div
+                    key={clip.id}
+                    className="rounded-xl border-2 border-dashed flex-shrink-0"
+                    style={{
+                      height: ROW_H,
+                      borderColor: 'rgba(242,162,74,0.3)',
+                      background: 'rgba(242,162,74,0.04)',
+                    }}
+                  />
+                )
+              }
+
               return (
-                <div
+                <button
                   key={clip.id}
-                  className="rounded-xl border-2 border-dashed flex-shrink-0"
-                  style={{
-                    height: ROW_H,
-                    borderColor: 'rgba(242,162,74,0.3)',
-                    background: 'rgba(242,162,74,0.04)',
+                  data-clip-row
+                  type="button"
+                  onClick={() => {
+                    if (!wasReorderDrag.current) setActiveClipId(clip.id)
                   }}
-                />
-              )
-            }
-
-            return (
-              <button
-                key={clip.id}
-                data-clip-row
-                type="button"
-                onClick={() => {
-                  // Guard: if touch action ended in a drag, don't also select
-                  if (!wasReorderDrag.current) setActiveClipId(clip.id)
-                }}
-                onTouchStart={(e) => handleClipTouchStart(e, i)}
-                onTouchMove={handleClipTouchMove}
-                onTouchEnd={handleClipTouchEnd}
-                className="w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 border text-left flex-shrink-0 active:opacity-80"
-                style={{
-                  background: '#3D2410',
-                  borderColor: active ? '#F2A24A' : '#4A2E18',
-                  minHeight: ROW_H,
-                }}
-              >
-                {/* Drag handle — always visible, subtle. Mouse drag target. */}
-                <div
-                  className="flex flex-col gap-[4px] px-1 py-3 flex-shrink-0 cursor-grab"
-                  style={{ opacity: isActiveDragging ? 0.55 : 0.22 }}
-                  onMouseDown={(e) => startDragFromMouse(i, e)}
+                  onTouchStart={(e) => handleClipTouchStart(e, i)}
+                  onTouchMove={handleClipTouchMove}
+                  onTouchEnd={handleClipTouchEnd}
+                  className="w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 border text-left flex-shrink-0 active:opacity-80"
+                  style={{
+                    background: '#3D2410',
+                    borderColor: active ? '#F2A24A' : '#4A2E18',
+                    minHeight: ROW_H,
+                  }}
                 >
-                  {[0, 1, 2].map(n => (
-                    <span key={n} className="block w-4 h-0.5 bg-wheat rounded" />
-                  ))}
-                </div>
+                  <div
+                    className="flex flex-col gap-[4px] px-1 py-3 flex-shrink-0 cursor-grab"
+                    style={{ opacity: isActiveDragging ? 0.55 : 0.22 }}
+                    onMouseDown={(e) => startDragFromMouse(i, e)}
+                  >
+                    {[0, 1, 2].map(n => (
+                      <span key={n} className="block w-4 h-0.5 bg-wheat rounded" />
+                    ))}
+                  </div>
 
-                <span className="text-[10px] font-bold w-3.5 text-center flex-shrink-0"
-                  style={{ color: active ? '#F2A24A' : '#5A3A20' }}>
-                  {i + 1}
-                </span>
+                  <span className="text-[10px] font-bold w-3.5 text-center flex-shrink-0"
+                    style={{ color: active ? '#F2A24A' : '#5A3A20' }}>
+                    {i + 1}
+                  </span>
 
-                <div className="w-12 h-9 rounded-md flex-shrink-0 overflow-hidden"
-                  style={{ background: STRIP_COLORS[i % STRIP_COLORS.length] }} />
+                  <div className="w-12 h-9 rounded-md flex-shrink-0 overflow-hidden"
+                    style={{ background: STRIP_COLORS[i % STRIP_COLORS.length] }} />
 
-                <div className="flex-1 min-w-0">
-                  <p className="text-wheat/75 text-[12px] font-semibold truncate mb-1">
-                    {fmtClipDate(clip.recorded_at) || fmt(clip.duration)}
-                  </p>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {(!clip.trim_in || clip.trim_in === 0) && (!clip.trim_out || clip.trim_out >= (clip.duration || Infinity))
-                      ? <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-walnut-light text-wheat/55">{fmt(clip.duration)}</span>
-                      : <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full border text-amber" style={{ background: 'rgba(242,162,74,0.1)', borderColor: 'rgba(242,162,74,0.22)' }}>trimmed</span>
-                    }
-                    {clip.caption_text && (
-                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full border text-sienna" style={{ background: 'rgba(232,133,90,0.1)', borderColor: 'rgba(232,133,90,0.2)' }}>caption</span>
-                    )}
-                    {clip.muted && (
-                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full border text-rust" style={{ background: 'rgba(122,59,30,0.1)', borderColor: 'rgba(122,59,30,0.25)' }}>muted</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-wheat/75 text-[12px] font-semibold truncate mb-1">
+                      {fmtClipDate(clip.recorded_at) || fmt(clip.duration)}
+                    </p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {(!clip.trim_in || clip.trim_in === 0) && (!clip.trim_out || clip.trim_out >= (clip.duration || Infinity))
+                        ? <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-walnut-light text-wheat/55">{fmt(clip.duration)}</span>
+                        : <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full border text-amber" style={{ background: 'rgba(242,162,74,0.1)', borderColor: 'rgba(242,162,74,0.22)' }}>trimmed</span>
+                      }
+                      {clip.caption_text && (
+                        <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full border text-sienna" style={{ background: 'rgba(232,133,90,0.1)', borderColor: 'rgba(232,133,90,0.2)' }}>caption</span>
+                      )}
+                      {clip.muted && (
+                        <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full border text-rust" style={{ background: 'rgba(122,59,30,0.1)', borderColor: 'rgba(122,59,30,0.25)' }}>muted</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex-shrink-0">
+                    {edited ? (
+                      <div className="w-[15px] h-[15px] rounded-full flex items-center justify-center" style={{ background: 'rgba(242,162,74,0.15)' }}>
+                        <Check size={9} strokeWidth={2.5} className="text-amber" />
+                      </div>
+                    ) : (
+                      <div className="w-[15px] h-[15px] rounded-full border"
+                        style={{ borderColor: active ? '#F2A24A' : 'rgba(74,46,24,0.8)' }} />
                     )}
                   </div>
-                </div>
-
-                <div className="flex-shrink-0">
-                  {edited ? (
-                    <div className="w-[15px] h-[15px] rounded-full flex items-center justify-center" style={{ background: 'rgba(242,162,74,0.15)' }}>
-                      <Check size={9} strokeWidth={2.5} className="text-amber" />
-                    </div>
-                  ) : (
-                    <div className="w-[15px] h-[15px] rounded-full border"
-                      style={{ borderColor: active ? '#F2A24A' : 'rgba(74,46,24,0.8)' }} />
-                  )}
-                </div>
-              </button>
-            )
-          })}
-        </div>
+                </button>
+              )
+            })}
+          </div>
+        </>
       )}
 
       {/* ── Ghost drag card — floats with finger during active drag ── */}
@@ -1002,6 +1340,14 @@ export default function WorkspaceScreen() {
             </button>
           </div>
         </>
+      )}
+      {/* ── Split coming soon toast ── */}
+      {showSplitSoon && (
+        <div className="absolute bottom-32 left-0 right-0 flex justify-center z-50 pointer-events-none px-6">
+          <div className="px-4 py-2.5 rounded-2xl" style={{ background: '#3D2410', border: '1px solid #4A2E18' }}>
+            <p className="text-wheat text-[13px] font-semibold font-sans">Split is coming soon ✂️</p>
+          </div>
+        </div>
       )}
     </div>
   )

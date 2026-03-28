@@ -6,14 +6,16 @@ import LoginScreen from './screens/LoginScreen'
 import InstallPrompt from './components/InstallPrompt'
 import ErrorBoundary from './components/ErrorBoundary'
 
-const HomeScreen      = lazy(() => import('./screens/HomeScreen'))
-const IntakeScreen    = lazy(() => import('./screens/IntakeScreen'))
-const PlaybackScreen  = lazy(() => import('./screens/PlaybackScreen'))
-const WorkspaceScreen = lazy(() => import('./screens/WorkspaceScreen'))
-const DiscoveryScreen = lazy(() => import('./screens/DiscoveryScreen'))
-const SignupScreen    = lazy(() => import('./screens/SignupScreen'))
-const ShareScreen     = lazy(() => import('./screens/ShareScreen'))
-const SettingsScreen  = lazy(() => import('./screens/SettingsScreen'))
+const HomeScreen            = lazy(() => import('./screens/HomeScreen'))
+const IntakeScreen          = lazy(() => import('./screens/IntakeScreen'))
+const PlaybackScreen        = lazy(() => import('./screens/PlaybackScreen'))
+const WorkspaceScreen       = lazy(() => import('./screens/WorkspaceScreen'))
+const DiscoveryScreen       = lazy(() => import('./screens/DiscoveryScreen'))
+const SignupScreen          = lazy(() => import('./screens/SignupScreen'))
+const ShareScreen           = lazy(() => import('./screens/ShareScreen'))
+const SettingsScreen        = lazy(() => import('./screens/SettingsScreen'))
+const ScrapbookDetailScreen = lazy(() => import('./screens/ScrapbookDetailScreen'))
+const RemixScreen           = lazy(() => import('./screens/RemixScreen'))
 
 const FF_READY_KEY = 'cassette_ff_ready'
 
@@ -107,10 +109,12 @@ function AppRoutes() {
             <Routes>
               <Route path="/" element={<HomeScreen />} />
               <Route path="/intake" element={<IntakeScreen />} />
-              <Route path="/scrapbook/:id" element={<PlaybackScreen />} />
+              <Route path="/scrapbook/:id" element={<ScrapbookDetailScreen />} />
+              <Route path="/scrapbook/:id/watch" element={<PlaybackScreen />} />
               <Route path="/scrapbook/:id/edit" element={<WorkspaceScreen />} />
               <Route path="/scrapbook/:id/share" element={<ShareScreen />} />
               <Route path="/discover" element={<DiscoveryScreen />} />
+              <Route path="/remix" element={<RemixScreen />} />
               <Route path="/settings" element={<SettingsScreen />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

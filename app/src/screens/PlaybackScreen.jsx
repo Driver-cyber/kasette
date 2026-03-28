@@ -4,6 +4,8 @@ import { ArrowLeft, Play, Pause, MoreHorizontal, Edit, Download, Share2 } from '
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { exportScrapbook } from '../lib/export'
+import { getBlob, preloadClip } from '../lib/blobCache'
+import { getCached, cacheScrapbook } from '../lib/dataCache'
 
 function formatTime(secs) {
   if (!secs || isNaN(secs) || secs < 0) return '0:00'
@@ -53,15 +55,22 @@ export default function PlaybackScreen() {
   const dragStartY = useRef(0)
   const dragStartX = useRef(0)
 
-  // Fetch scrapbook + clips
+  // Fetch scrapbook + clips — use cache first for instant render
   useEffect(() => {
+    const cached = getCached(id)
+    if (cached?.scrapbook) {
+      setScrapbook(cached.scrapbook)
+      setClips(cached.clips)
+      setLoading(false)
+    }
+
     Promise.all([
       supabase.from('scrapbooks').select('id, name, user_id').eq('id', id).single(),
       supabase.from('clips').select('id, video_url, thumbnail_url, duration, trim_in, trim_out, caption_text, caption_x, caption_y, caption_size, order').eq('scrapbook_id', id).order('order', { ascending: true }),
     ]).then(([{ data: sb }, { data: cl }]) => {
-      if (sb) setScrapbook(sb)
+      if (sb) { setScrapbook(sb); cacheScrapbook(id, sb, cl || []) }
       if (cl) setClips(cl)
-      setLoading(false)
+      if (!cached) setLoading(false)
     })
   }, [id])
 
@@ -70,13 +79,15 @@ export default function PlaybackScreen() {
   const prevClip = currentIndex > 0 ? clips[currentIndex - 1] : null
   const isOwner = session?.user?.id === scrapbook?.user_id
 
-  // Preload next video
+  // Preload next video — use blob if cached, otherwise URL hint
   useEffect(() => {
     const nextVideo = nextVideoRef.current
     if (nextVideo && nextClip) {
-      nextVideo.src = nextClip.video_url
+      nextVideo.src = getBlob(nextClip.video_url)
       nextVideo.currentTime = nextClip.trim_in || 0
       nextVideo.load()
+      // Also kick off blob fetch in background so it's ready when needed
+      preloadClip(nextClip.video_url)
     }
   }, [nextClip])
 
@@ -84,21 +95,23 @@ export default function PlaybackScreen() {
   useEffect(() => {
     const prevVideo = prevVideoRef.current
     if (prevVideo && prevClip) {
-      prevVideo.src = prevClip.video_url
+      prevVideo.src = getBlob(prevClip.video_url)
       prevVideo.currentTime = prevClip.trim_in || 0
       prevVideo.load()
+      preloadClip(prevClip.video_url)
     }
   }, [prevClip])
 
-  // Load + play when clip changes
+  // Load + play when clip changes — use blob URL if available for instant start
   useEffect(() => {
     const video = videoRef.current
     if (!video || !currentClip) return
     setProgress(0)
+    setVideoLoading(true)
     setDragOffset(0)
     dragOffsetRef.current = 0
     setDragTransitioning(false)
-    video.src = currentClip.video_url
+    video.src = getBlob(currentClip.video_url)
     video.currentTime = currentClip.trim_in || 0
     video.load()
     video.play().catch(() => {})
@@ -402,6 +415,7 @@ export default function PlaybackScreen() {
               playsInline
               preload="auto"
               muted
+              poster={prevClip?.thumbnail_url || undefined}
             />
             <div className="absolute inset-x-0 top-0 h-44 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%)' }} />
             <div className="absolute inset-x-0 bottom-0 h-56 pointer-events-none" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)' }} />
@@ -432,8 +446,13 @@ export default function PlaybackScreen() {
             poster={currentClip?.thumbnail_url || undefined}
           />
           {videoLoading && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-9 h-9 rounded-full border-2 border-amber border-t-transparent animate-spin" />
+            <div className="absolute inset-0 pointer-events-none">
+              {currentClip?.thumbnail_url
+                ? <img src={currentClip.thumbnail_url} className="w-full h-full object-cover" />
+                : <div className="w-full h-full flex items-center justify-center">
+                    <div className="w-9 h-9 rounded-full border-2 border-amber border-t-transparent animate-spin" />
+                  </div>
+              }
             </div>
           )}
           <div className="absolute inset-x-0 top-0 h-44 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%)' }} />
@@ -464,6 +483,7 @@ export default function PlaybackScreen() {
               playsInline
               preload="auto"
               muted
+              poster={nextClip?.thumbnail_url || undefined}
             />
             <div className="absolute inset-x-0 top-0 h-44 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%)' }} />
             <div className="absolute inset-x-0 bottom-0 h-56 pointer-events-none" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)' }} />

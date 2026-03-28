@@ -490,11 +490,178 @@ profiles (user_id, username UNIQUE, display_name, created_at)
 
 ---
 
+---
+
+### [2026-03-27] — Scrapbook Detail Screen
+
+**New screen at `/scrapbook/:id` (previously `/scrapbook/:id` went straight to playback).**
+
+Acts as a menu/hub for a scrapbook:
+- Hero cover photo (or gradient fallback)
+- `Watch` (primary CTA) → triggers cassette reel loading animation (2.5s min + first clip preloaded) → navigates to `/scrapbook/:id/watch`
+- `Edit`, `Share`, `Export`, `Rename`, `Change Cover Photo`, `Delete Scrapbook`
+- Owner-only actions gated by `session.user.id === scrapbook.user_id`
+
+**Route table updated:**
+```
+/scrapbook/:id         → ScrapbookDetailScreen (new hub)
+/scrapbook/:id/watch   → PlaybackScreen
+/scrapbook/:id/edit    → WorkspaceScreen
+/scrapbook/:id/share   → ShareScreen
+```
+
+**Cassette reel loading animation:** Two SVG reels spinning in opposite directions (2.1s / 1.7s). `Promise.all([minDelay 2500ms, preloadClips(clips, 1)])` gates the Watch navigation — screen is branded + blobs are ready on arrival.
+
+---
+
+### [2026-03-27] — Workspace Major Overhaul
+
+**Crafting Drawer (the header row above the clip cards):**
+
+Three tappable mode toggles: `[TRIM] | [SPLIT] | [TOOLS]`
+- **TRIM:** expands full filmstrip with amber drag handles for in/out points
+- **SPLIT:** expands filmstrip with draggable sienna marker; "Cut here" button creates two clip records sharing same `storage_path`; `removeClip` guards storage deletion if path is shared
+- **TOOLS:** reveals tool row (Caption · Mute · Add Clips · Reorder · Remove) — collapsed by default
+- Right side shows trim timestamps when TRIM or SPLIT is active
+
+**Mini clip timeline:** Always visible between crafting drawer and clip cards. 6px amber track showing kept region, trimmed regions darker, white playhead hairline, amber tick marks at in/out points. Collapses when TRIM/SPLIT expand.
+
+**Horizontal clip strip:** Replaces vertical clip list. Scrollable row of 64×64px square cards showing clip number, status icons (Scissors/Type/VolumeX), and duration below. Active card gets amber border + tint. Auto-scrolls to active card on change.
+
+**Reorder mode:** Tapping Reorder activates full-screen vertical drag-and-drop list (existing touch/mouse drag logic). Horizontal strip hidden in reorder mode.
+
+**Undo button:** Amber circle icon in nav header to the left of Save. Appears only when an undoable action exists. Single-level undo covering: trim (restores in/out), mute (toggles back), caption (restores text/position/size), split (deletes new clip, restores trim_out and clip orders). Cleared when switching clips.
+
+**Save button:** Replaced Watch button in workspace nav header. Navigates to `/scrapbook/:id` (detail screen). Changes are auto-saved throughout so Save is a navigation action, not a write action.
+
+**Clip swipe navigation:** Swipe left/right on the preview zone to navigate between clips. `touch-action: pan-y` prevents iOS swipe-back conflict.
+
+**Split persistence fix:** Order-shift of existing clips now happens BEFORE inserting the new clip to avoid unique constraint violations on `order` column.
+
+**Add Clips flow:** IntakeScreen supports `?addTo={scrapbookId}` param — skips naming sheet, uploads to existing scrapbook, offsets order from existing clip count.
+
+---
+
+### [2026-03-27] — Performance Architecture: Blob Cache + Data Cache
+
+**`app/src/lib/blobCache.js`:** Module-level Map cache. `preloadClip(url)` fetches the video file as a Blob and stores a `blob:` URL. `getBlob(url)` returns the cached URL synchronously (or original URL as fallback). `preloadClips(clips, n)` preloads first N clips (awaitable — used to gate navigation). `preloadRest(clips, from)` fire-and-forget preloads the remainder.
+
+**`app/src/lib/dataCache.js`:** Module-level Map cache. `cacheScrapbook(id, sb, clips)` stores fetched data. `getCached(id)` returns it. ScrapbookDetailScreen populates the cache on fetch. WorkspaceScreen and PlaybackScreen check cache first → render immediately with no loading spinner → background-refresh from DB to stay in sync.
+
+**Poster thumbnails:** All `<video>` elements across WorkspaceScreen, PlaybackScreen, and DiscoveryScreen now have `poster={clip.thumbnail_url}` — shows the first-frame thumbnail instead of a black screen while the video loads.
+
+**WorkspaceScreen blob integration:** Uses `getBlob()` for video.src (benefits from blobs pre-fetched by ScrapbookDetailScreen). Calls `preloadRest(clips, 0)` on mount and `preloadClip(adjacent)` when switching clips. `preload="auto"`.
+
+**Wake Lock API:** IntakeScreen requests `navigator.wakeLock.request('screen')` when upload starts. Re-acquired on `visibilitychange` if screen was locked mid-upload. Prevents failed uploads from iPhone auto-locking.
+
+---
+
+### [2026-03-27] — Playback Performance Fixes
+
+**DiscoveryScreen infinite spinner fixed:** `loadClips()` was defined as a `useCallback` but never invoked — there was no `useEffect` to call it. Added `useEffect(() => { loadClips() }, [loadClips])`. Affected both normal and Remix modes.
+
+**Blob preloading — concurrent is correct:** Briefly changed `preloadRest` to sequential (each clip waits for the previous to finish) thinking it would reduce bandwidth competition. Reverted — sequential was worse. With sequential, clips 2, 3, 4 don't even start downloading until earlier clips are 100% done. With concurrent, all clips make progress simultaneously. Supabase/Cloudflare use HTTP/2 which multiplexes requests anyway. **`preloadRest` must remain concurrent (fire-and-forget forEach).**
+
+**PlaybackScreen clip transition:** Added `setVideoLoading(true)` at the start of the clip-change `useEffect` (before setting `video.src`) so the loading overlay shows immediately. Replaced the amber spinner overlay with the clip's `thumbnail_url` as an `<img>` overlay — so instead of a black flash + spinner, the thumbnail shows as a seamless bridge until the video decodes its first frame. Spinner remains as fallback if no thumbnail.
+
+**ScrapbookDetailScreen Watch animation:** Settled at **2000ms** minimum for the cassette reel loading animation (was 2500ms original, tested 1500ms, landed at 2000ms). Gives enough time for blobs to preload while still feeling snappy.
+
+---
+
+### [2026-03-28] — Swipe Transition + Pause-on-Swipe Fixes
+
+**Thumbnail preloading:** `<img>` tags rendering during a swipe fire network requests and show blank until loaded. Fixed by eagerly preloading all thumbnail URLs via `new Image()` immediately when the clip list loads — both in DiscoveryScreen (`loadClips`) and in RemixScreen during the "Making it groovy" phase. Browser caches the images so they're instant by first swipe.
+
+**RemixScreen groovy phase extended:** Now waits for 3 video blobs (was 1) + 4s minimum (was 3s) before navigating to Discovery. Gives substantially more cache warmth before the user starts swiping.
+
+**Pause on swipe:** Both DiscoveryScreen and PlaybackScreen now pause immediately on `touchStart` (finger down) instead of waiting 200ms for the hold timer. Hold timer retained only for `holdActiveRef`/`holdOccurredRef` (distinguishes long-press from tap so it doesn't trigger navigation on release). On `touchEnd`: committed swipe → new clip plays via `useEffect`; spring-back or boundary tap → resumes current clip. Removed the early-return pattern in PlaybackScreen's `handleTouchEnd` that was blocking swipe navigation after a pause.
+
+---
+
+### [2026-03-28] — Split Tool Rebuilt: Single-Clip Middle Cut
+
+**Redesigned from split-into-two-clips to a single-clip cut with 4 trim handles.**
+
+**Why:** Creating two separate clip records sharing a video URL was fragile (order constraints, undo complexity). Chad wanted to remove a middle section from a clip without adding a new record.
+
+**New data model:** Two new nullable float columns on `clips`: `cut_in` and `cut_out`. When set, playback skips from `cut_in` to `cut_out`.
+
+**UX flow:**
+1. SPLIT button → single sienna marker (same as before), drag to position
+2. "Set cut point" confirm → saves `cut_in = cut_out = splitTime`, transitions to TRIM mode
+3. TRIM mode shows 4 independent handles: amber trim_in/trim_out (outer edges) + sienna cut_in/cut_out (inner pair, start stacked — drag apart to widen the cut)
+4. Cut region shown as dark overlay in both filmstrip and mini timeline
+5. SPLIT button when cut already exists → shows "Remove split" button only (no marker)
+6. Undo supported via existing 'clip' snapshot type
+
+**Playback:** `handleTimeUpdate` in WorkspaceScreen and PlaybackScreen skips from `cut_in` to `cut_out`. DiscoveryScreen also handles it.
+
+---
+
+### [2026-03-28] — Workspace Mini Timeline: Scrub Bar
+
+Mini timeline (no-tool mode) is now a draggable scrub bar. The white playhead is a visible 12px dot. Drag anywhere on the track to jump to that point in the clip — no need to replay from start to review a trim.
+
+---
+
+### [2026-03-28] — Discovery/Remix Playback Improvements
+
+**Blob cache:** DiscoveryScreen was not using `getBlob()` at all — all video src was raw URLs. Fixed: `getBlob()` for active clip, `preloadClip()` for adjacent, `preloadRest()` on playlist load (both Remix and Discovery modes).
+
+**Thumbnail overlay:** Same `videoLoading` + thumbnail `<img>` overlay pattern as PlaybackScreen — masks black flash on clip transition.
+
+**Swipe transition:** Prev/next clip thumbnails rendered as siblings of the sliding video container (not children). Each tracks `dragOffset` with matching `translateX` math so they slide in from the sides during drag. Children-inside approach caused overflow clipping.
+
+**Auto-advance:** `handleTimeUpdate` now calls `goNext()` when clip ends instead of looping. Remix plays through all clips in sequence.
+
+**cut_in/cut_out:** DiscoveryScreen SELECT includes new columns; `handleTimeUpdate` skips cut region.
+
+---
+
+### [2026-03-27] — The Remix ✅ Complete
+
+**New feature:** A random cut from the user's library (and optionally shared scrapbooks).
+
+**`/remix` → `RemixScreen`:**
+- Studio config screen: "The Remix" in italic Fraunces
+- Clip count stepper: 6–12 clips (default 8), large Fraunces number display with amber +/– buttons
+- "Include shared clips" toggle: pulls from `scrapbook_shares WHERE shared_with_id = user`
+- "Make My Remix" CTA → fetches clip pool → shuffles → selects N → cassette reel loading animation ("Making it groovy...") with 3s minimum + first blob preloaded → navigates to `/discover` with remix state
+
+**DiscoveryScreen remix mode:** Reads `useLocation().state.clips` — if present (isRemix), uses those clips directly and skips fetch. Header pill shows "The Remix" in italic amber. Source label shows "The Remix · year". Top-right button becomes amber Disc3 icon → navigates back to `/remix` to reconfigure.
+
+**HomeScreen:** Shuffle icon now routes to `/remix` instead of `/discover`. `/discover` remains accessible directly as a standalone browse-all experience.
+
+---
+
+## ✅ Completed Feature Backlog
+
+| Feature | Notes |
+|---|---|
+| Year tag on Home | User sets year at intake (← YEAR →), collapsible year groups on Home. |
+| Cover photo | Intake step 2 picker + Home card "Change cover" option. |
+| Caption drag placement | Caption mode expands preview full-screen. Draggable on frame, saves x/y. |
+| Discovery screen | `/discover` — shuffled playlist of all clips. Swipe. |
+| Export as MP4 | FFmpeg trim + concat → Web Share API or download. ✅ Working. |
+| Multi-user / signup | `/signup` public route, RLS user_id-scoped. |
+| Scrapbook sharing | Share by username. ShareScreen. Shared with you on Home. ✅ |
+| Username login | Sign in as "chad" or "joelle". profiles table + trigger + RPCs. ✅ |
+| Rename scrapbook | Home card ⋯ menu → bottom sheet. ✅ |
+| Auto-share defaults | Settings screen. Global defaults auto-share new scrapbooks. ✅ |
+| Error boundary | Wraps entire app. Friendly reload on crash. ✅ |
+| Scrapbook detail screen | Hub screen at `/scrapbook/:id` with Watch/Edit/Share/Export/Rename/Cover/Delete. ✅ |
+| Workspace overhaul | Crafting drawer, horizontal clip strip, TRIM/SPLIT/TOOLS, mini timeline, Undo, Save. ✅ |
+| Blob + data cache | Zero-latency video playback + instant workspace/playback open. ✅ |
+| Wake Lock API | Prevents upload failures from iPhone screen lock. ✅ |
+| The Remix | `/remix` studio + cassette loading + shuffled clip playback. ✅ |
+| Add clips to existing scrapbook | IntakeScreen `?addTo=` param. ✅ |
+
+---
+
 ## 🔨 Feature Backlog (Approved, Not Yet Built)
 
 | # | Feature | Notes |
 |---|---|---|
-| 1 | **Reorder 2-step → 1-step UX** | Tap to select + same gesture drags. Hard: `onClick` fires after `touchend`. Parked. |
 | 1 | **Reorder 2-step → 1-step UX** | Tap to select + same gesture drags. Hard: `onClick` fires after `touchend`. Parked. |
 
 ---

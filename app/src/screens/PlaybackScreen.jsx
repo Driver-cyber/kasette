@@ -66,7 +66,7 @@ export default function PlaybackScreen() {
 
     Promise.all([
       supabase.from('scrapbooks').select('id, name, user_id').eq('id', id).single(),
-      supabase.from('clips').select('id, video_url, thumbnail_url, duration, trim_in, trim_out, caption_text, caption_x, caption_y, caption_size, order').eq('scrapbook_id', id).order('order', { ascending: true }),
+      supabase.from('clips').select('id, video_url, thumbnail_url, duration, trim_in, trim_out, cut_in, cut_out, caption_text, caption_x, caption_y, caption_size, order').eq('scrapbook_id', id).order('order', { ascending: true }),
     ]).then(([{ data: sb }, { data: cl }]) => {
       if (sb) { setScrapbook(sb); cacheScrapbook(id, sb, cl || []) }
       if (cl) setClips(cl)
@@ -127,6 +127,11 @@ export default function PlaybackScreen() {
     if (!video || !currentClip || scrubActiveRef.current) return
     const trimIn = currentClip.trim_in || 0
     const trimOut = currentClip.trim_out ?? video.duration
+    // Skip over cut region
+    if (currentClip.cut_in != null && currentClip.cut_out != null &&
+        video.currentTime >= currentClip.cut_in && video.currentTime < currentClip.cut_out) {
+      video.currentTime = currentClip.cut_out
+    }
     const elapsed = video.currentTime - trimIn
     const total = (trimOut - trimIn) || 1
     const pct = Math.min(elapsed / total, 1)
@@ -243,16 +248,17 @@ export default function PlaybackScreen() {
       return
     }
 
+    // Pause immediately when any touch starts
     const video = videoRef.current
+    if (video && !video.paused) {
+      wasPlayingBeforeHold.current = true
+      video.pause()
+    } else {
+      wasPlayingBeforeHold.current = false
+    }
 
-    // Hold-to-pause (200ms — pauses quickly, but release after hold won't trigger navigation)
-    holdTimerRef.current = setTimeout(() => {
-      if (video && !video.paused) {
-        wasPlayingBeforeHold.current = true
-        holdOccurredRef.current = true
-        video.pause()
-      }
-    }, 200)
+    // Hold timer only for holdOccurredRef (prevents tap navigation after long press)
+    holdTimerRef.current = setTimeout(() => { holdOccurredRef.current = true }, 200)
 
     dragActiveRef.current = true
     dragStartY.current = touch.clientY
@@ -318,14 +324,7 @@ export default function PlaybackScreen() {
       holdTimerRef.current = null
     }
 
-    // Resume if hold-paused
-    const video = videoRef.current
-    if (wasPlayingBeforeHold.current && video && video.paused) {
-      video.play().catch(() => {})
-      wasPlayingBeforeHold.current = false
-      dragActiveRef.current = false
-      return
-    }
+    const wasPaused = wasPlayingBeforeHold.current
     wasPlayingBeforeHold.current = false
 
     if (!dragActiveRef.current) return
@@ -334,6 +333,7 @@ export default function PlaybackScreen() {
     const THRESHOLD = window.innerWidth * 0.3
     const offset = dragOffsetRef.current
 
+    // Committed swipe — new clip plays via useEffect, no manual resume needed
     if (offset > THRESHOLD && currentIndex < clips.length - 1) {
       setDragTransitioning(true)
       setDragOffset(window.innerWidth)
@@ -353,9 +353,11 @@ export default function PlaybackScreen() {
         setDragTransitioning(false)
       }, 300)
     } else {
+      // Spring back (or tap handled by onClick) — resume since no navigation happened
       setDragTransitioning(true)
       dragOffsetRef.current = 0
       setDragOffset(0)
+      if (wasPaused) videoRef.current?.play().catch(() => {})
     }
   }
 

@@ -106,7 +106,7 @@ export default function ScrapbookDetailScreen() {
     if (!clips.length) return
     setIsLaunching(true)
     // Minimum 2.5s branded loading + wait for first clip blob
-    const minDelay = new Promise(r => setTimeout(r, 1500))
+    const minDelay = new Promise(r => setTimeout(r, 2000))
     const firstReady = preloadClips(clips, 1)
     preloadRest(clips, 1) // kick off the rest without blocking
     await Promise.all([minDelay, firstReady])

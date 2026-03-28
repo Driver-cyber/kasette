@@ -38,9 +38,12 @@ export function preloadClips(clips, count = 2) {
   return Promise.all(clips.slice(0, count).map(c => preloadClip(c.video_url)))
 }
 
-// Fire-and-forget preload of remaining clips (don't await)
-export function preloadRest(clips, startFrom = 1) {
-  clips.slice(startFrom).forEach(c => preloadClip(c.video_url))
+// Sequentially preloads remaining clips so bandwidth stays focused on
+// the next-up clip rather than all clips competing at once
+export async function preloadRest(clips, startFrom = 1) {
+  for (const c of clips.slice(startFrom)) {
+    await preloadClip(c.video_url)
+  }
 }
 
 export function clearCache() {

@@ -107,6 +107,7 @@ export default function PlaybackScreen() {
     const video = videoRef.current
     if (!video || !currentClip) return
     setProgress(0)
+    setVideoLoading(true)
     setDragOffset(0)
     dragOffsetRef.current = 0
     setDragTransitioning(false)
@@ -445,8 +446,13 @@ export default function PlaybackScreen() {
             poster={currentClip?.thumbnail_url || undefined}
           />
           {videoLoading && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-9 h-9 rounded-full border-2 border-amber border-t-transparent animate-spin" />
+            <div className="absolute inset-0 pointer-events-none">
+              {currentClip?.thumbnail_url
+                ? <img src={currentClip.thumbnail_url} className="w-full h-full object-cover" />
+                : <div className="w-full h-full flex items-center justify-center">
+                    <div className="w-9 h-9 rounded-full border-2 border-amber border-t-transparent animate-spin" />
+                  </div>
+              }
             </div>
           )}
           <div className="absolute inset-x-0 top-0 h-44 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%)' }} />

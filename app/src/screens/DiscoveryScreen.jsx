@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, Shuffle, Disc3 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { getBlob, preloadClip, preloadRest } from '../lib/blobCache'
 
 function shuffleArray(arr) {
   const a = [...arr]
@@ -26,6 +27,7 @@ export default function DiscoveryScreen() {
   const [clips, setClips] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [videoLoading, setVideoLoading] = useState(true)
   // Drag/swipe state
   const [dragOffset, setDragOffset] = useState(0)
   const [dragTransitioning, setDragTransitioning] = useState(false)
@@ -46,8 +48,10 @@ export default function DiscoveryScreen() {
   const loadClips = useCallback(async () => {
     // Remix mode: clips were pre-selected and passed via route state
     if (isRemix && location.state?.clips?.length) {
-      setClips(location.state.clips)
+      const remixClips = location.state.clips
+      setClips(remixClips)
       setCurrentIndex(0)
+      preloadRest(remixClips, 0)
       setLoading(false)
       return
     }
@@ -55,7 +59,7 @@ export default function DiscoveryScreen() {
     setLoading(true)
     const { data } = await supabase
       .from('scrapbooks')
-      .select('id, name, year, created_at, clips(id, video_url, thumbnail_url, duration, trim_in, trim_out, caption_text, caption_x, caption_y, caption_size)')
+      .select('id, name, year, created_at, clips(id, video_url, thumbnail_url, duration, trim_in, trim_out, cut_in, cut_out, caption_text, caption_x, caption_y, caption_size)')
       .eq('user_id', session.user.id)
 
     if (data) {
@@ -69,8 +73,10 @@ export default function DiscoveryScreen() {
           },
         }))
       )
-      setClips(shuffleArray(all))
+      const shuffled = shuffleArray(all)
+      setClips(shuffled)
       setCurrentIndex(0)
+      preloadRest(shuffled, 0)
     }
     setLoading(false)
   }, [session, isRemix])
@@ -86,32 +92,36 @@ export default function DiscoveryScreen() {
   useEffect(() => {
     const prev = prevVideoRef.current
     if (!prev || !prevClip) return
-    prev.src = prevClip.video_url
+    prev.src = getBlob(prevClip.video_url)
     prev.load()
+    preloadClip(prevClip.video_url)
   }, [prevClip])
 
   useEffect(() => {
     const next = nextVideoRef.current
     if (!next || !nextClip) return
-    next.src = nextClip.video_url
+    next.src = getBlob(nextClip.video_url)
     next.load()
+    preloadClip(nextClip.video_url)
   }, [nextClip])
 
   useEffect(() => {
     const next2 = next2VideoRef.current
     if (!next2 || !next2Clip) return
-    next2.src = next2Clip.video_url
+    next2.src = getBlob(next2Clip.video_url)
     next2.load()
+    preloadClip(next2Clip.video_url)
   }, [next2Clip])
 
   // Load + autoplay when clip changes
   useEffect(() => {
     const video = videoRef.current
     if (!video || !currentClip) return
+    setVideoLoading(true)
     setDragOffset(0)
     dragOffsetRef.current = 0
     setDragTransitioning(false)
-    video.src = currentClip.video_url
+    video.src = getBlob(currentClip.video_url)
     video.currentTime = currentClip.trim_in || 0
     video.load()
     video.play().catch(() => {})
@@ -120,6 +130,10 @@ export default function DiscoveryScreen() {
   function handleTimeUpdate() {
     const video = videoRef.current
     if (!video || !currentClip) return
+    if (currentClip.cut_in != null && currentClip.cut_out != null &&
+        video.currentTime >= currentClip.cut_in && video.currentTime < currentClip.cut_out) {
+      video.currentTime = currentClip.cut_out
+    }
     const trimOut = currentClip.trim_out ?? currentClip.duration
     if (trimOut && video.currentTime >= trimOut) {
       video.currentTime = currentClip.trim_in || 0
@@ -361,10 +375,21 @@ export default function DiscoveryScreen() {
           ref={videoRef}
           className="absolute inset-0 w-full h-full object-cover"
           onTimeUpdate={handleTimeUpdate}
+          onPlaying={() => setVideoLoading(false)}
+          onCanPlay={() => setVideoLoading(false)}
           playsInline
           preload="auto"
           poster={currentClip?.thumbnail_url || undefined}
         />
+        {/* Thumbnail overlay — masks black flash while first frame decodes */}
+        {videoLoading && (
+          <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 1 }}>
+            {currentClip?.thumbnail_url
+              ? <img src={currentClip.thumbnail_url} className="w-full h-full object-cover" />
+              : null
+            }
+          </div>
+        )}
       </div>
 
       {/* Hidden preload elements */}

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { preloadClip } from '../lib/blobCache'
+import { preloadClip, preloadClips } from '../lib/blobCache'
 
 function shuffleArray(arr) {
   const a = [...arr]
@@ -50,7 +50,7 @@ export default function RemixScreen() {
       // Own scrapbooks + clips
       const { data: ownSbs } = await supabase
         .from('scrapbooks')
-        .select('id, name, year, created_at, clips(id, video_url, thumbnail_url, duration, trim_in, trim_out, caption_text, caption_x, caption_y, caption_size)')
+        .select('id, name, year, created_at, clips(id, video_url, thumbnail_url, duration, trim_in, trim_out, cut_in, cut_out, caption_text, caption_x, caption_y, caption_size)')
         .eq('user_id', session.user.id)
 
       for (const sb of ownSbs || []) {
@@ -78,7 +78,7 @@ export default function RemixScreen() {
         if (sharedRows?.length) {
           const { data: sharedSbs } = await supabase
             .from('scrapbooks')
-            .select('id, name, year, created_at, clips(id, video_url, thumbnail_url, duration, trim_in, trim_out, caption_text, caption_x, caption_y, caption_size)')
+            .select('id, name, year, created_at, clips(id, video_url, thumbnail_url, duration, trim_in, trim_out, cut_in, cut_out, caption_text, caption_x, caption_y, caption_size)')
             .in('id', sharedRows.map(r => r.scrapbook_id))
 
           for (const sb of sharedSbs || []) {
@@ -107,10 +107,13 @@ export default function RemixScreen() {
       // Shuffle and pick N
       const selected = shuffleArray(pool).slice(0, Math.min(clipCount, pool.length))
 
-      // Minimum 3s loading + first clip blob ready
-      const minDelay = new Promise(r => setTimeout(r, 3000))
-      const firstReady = preloadClip(selected[0].video_url)
-      selected.slice(1).forEach(c => preloadClip(c.video_url)) // fire and forget rest
+      // Preload thumbnail images so swipe transitions show immediately
+      selected.forEach(c => { if (c.thumbnail_url) { const img = new Image(); img.src = c.thumbnail_url } })
+
+      // Minimum 4s loading + first 3 clip blobs ready before navigating
+      const minDelay = new Promise(r => setTimeout(r, 4000))
+      const firstReady = preloadClips(selected, 3)
+      selected.slice(3).forEach(c => preloadClip(c.video_url)) // fire and forget rest
       await Promise.all([minDelay, firstReady])
 
       navigate('/discover', { state: { clips: selected, isRemix: true } })

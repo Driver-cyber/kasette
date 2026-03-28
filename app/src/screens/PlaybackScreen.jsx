@@ -248,16 +248,17 @@ export default function PlaybackScreen() {
       return
     }
 
+    // Pause immediately when any touch starts
     const video = videoRef.current
+    if (video && !video.paused) {
+      wasPlayingBeforeHold.current = true
+      video.pause()
+    } else {
+      wasPlayingBeforeHold.current = false
+    }
 
-    // Hold-to-pause (200ms — pauses quickly, but release after hold won't trigger navigation)
-    holdTimerRef.current = setTimeout(() => {
-      if (video && !video.paused) {
-        wasPlayingBeforeHold.current = true
-        holdOccurredRef.current = true
-        video.pause()
-      }
-    }, 200)
+    // Hold timer only for holdOccurredRef (prevents tap navigation after long press)
+    holdTimerRef.current = setTimeout(() => { holdOccurredRef.current = true }, 200)
 
     dragActiveRef.current = true
     dragStartY.current = touch.clientY
@@ -323,14 +324,7 @@ export default function PlaybackScreen() {
       holdTimerRef.current = null
     }
 
-    // Resume if hold-paused
-    const video = videoRef.current
-    if (wasPlayingBeforeHold.current && video && video.paused) {
-      video.play().catch(() => {})
-      wasPlayingBeforeHold.current = false
-      dragActiveRef.current = false
-      return
-    }
+    const wasPaused = wasPlayingBeforeHold.current
     wasPlayingBeforeHold.current = false
 
     if (!dragActiveRef.current) return
@@ -339,6 +333,7 @@ export default function PlaybackScreen() {
     const THRESHOLD = window.innerWidth * 0.3
     const offset = dragOffsetRef.current
 
+    // Committed swipe — new clip plays via useEffect, no manual resume needed
     if (offset > THRESHOLD && currentIndex < clips.length - 1) {
       setDragTransitioning(true)
       setDragOffset(window.innerWidth)
@@ -358,9 +353,11 @@ export default function PlaybackScreen() {
         setDragTransitioning(false)
       }, 300)
     } else {
+      // Spring back (or tap handled by onClick) — resume since no navigation happened
       setDragTransitioning(true)
       dragOffsetRef.current = 0
       setDragOffset(0)
+      if (wasPaused) videoRef.current?.play().catch(() => {})
     }
   }
 

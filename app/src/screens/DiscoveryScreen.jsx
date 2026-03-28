@@ -52,6 +52,7 @@ export default function DiscoveryScreen() {
       setClips(remixClips)
       setCurrentIndex(0)
       preloadRest(remixClips, 0)
+      remixClips.forEach(c => { if (c.thumbnail_url) { const img = new Image(); img.src = c.thumbnail_url } })
       setLoading(false)
       return
     }
@@ -77,6 +78,7 @@ export default function DiscoveryScreen() {
       setClips(shuffled)
       setCurrentIndex(0)
       preloadRest(shuffled, 0)
+      shuffled.forEach(c => { if (c.thumbnail_url) { const img = new Image(); img.src = c.thumbnail_url } })
     }
     setLoading(false)
   }, [session, isRemix])
@@ -192,14 +194,17 @@ export default function DiscoveryScreen() {
       return
     }
 
+    // Pause immediately when any touch starts
     const video = videoRef.current
-    holdTimerRef.current = setTimeout(() => {
-      if (video && !video.paused) {
-        wasPlayingBeforeHold.current = true
-        video.pause()
-        holdActiveRef.current = true
-      }
-    }, 200)
+    if (video && !video.paused) {
+      wasPlayingBeforeHold.current = true
+      video.pause()
+    } else {
+      wasPlayingBeforeHold.current = false
+    }
+
+    // Hold timer only for holdActiveRef (distinguishes long-press from tap in touchEnd)
+    holdTimerRef.current = setTimeout(() => { holdActiveRef.current = true }, 200)
 
     dragActiveRef.current = true
     dragStartX.current = e.touches[0].clientX
@@ -268,15 +273,15 @@ export default function DiscoveryScreen() {
       holdTimerRef.current = null
     }
 
-    // Resume if hold-paused
     const video = videoRef.current
+    const wasPaused = wasPlayingBeforeHold.current
+    wasPlayingBeforeHold.current = false
+
+    // Long press (no swipe) — resume and don't navigate
     if (holdActiveRef.current) {
-      if (wasPlayingBeforeHold.current && video) {
-        video.play().catch(() => {})
-        wasPlayingBeforeHold.current = false
-      }
       holdActiveRef.current = false
       dragActiveRef.current = false
+      if (wasPaused && video) video.play().catch(() => {})
       return
     }
 
@@ -286,15 +291,18 @@ export default function DiscoveryScreen() {
     const THRESHOLD = window.innerWidth * 0.3
     const offset = dragOffsetRef.current
 
-    // Quick tap (barely moved) → side navigation
+    // Quick tap → navigate if not at boundary, otherwise resume
     if (Math.abs(offset) < 8) {
       const touch = e.changedTouches[0]
-      if (touch.clientX < window.innerWidth / 2) goPrev()
+      const goingLeft = touch.clientX < window.innerWidth / 2
+      const willNavigate = goingLeft ? currentIndex > 0 : currentIndex < clips.length - 1
+      if (goingLeft) goPrev()
       else goNext()
+      if (!willNavigate && wasPaused && video) video.play().catch(() => {})
       return
     }
 
-    // Swipe committed
+    // Swipe committed — new clip plays via useEffect, no manual resume needed
     if (offset > THRESHOLD && currentIndex < clips.length - 1) {
       setDragTransitioning(true)
       setDragOffset(window.innerWidth)
@@ -314,10 +322,11 @@ export default function DiscoveryScreen() {
         setDragTransitioning(false)
       }, 280)
     } else {
-      // Spring back
+      // Spring back — resume since no navigation happened
       setDragTransitioning(true)
       dragOffsetRef.current = 0
       setDragOffset(0)
+      if (wasPaused && video) video.play().catch(() => {})
     }
   }
 

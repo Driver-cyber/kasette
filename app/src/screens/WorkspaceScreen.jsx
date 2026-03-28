@@ -886,11 +886,11 @@ export default function WorkspaceScreen() {
                 style={{ color: toolsExpanded ? '#F2A24A' : '#7A3B1E' }}>Tools</span>
             </button>
           </div>
-          {trimMode && (
+          {activeClip && (
             <div className="flex items-center gap-1.5">
-              <span className="text-amber text-[10px] font-bold">{fmt(trimIn)}</span>
+              <span className="text-[10px] font-bold" style={{ color: trimInPct > 0 ? '#F2A24A' : '#7A3B1E' }}>{fmt(trimIn)}</span>
               <span className="text-rust/50 text-[9px]">→</span>
-              <span className="text-amber text-[10px] font-bold">{fmt(trimOut)}</span>
+              <span className="text-[10px] font-bold" style={{ color: trimOutPct < 100 ? '#F2A24A' : '#7A3B1E' }}>{fmt(trimOut)}</span>
               <span className="text-rust/40 text-[9px]">·</span>
               <span className="text-wheat/35 text-[10px]">{fmt(keptDuration)} kept</span>
             </div>
@@ -950,11 +950,6 @@ export default function WorkspaceScreen() {
             {trimOutPct < 100 && (
               <div className="absolute top-0 bottom-0 w-[2px] rounded-full" style={{ left: `${trimOutPct}%`, background: '#F2A24A' }} />
             )}
-          </div>
-          <div className="flex justify-between mt-1">
-            <span className="text-[8px] font-semibold" style={{ color: trimInPct > 0 ? '#F2A24A' : '#7A3B1E' }}>{fmt(trimIn || 0)}</span>
-            <span className="text-rust text-[8px]">{fmt(keptDuration)} kept</span>
-            <span className="text-[8px] font-semibold" style={{ color: trimOutPct < 100 ? '#F2A24A' : '#7A3B1E' }}>{fmt(trimOut)}</span>
           </div>
         </div>
       )}

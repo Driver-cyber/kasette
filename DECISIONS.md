@@ -568,6 +568,16 @@ Three tappable mode toggles: `[TRIM] | [SPLIT] | [TOOLS]`
 
 ---
 
+### [2026-03-28] — Swipe Transition + Pause-on-Swipe Fixes
+
+**Thumbnail preloading:** `<img>` tags rendering during a swipe fire network requests and show blank until loaded. Fixed by eagerly preloading all thumbnail URLs via `new Image()` immediately when the clip list loads — both in DiscoveryScreen (`loadClips`) and in RemixScreen during the "Making it groovy" phase. Browser caches the images so they're instant by first swipe.
+
+**RemixScreen groovy phase extended:** Now waits for 3 video blobs (was 1) + 4s minimum (was 3s) before navigating to Discovery. Gives substantially more cache warmth before the user starts swiping.
+
+**Pause on swipe:** Both DiscoveryScreen and PlaybackScreen now pause immediately on `touchStart` (finger down) instead of waiting 200ms for the hold timer. Hold timer retained only for `holdActiveRef`/`holdOccurredRef` (distinguishes long-press from tap so it doesn't trigger navigation on release). On `touchEnd`: committed swipe → new clip plays via `useEffect`; spring-back or boundary tap → resumes current clip. Removed the early-return pattern in PlaybackScreen's `handleTouchEnd` that was blocking swipe navigation after a pause.
+
+---
+
 ### [2026-03-28] — Split Tool Rebuilt: Single-Clip Middle Cut
 
 **Redesigned from split-into-two-clips to a single-clip cut with 4 trim handles.**

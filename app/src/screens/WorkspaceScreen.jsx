@@ -24,7 +24,7 @@ function fmtClipDate(recordedAt) {
 
 function isEdited(clip) {
   const hasTrim = clip.trim_in > 0 || (clip.trim_out && clip.trim_out < (clip.duration || Infinity))
-  return hasTrim || !!clip.caption_text
+  return hasTrim || clip.cut_in != null || !!clip.caption_text
 }
 
 const STRIP_COLORS = [
@@ -65,7 +65,6 @@ export default function WorkspaceScreen() {
   const [trimMode, setTrimMode] = useState(null) // null | 'trim' | 'split'
   const [undoable, setUndoable] = useState(null) // last undoable action
   const [splitPct, setSplitPct] = useState(50)  // split marker position as % of full duration
-  const [showSplitSoon, setShowSplitSoon] = useState(false)
 
   // Preview swipe navigation
   const previewSwipeStart = useRef(null)
@@ -190,6 +189,11 @@ export default function WorkspaceScreen() {
     if (!video || !activeClip) return
     const duration = activeClip.duration || video.duration || 1
     setPlayheadPct((video.currentTime / duration) * 100)
+    // Skip over cut region
+    if (activeClip.cut_in != null && activeClip.cut_out != null &&
+        video.currentTime >= activeClip.cut_in && video.currentTime < activeClip.cut_out) {
+      video.currentTime = activeClip.cut_out
+    }
     const trimOut = activeClip.trim_out ?? activeClip.duration
     if (trimOut && video.currentTime >= trimOut) {
       video.pause()
@@ -197,53 +201,61 @@ export default function WorkspaceScreen() {
     }
   }
 
-  // ── Trim handles ───────────────────────────────────────────────────────
+  // ── Trim handles (handles trim_in, trim_out, cut_in, cut_out) ──────────
   function startTrimDrag(handle, e) {
     e.preventDefault()
     e.stopPropagation()
     const strip = filmstripRef.current
     if (!strip || !activeClip) return
-    
-    // Activate handles when drag starts
+
     setTrimHandlesActive(true)
-    
+
     const rect = strip.getBoundingClientRect()
-    const duration = activeClip.duration || 1
+    const dur = activeClip.duration || 1
     const initialTrimIn = activeClip.trim_in || 0
-    const initialTrimOut = activeClip.trim_out ?? duration
+    const initialTrimOut = activeClip.trim_out ?? dur
+    const initialCutIn = activeClip.cut_in ?? null
+    const initialCutOut = activeClip.cut_out ?? null
     let currentTrimIn = initialTrimIn
     let currentTrimOut = initialTrimOut
-    
-    // Track initial position to prevent swipe-back
+    let currentCutIn = initialCutIn
+    let currentCutOut = initialCutOut
+
     const startX = e.touches ? e.touches[0].clientX : e.clientX
     const startY = e.touches ? e.touches[0].clientY : e.clientY
 
     function onMove(ev) {
       const clientX = ev.touches ? ev.touches[0].clientX : ev.clientX
-      
-      // Prevent horizontal swipe gestures (iOS swipe-back)
       if (ev.touches) {
         const dx = Math.abs(clientX - startX)
-        const dy = Math.abs((ev.touches[0].clientY) - startY)
-        // Block swipe-back if mostly horizontal movement
-        if (dx > dy && dx > 10) {
-          ev.preventDefault()
-        }
+        const dy = Math.abs(ev.touches[0].clientY - startY)
+        if (dx > dy && dx > 10) ev.preventDefault()
       }
-      
       const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
-      const time = pct * duration
+      const time = pct * dur
       const video = videoRef.current
       if (handle === 'in') {
         const newIn = Math.min(time, currentTrimOut - 0.5)
         currentTrimIn = newIn
         updateClipLocal(activeClip.id, { trim_in: newIn })
         if (video) video.currentTime = newIn
-      } else {
+      } else if (handle === 'out') {
         const newOut = Math.max(time, currentTrimIn + 0.5)
         currentTrimOut = newOut
         updateClipLocal(activeClip.id, { trim_out: newOut })
         if (video) video.currentTime = newOut
+      } else if (handle === 'cut_in') {
+        const maxCutIn = currentCutOut != null ? currentCutOut - 0.1 : currentTrimOut - 0.1
+        const newCutIn = Math.max(currentTrimIn + 0.1, Math.min(time, maxCutIn))
+        currentCutIn = newCutIn
+        updateClipLocal(activeClip.id, { cut_in: newCutIn })
+        if (video) video.currentTime = newCutIn
+      } else if (handle === 'cut_out') {
+        const minCutOut = currentCutIn != null ? currentCutIn + 0.1 : currentTrimIn + 0.1
+        const newCutOut = Math.max(minCutOut, Math.min(time, currentTrimOut - 0.1))
+        currentCutOut = newCutOut
+        updateClipLocal(activeClip.id, { cut_out: newCutOut })
+        if (video) video.currentTime = newCutOut
       }
     }
 
@@ -252,14 +264,16 @@ export default function WorkspaceScreen() {
       document.removeEventListener('touchend', onEnd)
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onEnd)
-      
-      // Keep handles visible for 2 seconds after release
+
       setTimeout(() => setTrimHandlesActive(false), 2000)
 
-      setUndoable({ type: 'clip', clipId: activeClip.id, prev: { trim_in: initialTrimIn, trim_out: initialTrimOut } })
-      await supabase.from('clips')
-        .update({ trim_in: currentTrimIn, trim_out: currentTrimOut })
-        .eq('id', activeClip.id)
+      if (handle === 'in' || handle === 'out') {
+        setUndoable({ type: 'clip', clipId: activeClip.id, prev: { trim_in: initialTrimIn, trim_out: initialTrimOut } })
+        await supabase.from('clips').update({ trim_in: currentTrimIn, trim_out: currentTrimOut }).eq('id', activeClip.id)
+      } else {
+        setUndoable({ type: 'clip', clipId: activeClip.id, prev: { cut_in: initialCutIn, cut_out: initialCutOut } })
+        await supabase.from('clips').update({ cut_in: currentCutIn, cut_out: currentCutOut }).eq('id', activeClip.id)
+      }
     }
 
     document.addEventListener('touchmove', onMove, { passive: false })
@@ -312,51 +326,13 @@ export default function WorkspaceScreen() {
     document.addEventListener('mouseup', onEnd)
   }
 
-  // ── Execute split: current clip → two clips at splitPct ─────────────────
-  async function executeSplit() {
+  // ── Confirm split point: sets cut_in + cut_out on current clip, opens trim mode ──
+  async function confirmSplitPoint() {
     if (!activeClip || !duration) return
     const splitTime = (splitPct / 100) * duration
-    const activeIndex = clips.findIndex(c => c.id === activeClipId)
-    const newId = crypto.randomUUID()
-
-    const newClip = {
-      id: newId,
-      scrapbook_id: activeClip.scrapbook_id,
-      storage_path: activeClip.storage_path,
-      video_url: activeClip.video_url,
-      thumbnail_url: activeClip.thumbnail_url,
-      order: activeClip.order + 1,
-      duration: activeClip.duration,
-      trim_in: splitTime,
-      trim_out: activeClip.trim_out ?? activeClip.duration,
-      recorded_at: activeClip.recorded_at,
-      caption_text: null,
-      caption_x: null,
-      caption_y: null,
-      caption_size: null,
-      muted: activeClip.muted || false,
-    }
-
-    // Shift orders of all subsequent clips
-    const shifted = clips.map((c, i) => i > activeIndex ? { ...c, order: c.order + 1 } : c)
-    const updated = shifted.map(c => c.id === activeClipId ? { ...c, trim_out: splitTime } : c)
-    const next = [...updated.slice(0, activeIndex + 1), newClip, ...updated.slice(activeIndex + 1)]
-    setClips(next)
-    setTrimMode(null)
-    setUndoable({
-      type: 'split',
-      originalClipId: activeClip.id,
-      prevTrimOut: activeClip.trim_out ?? activeClip.duration,
-      newClipId: newId,
-      shiftedClips: clips.slice(activeIndex + 1).map(c => ({ id: c.id, order: c.order })),
-    })
-
-    // Shift existing clips first to avoid order conflicts, then insert new clip
-    for (let i = activeIndex + 1; i < clips.length; i++) {
-      await supabase.from('clips').update({ order: clips[i].order + 1 }).eq('id', clips[i].id)
-    }
-    await supabase.from('clips').update({ trim_out: splitTime }).eq('id', activeClip.id)
-    await supabase.from('clips').insert(newClip)
+    setUndoable({ type: 'clip', clipId: activeClip.id, prev: { cut_in: activeClip.cut_in ?? null, cut_out: activeClip.cut_out ?? null } })
+    await saveClipChanges(activeClip.id, { cut_in: splitTime, cut_out: splitTime })
+    setTrimMode('trim')
   }
 
   // ── Preview swipe to navigate clips ─────────────────────────────────────
@@ -459,20 +435,6 @@ export default function WorkspaceScreen() {
         videoRef.current.currentTime = op.prev.trim_in || 0
       }
       await supabase.from('clips').update(op.prev).eq('id', op.clipId)
-    } else if (op.type === 'split') {
-      setClips(prev => {
-        let next = prev.filter(c => c.id !== op.newClipId)
-        return next.map(c => {
-          if (c.id === op.originalClipId) return { ...c, trim_out: op.prevTrimOut }
-          const shifted = op.shiftedClips.find(s => s.id === c.id)
-          return shifted ? { ...c, order: shifted.order } : c
-        })
-      })
-      await supabase.from('clips').delete().eq('id', op.newClipId)
-      await supabase.from('clips').update({ trim_out: op.prevTrimOut }).eq('id', op.originalClipId)
-      for (const { id, order } of op.shiftedClips) {
-        await supabase.from('clips').update({ order }).eq('id', id)
-      }
     }
   }
 
@@ -675,7 +637,11 @@ export default function WorkspaceScreen() {
   const duration = activeClip?.duration ?? 0
   const trimInPct = duration > 0 ? (trimIn / duration) * 100 : 0
   const trimOutPct = duration > 0 ? (trimOut / duration) * 100 : 100
-  const keptDuration = Math.max(0, trimOut - trimIn)
+  const cutIn = activeClip?.cut_in ?? null
+  const cutOut = activeClip?.cut_out ?? null
+  const cutInPct = cutIn != null && duration > 0 ? (cutIn / duration) * 100 : null
+  const cutOutPct = cutOut != null && duration > 0 ? (cutOut / duration) * 100 : null
+  const keptDuration = Math.max(0, trimOut - trimIn) - (cutIn != null && cutOut != null ? Math.max(0, cutOut - cutIn) : 0)
   const editedCount = clips.filter(isEdited).length
   const isCaption = activeTool === 'caption'
 
@@ -854,12 +820,16 @@ export default function WorkspaceScreen() {
             </button>
             <div className="w-px h-3 bg-walnut-light mx-0.5" />
             <button
-              onClick={() => { setShowSplitSoon(true); setTimeout(() => setShowSplitSoon(false), 2500) }}
+              onClick={() => setTrimMode(m => m === 'split' ? null : 'split')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg active:opacity-70 transition-all"
-              style={{ background: 'transparent', border: '1px solid transparent' }}
+              style={{
+                background: trimMode === 'split' ? 'rgba(232,133,90,0.15)' : 'transparent',
+                border: trimMode === 'split' ? '1px solid rgba(232,133,90,0.3)' : '1px solid transparent',
+              }}
             >
-              <Scissors size={10} style={{ color: '#7A3B1E' }} />
-              <span className="text-[10px] font-bold tracking-[0.14em] uppercase" style={{ color: '#7A3B1E' }}>Split</span>
+              <Scissors size={10} style={{ color: trimMode === 'split' ? '#E8855A' : '#7A3B1E' }} />
+              <span className="text-[10px] font-bold tracking-[0.14em] uppercase"
+                style={{ color: trimMode === 'split' ? '#E8855A' : '#7A3B1E' }}>Split</span>
             </button>
             <div className="w-px h-3 bg-walnut-light mx-0.5" />
             <button
@@ -906,6 +876,11 @@ export default function WorkspaceScreen() {
                 className="absolute top-0 bottom-0 rounded-full"
                 style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%`, background: 'rgba(242,162,74,0.45)' }}
               />
+              {/* Cut region stripe */}
+              {cutInPct != null && cutOutPct != null && (
+                <div className="absolute top-0 bottom-0"
+                  style={{ left: `${cutInPct}%`, width: `${cutOutPct - cutInPct}%`, background: 'rgba(0,0,0,0.5)' }} />
+              )}
               {/* Trimmed-out right */}
               {trimOutPct < 100 && (
                 <div className="absolute right-0 top-0 bottom-0" style={{ width: `${100 - trimOutPct}%`, background: '#2C1A0E' }} />
@@ -950,6 +925,11 @@ export default function WorkspaceScreen() {
                   style={{ width: `${trimInPct}%`, background: 'rgba(0,0,0,0.62)' }} />
                 <div className="absolute top-0 right-0 bottom-0 rounded-r-lg"
                   style={{ width: `${100 - trimOutPct}%`, background: 'rgba(0,0,0,0.62)' }} />
+                {/* Cut region overlay */}
+                {cutInPct != null && cutOutPct != null && (
+                  <div className="absolute top-0 bottom-0 pointer-events-none"
+                    style={{ left: `${cutInPct}%`, width: `${cutOutPct - cutInPct}%`, background: 'rgba(0,0,0,0.55)' }} />
+                )}
                 <div className="absolute top-0 h-[3px] bg-amber"
                   style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%` }} />
                 <div className="absolute bottom-0 h-[3px] bg-amber"
@@ -1000,6 +980,37 @@ export default function WorkspaceScreen() {
                       <div className="w-1 h-1 bg-walnut rounded-full" />
                     </div>
                   </div>
+                  {/* Cut handles — only shown when cut_in/cut_out are set */}
+                  {cutInPct != null && (
+                    <div
+                      className="absolute top-0 bottom-0 cursor-ew-resize touch-none z-20"
+                      style={{ left: `${cutInPct}%`, width: 52, marginLeft: -26 }}
+                      onTouchStart={(e) => startTrimDrag('cut_in', e)}
+                      onMouseDown={(e) => startTrimDrag('cut_in', e)}
+                    >
+                      <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-[5px] rounded-full"
+                        style={{ background: '#E8855A', boxShadow: '0 0 8px rgba(232,133,90,0.8)' }} />
+                      <div className="absolute left-1/2 -translate-x-1/2 -top-5 px-1.5 py-0.5 rounded-full text-[8px] font-bold text-walnut whitespace-nowrap"
+                        style={{ background: '#E8855A' }}>
+                        {fmt(cutIn)}
+                      </div>
+                    </div>
+                  )}
+                  {cutOutPct != null && (
+                    <div
+                      className="absolute top-0 bottom-0 cursor-ew-resize touch-none z-20"
+                      style={{ left: `${cutOutPct}%`, width: 52, marginLeft: -26 }}
+                      onTouchStart={(e) => startTrimDrag('cut_out', e)}
+                      onMouseDown={(e) => startTrimDrag('cut_out', e)}
+                    >
+                      <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-[5px] rounded-full"
+                        style={{ background: '#E8855A', boxShadow: '0 0 8px rgba(232,133,90,0.8)' }} />
+                      <div className="absolute left-1/2 -translate-x-1/2 -top-5 px-1.5 py-0.5 rounded-full text-[8px] font-bold text-walnut whitespace-nowrap"
+                        style={{ background: '#E8855A' }}>
+                        {fmt(cutOut)}
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -1033,12 +1044,12 @@ export default function WorkspaceScreen() {
           {/* Split confirm button */}
           {trimMode === 'split' && (
             <button
-              onClick={executeSplit}
+              onClick={confirmSplitPoint}
               className="mt-2.5 w-full py-2.5 rounded-xl font-sans font-bold text-[13px] active:opacity-80 flex items-center justify-center gap-2"
               style={{ background: 'rgba(232,133,90,0.15)', border: '1px solid rgba(232,133,90,0.3)', color: '#E8855A' }}
             >
               <Scissors size={13} />
-              Cut here · {fmt((splitPct / 100) * duration)}
+              Set cut point · {fmt((splitPct / 100) * duration)}
             </button>
           )}
         </div>
@@ -1098,7 +1109,7 @@ export default function WorkspaceScreen() {
           <div className="flex gap-2 px-4 pt-3 pb-1">
             {clips.map((clip, i) => {
               const active = clip.id === activeClipId
-              const hasTrim = (clip.trim_in > 0) || (clip.trim_out && clip.trim_out < (clip.duration || Infinity))
+              const hasTrim = (clip.trim_in > 0) || (clip.trim_out && clip.trim_out < (clip.duration || Infinity)) || clip.cut_in != null
               const clipKept = (clip.trim_out ?? clip.duration) - (clip.trim_in || 0)
               return (
                 <button
@@ -1340,14 +1351,6 @@ export default function WorkspaceScreen() {
             </button>
           </div>
         </>
-      )}
-      {/* ── Split coming soon toast ── */}
-      {showSplitSoon && (
-        <div className="absolute bottom-32 left-0 right-0 flex justify-center z-50 pointer-events-none px-6">
-          <div className="px-4 py-2.5 rounded-2xl" style={{ background: '#3D2410', border: '1px solid #4A2E18' }}>
-            <p className="text-wheat text-[13px] font-semibold font-sans">Split is coming soon ✂️</p>
-          </div>
-        </div>
       )}
     </div>
   )

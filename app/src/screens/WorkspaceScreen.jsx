@@ -65,6 +65,7 @@ export default function WorkspaceScreen() {
   const [trimMode, setTrimMode] = useState(null) // null | 'trim' | 'split'
   const [undoable, setUndoable] = useState(null) // last undoable action
   const [splitPct, setSplitPct] = useState(50)  // split marker position as % of full duration
+  const [showSplitSoon, setShowSplitSoon] = useState(false)
 
   // Preview swipe navigation
   const previewSwipeStart = useRef(null)
@@ -853,16 +854,12 @@ export default function WorkspaceScreen() {
             </button>
             <div className="w-px h-3 bg-walnut-light mx-0.5" />
             <button
-              onClick={() => setTrimMode(m => m === 'split' ? null : 'split')}
+              onClick={() => { setShowSplitSoon(true); setTimeout(() => setShowSplitSoon(false), 2500) }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg active:opacity-70 transition-all"
-              style={{
-                background: trimMode === 'split' ? 'rgba(232,133,90,0.15)' : 'transparent',
-                border: trimMode === 'split' ? '1px solid rgba(232,133,90,0.3)' : '1px solid transparent',
-              }}
+              style={{ background: 'transparent', border: '1px solid transparent' }}
             >
-              <Scissors size={10} style={{ color: trimMode === 'split' ? '#E8855A' : '#7A3B1E' }} />
-              <span className="text-[10px] font-bold tracking-[0.14em] uppercase"
-                style={{ color: trimMode === 'split' ? '#E8855A' : '#7A3B1E' }}>Split</span>
+              <Scissors size={10} style={{ color: '#7A3B1E' }} />
+              <span className="text-[10px] font-bold tracking-[0.14em] uppercase" style={{ color: '#7A3B1E' }}>Split</span>
             </button>
             <div className="w-px h-3 bg-walnut-light mx-0.5" />
             <button
@@ -1343,6 +1340,14 @@ export default function WorkspaceScreen() {
             </button>
           </div>
         </>
+      )}
+      {/* ── Split coming soon toast ── */}
+      {showSplitSoon && (
+        <div className="absolute bottom-32 left-0 right-0 flex justify-center z-50 pointer-events-none px-6">
+          <div className="px-4 py-2.5 rounded-2xl" style={{ background: '#3D2410', border: '1px solid #4A2E18' }}>
+            <p className="text-wheat text-[13px] font-semibold font-sans">Split is coming soon ✂️</p>
+          </div>
+        </div>
       )}
     </div>
   )

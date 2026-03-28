@@ -4,7 +4,7 @@ import { ArrowLeft, Play, Pause, MoreHorizontal, Edit, Download, Share2 } from '
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { exportScrapbook } from '../lib/export'
-import { getBlob, preloadClip } from '../lib/blobCache'
+import { getBlob, preloadClip, preloadRest } from '../lib/blobCache'
 import { getCached, cacheScrapbook } from '../lib/dataCache'
 
 function formatTime(secs) {
@@ -62,6 +62,7 @@ export default function PlaybackScreen() {
       setScrapbook(cached.scrapbook)
       setClips(cached.clips)
       setLoading(false)
+      preloadRest(cached.clips, 0)
     }
 
     Promise.all([
@@ -69,7 +70,7 @@ export default function PlaybackScreen() {
       supabase.from('clips').select('id, video_url, thumbnail_url, duration, trim_in, trim_out, cut_in, cut_out, caption_text, caption_x, caption_y, caption_size, order').eq('scrapbook_id', id).order('order', { ascending: true }),
     ]).then(([{ data: sb }, { data: cl }]) => {
       if (sb) { setScrapbook(sb); cacheScrapbook(id, sb, cl || []) }
-      if (cl) setClips(cl)
+      if (cl) { setClips(cl); preloadRest(cl, 0) }
       if (!cached) setLoading(false)
     })
   }, [id])
@@ -107,11 +108,13 @@ export default function PlaybackScreen() {
     const video = videoRef.current
     if (!video || !currentClip) return
     setProgress(0)
-    setVideoLoading(true)
     setDragOffset(0)
     dragOffsetRef.current = 0
     setDragTransitioning(false)
-    video.src = getBlob(currentClip.video_url)
+    const blobUrl = getBlob(currentClip.video_url)
+    // Only show loading overlay if we don't have a cached blob
+    setVideoLoading(!blobUrl.startsWith('blob:'))
+    video.src = blobUrl
     video.currentTime = currentClip.trim_in || 0
     video.load()
     video.play().catch(() => {})
@@ -440,9 +443,8 @@ export default function PlaybackScreen() {
             onEnded={() => goToClip(currentIndex + 1)}
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
-            onLoadStart={() => setVideoLoading(true)}
+            onPlaying={() => setVideoLoading(false)}
             onCanPlay={() => setVideoLoading(false)}
-            onWaiting={() => setVideoLoading(true)}
             playsInline
             preload="auto"
             poster={currentClip?.thumbnail_url || undefined}

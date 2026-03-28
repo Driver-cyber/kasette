@@ -136,8 +136,7 @@ export default function DiscoveryScreen() {
     }
     const trimOut = currentClip.trim_out ?? currentClip.duration
     if (trimOut && video.currentTime >= trimOut) {
-      video.currentTime = currentClip.trim_in || 0
-      video.play().catch(() => {})
+      goNext()
     }
   }
 
@@ -359,7 +358,20 @@ export default function DiscoveryScreen() {
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Sliding container — prev, current, next panels move together */}
+      {/* Prev clip thumbnail — sibling of current, tracks drag from the left */}
+      {prevClip?.thumbnail_url && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            transform: `translateX(calc(-100% - ${dragOffset}px))`,
+            transition: dragTransitioning ? 'transform 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none',
+          }}
+        >
+          <img src={prevClip.thumbnail_url} className="w-full h-full object-cover" />
+        </div>
+      )}
+
+      {/* Current clip sliding container */}
       <div
         className="absolute inset-0"
         style={{
@@ -371,16 +383,6 @@ export default function DiscoveryScreen() {
         }}
         onTransitionEnd={() => setDragTransitioning(false)}
       >
-        {/* Prev clip thumbnail — sits at -100% so it slides in from left */}
-        {prevClip && (
-          <div className="absolute inset-0" style={{ transform: 'translateX(-100%)' }}>
-            {prevClip.thumbnail_url && (
-              <img src={prevClip.thumbnail_url} className="w-full h-full object-cover" />
-            )}
-          </div>
-        )}
-
-        {/* Current clip */}
         <video
           ref={videoRef}
           className="absolute inset-0 w-full h-full object-cover"
@@ -397,16 +399,20 @@ export default function DiscoveryScreen() {
             <img src={currentClip.thumbnail_url} className="w-full h-full object-cover" />
           </div>
         )}
-
-        {/* Next clip thumbnail — sits at +100% so it slides in from right */}
-        {nextClip && (
-          <div className="absolute inset-0" style={{ transform: 'translateX(100%)' }}>
-            {nextClip.thumbnail_url && (
-              <img src={nextClip.thumbnail_url} className="w-full h-full object-cover" />
-            )}
-          </div>
-        )}
       </div>
+
+      {/* Next clip thumbnail — sibling of current, tracks drag from the right */}
+      {nextClip?.thumbnail_url && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            transform: `translateX(calc(100% - ${dragOffset}px))`,
+            transition: dragTransitioning ? 'transform 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none',
+          }}
+        >
+          <img src={nextClip.thumbnail_url} className="w-full h-full object-cover" />
+        </div>
+      )}
 
       {/* Hidden preload elements */}
       <video ref={prevVideoRef} className="hidden" playsInline preload="auto" muted />

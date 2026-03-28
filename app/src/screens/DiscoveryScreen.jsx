@@ -75,6 +75,8 @@ export default function DiscoveryScreen() {
     setLoading(false)
   }, [session, isRemix])
 
+  useEffect(() => { loadClips() }, [loadClips])
+
   const currentClip = clips[currentIndex]
   const prevClip = clips[currentIndex - 1] ?? null
   const nextClip = clips[currentIndex + 1] ?? null

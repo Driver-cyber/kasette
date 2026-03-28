@@ -335,6 +335,47 @@ export default function WorkspaceScreen() {
     setTrimMode('trim')
   }
 
+  // ── Mini timeline scrub ─────────────────────────────────────────────────
+  function startMiniScrub(e) {
+    e.preventDefault()
+    const track = filmstripRef.current
+    const video = videoRef.current
+    if (!track || !video || !activeClip) return
+
+    function seek(ev) {
+      const clientX = ev.touches ? ev.touches[0].clientX : ev.clientX
+      const rect = track.getBoundingClientRect()
+      const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+      video.currentTime = pct * (activeClip.duration || 1)
+      setPlayheadPct(pct * 100)
+    }
+
+    seek(e)
+
+    function onMove(ev) {
+      if (ev.touches) ev.preventDefault()
+      seek(ev)
+    }
+    function onEnd() {
+      document.removeEventListener('touchmove', onMove)
+      document.removeEventListener('touchend', onEnd)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onEnd)
+    }
+    document.addEventListener('touchmove', onMove, { passive: false })
+    document.addEventListener('touchend', onEnd)
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onEnd)
+  }
+
+  // ── Remove split ────────────────────────────────────────────────────────
+  async function removeSplit() {
+    if (!activeClip) return
+    setUndoable({ type: 'clip', clipId: activeClip.id, prev: { cut_in: activeClip.cut_in, cut_out: activeClip.cut_out } })
+    await saveClipChanges(activeClip.id, { cut_in: null, cut_out: null })
+    setTrimMode(null)
+  }
+
   // ── Preview swipe to navigate clips ─────────────────────────────────────
   function handlePreviewTouchStart(e) {
     previewSwipeStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
@@ -860,7 +901,12 @@ export default function WorkspaceScreen() {
       {/* ── Mini clip timeline — visible when no trim/split mode ── */}
       {!reorderMode && !isCaption && !trimMode && activeClip && (
         <div className="px-4 pt-2.5 pb-2 border-b border-walnut-light flex-shrink-0">
-          <div className="relative" style={{ height: 28 }}>
+          <div
+            className="relative touch-none"
+            style={{ height: 28 }}
+            onTouchStart={startMiniScrub}
+            onMouseDown={startMiniScrub}
+          >
             {/* Track */}
             <div
               ref={filmstripRef}
@@ -885,12 +931,17 @@ export default function WorkspaceScreen() {
               {trimOutPct < 100 && (
                 <div className="absolute right-0 top-0 bottom-0" style={{ width: `${100 - trimOutPct}%`, background: '#2C1A0E' }} />
               )}
-              {/* Playhead */}
+              {/* Playhead line */}
               <div
                 className="absolute top-0 bottom-0 w-[2px]"
                 style={{ left: `${playheadPct}%`, background: 'rgba(255,255,255,0.75)' }}
               />
             </div>
+            {/* Playhead dot — marks drag target */}
+            <div
+              className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full pointer-events-none"
+              style={{ left: `${playheadPct}%`, marginLeft: -6, background: 'rgba(255,255,255,0.9)', boxShadow: '0 0 4px rgba(0,0,0,0.4)', zIndex: 10 }}
+            />
             {/* Trim in marker */}
             {trimInPct > 0 && (
               <div className="absolute top-0 bottom-0 w-[2px] rounded-full" style={{ left: `${trimInPct}%`, background: '#F2A24A' }} />
@@ -936,8 +987,8 @@ export default function WorkspaceScreen() {
                   style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%` }} />
                 <div className="absolute top-0 bottom-0 w-px bg-white/60 pointer-events-none"
                   style={{ left: `${playheadPct}%` }} />
-                {/* Split excluded zone overlay */}
-                {trimMode === 'split' && (
+                {/* Split excluded zone overlay — only when no cut exists yet */}
+                {trimMode === 'split' && cutIn == null && (
                   <div className="absolute top-0 bottom-0 pointer-events-none"
                     style={{
                       left: `${splitPct}%`,
@@ -1014,8 +1065,8 @@ export default function WorkspaceScreen() {
                 </>
               )}
 
-              {/* Split marker */}
-              {trimMode === 'split' && (
+              {/* Split marker — only when no cut exists yet */}
+              {trimMode === 'split' && cutIn == null && (
                 <div
                   className="absolute top-0 bottom-0 cursor-ew-resize touch-none z-10"
                   style={{ left: `${splitPct}%`, width: 52, marginLeft: -26 }}
@@ -1041,16 +1092,27 @@ export default function WorkspaceScreen() {
             </div>
           </div>
 
-          {/* Split confirm button */}
+          {/* Split confirm or remove */}
           {trimMode === 'split' && (
-            <button
-              onClick={confirmSplitPoint}
-              className="mt-2.5 w-full py-2.5 rounded-xl font-sans font-bold text-[13px] active:opacity-80 flex items-center justify-center gap-2"
-              style={{ background: 'rgba(232,133,90,0.15)', border: '1px solid rgba(232,133,90,0.3)', color: '#E8855A' }}
-            >
-              <Scissors size={13} />
-              Set cut point · {fmt((splitPct / 100) * duration)}
-            </button>
+            cutIn != null ? (
+              <button
+                onClick={removeSplit}
+                className="mt-2.5 w-full py-2.5 rounded-xl font-sans font-bold text-[13px] active:opacity-80 flex items-center justify-center gap-2"
+                style={{ background: 'rgba(232,133,90,0.1)', border: '1px solid rgba(232,133,90,0.3)', color: '#E8855A' }}
+              >
+                <Scissors size={13} />
+                Remove split
+              </button>
+            ) : (
+              <button
+                onClick={confirmSplitPoint}
+                className="mt-2.5 w-full py-2.5 rounded-xl font-sans font-bold text-[13px] active:opacity-80 flex items-center justify-center gap-2"
+                style={{ background: 'rgba(232,133,90,0.15)', border: '1px solid rgba(232,133,90,0.3)', color: '#E8855A' }}
+              >
+                <Scissors size={13} />
+                Set cut point · {fmt((splitPct / 100) * duration)}
+              </button>
+            )
           )}
         </div>
       )}

@@ -568,6 +568,46 @@ Three tappable mode toggles: `[TRIM] | [SPLIT] | [TOOLS]`
 
 ---
 
+### [2026-03-28] — Split Tool Rebuilt: Single-Clip Middle Cut
+
+**Redesigned from split-into-two-clips to a single-clip cut with 4 trim handles.**
+
+**Why:** Creating two separate clip records sharing a video URL was fragile (order constraints, undo complexity). Chad wanted to remove a middle section from a clip without adding a new record.
+
+**New data model:** Two new nullable float columns on `clips`: `cut_in` and `cut_out`. When set, playback skips from `cut_in` to `cut_out`.
+
+**UX flow:**
+1. SPLIT button → single sienna marker (same as before), drag to position
+2. "Set cut point" confirm → saves `cut_in = cut_out = splitTime`, transitions to TRIM mode
+3. TRIM mode shows 4 independent handles: amber trim_in/trim_out (outer edges) + sienna cut_in/cut_out (inner pair, start stacked — drag apart to widen the cut)
+4. Cut region shown as dark overlay in both filmstrip and mini timeline
+5. SPLIT button when cut already exists → shows "Remove split" button only (no marker)
+6. Undo supported via existing 'clip' snapshot type
+
+**Playback:** `handleTimeUpdate` in WorkspaceScreen and PlaybackScreen skips from `cut_in` to `cut_out`. DiscoveryScreen also handles it.
+
+---
+
+### [2026-03-28] — Workspace Mini Timeline: Scrub Bar
+
+Mini timeline (no-tool mode) is now a draggable scrub bar. The white playhead is a visible 12px dot. Drag anywhere on the track to jump to that point in the clip — no need to replay from start to review a trim.
+
+---
+
+### [2026-03-28] — Discovery/Remix Playback Improvements
+
+**Blob cache:** DiscoveryScreen was not using `getBlob()` at all — all video src was raw URLs. Fixed: `getBlob()` for active clip, `preloadClip()` for adjacent, `preloadRest()` on playlist load (both Remix and Discovery modes).
+
+**Thumbnail overlay:** Same `videoLoading` + thumbnail `<img>` overlay pattern as PlaybackScreen — masks black flash on clip transition.
+
+**Swipe transition:** Prev/next clip thumbnails rendered as siblings of the sliding video container (not children). Each tracks `dragOffset` with matching `translateX` math so they slide in from the sides during drag. Children-inside approach caused overflow clipping.
+
+**Auto-advance:** `handleTimeUpdate` now calls `goNext()` when clip ends instead of looping. Remix plays through all clips in sequence.
+
+**cut_in/cut_out:** DiscoveryScreen SELECT includes new columns; `handleTimeUpdate` skips cut region.
+
+---
+
 ### [2026-03-27] — The Remix ✅ Complete
 
 **New feature:** A random cut from the user's library (and optionally shared scrapbooks).

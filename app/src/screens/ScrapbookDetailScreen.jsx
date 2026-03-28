@@ -76,7 +76,7 @@ export default function ScrapbookDetailScreen() {
     Promise.all([
       supabase.from('scrapbooks').select('*').eq('id', id).single(),
       supabase.from('clips')
-        .select('id, video_url, thumbnail_url, duration, trim_in, trim_out, caption_text, caption_x, caption_y, caption_size, order, recorded_at, muted')
+        .select('id, video_url, thumbnail_url, duration, trim_in, trim_out, caption_text, caption_x, caption_y, caption_size, order, recorded_at')
         .eq('scrapbook_id', id)
         .order('order', { ascending: true }),
     ]).then(([{ data: sb }, { data: cl }]) => {

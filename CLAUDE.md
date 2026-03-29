@@ -161,6 +161,7 @@ The upload, preview, and cull flow. Creates a new Scrapbook.
 - Cassette reel spinning animation (same SVG as RemixScreen's "Making it groovy" screen)
 - Smooth lerping progress bar: `setInterval` every 80ms, `smoothPct += (target - smoothPct) * 0.05`
 - Remuxing phase = 0–40%, uploading phase = 40–95%; no stall-then-jump
+- **Cancel button** (X, top-right `absolute top-14 right-5`): sets `cancelledRef`, releases wake lock, navigates back. Loop checks `cancelledRef` at each iteration start.
 
 ### 3. Scrapbook Detail Screen
 Hub screen when you tap a scrapbook from Home. Shows cover, title, clip count, duration with three action buttons: Watch, Edit, Share.
@@ -222,6 +223,7 @@ The mixing studio. Accessible from the shuffle icon on HomeScreen.
 - "Make My Remix" CTA → cassette reel loading animation ("Making it groovy...") + 3s minimum
 - Fetches own clips + optionally shared clips, shuffles, picks N, preloads first blob
 - Navigates to DiscoveryScreen with `{ state: { clips, isRemix: true } }`
+- **Cancel button** (X, top-right) on loading screen: returns to studio, `cancelledRef` prevents navigate if already cancelled
 
 DiscoveryScreen detects remix mode: skips its own fetch, shows "The Remix" pill in header, back → `/remix`, top-right → Disc3 icon back to remix studio.
 

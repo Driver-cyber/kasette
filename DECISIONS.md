@@ -568,6 +568,23 @@ Three tappable mode toggles: `[TRIM] | [SPLIT] | [TOOLS]`
 
 ---
 
+### [2026-03-29] — Cancel Button on Loading / Processing Screens
+
+**Pattern:** All loading/processing overlay screens now have an X button (top-right, `absolute top-14 right-5`) that lets the user bail out without waiting.
+
+**IntakeScreen upload overlay:**
+- `cancelledRef` (useRef) is set to `true` on cancel; checked at the start of each remux and upload loop iteration
+- `handleCancel()` sets the ref, releases the wake lock, hides the overlay (`setUploading(false)`), and navigates back (`/scrapbook/:id/edit` if adding to existing scrapbook, `/` otherwise)
+- Prevents orphaned loop iterations from firing navigate or state updates after cancellation
+
+**RemixScreen "Making it groovy" screen:**
+- Cancel button sets `cancelledRef.current = true` and `setPhase('studio')` — returns to the studio screen, no navigation
+- After the `await Promise.all([minDelay, firstReady])` resolves, a `cancelledRef` check prevents the `navigate('/discover')` from firing if user already cancelled
+
+**Why:** Joelle testing — she tapped "Create Scrapbook" accidentally with wrong clips selected. No way to stop it. Now she can.
+
+---
+
 ### [2026-03-29] — UI Polish: No-Zoom, Upload Overlay, Year/Month Dropdowns
 
 **Disable zoom on all screens:** Added `maximum-scale=1.0, user-scalable=no` to the global viewport meta in `index.html`. Prevents double-tap zoom on RemixScreen and everywhere else.

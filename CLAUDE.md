@@ -152,9 +152,15 @@ The upload, preview, and cull flow. Creates a new Scrapbook.
 **Step 2 — Name & create (bottom sheet):**
 - Slides up over the dimmed grid
 - Name field (Fraunces serif input, pre-focused)
+- Year + Month `PickerDropdown` components (scrollable branded dropdown, auto-set from earliest clip date)
 - Optional cover image picker (camera roll or frame from clip)
 - Summary pill: `N clips · ~X min · date range`
 - Single "Create Scrapbook" CTA
+
+**Upload overlay:**
+- Cassette reel spinning animation (same SVG as RemixScreen's "Making it groovy" screen)
+- Smooth lerping progress bar: `setInterval` every 80ms, `smoothPct += (target - smoothPct) * 0.05`
+- Remuxing phase = 0–40%, uploading phase = 40–95%; no stall-then-jump
 
 ### 3. Scrapbook Detail Screen
 Hub screen when you tap a scrapbook from Home. Shows cover, title, clip count, duration with three action buttons: Watch, Edit, Share.

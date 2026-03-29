@@ -568,6 +568,25 @@ Three tappable mode toggles: `[TRIM] | [SPLIT] | [TOOLS]`
 
 ---
 
+### [2026-03-29] — UI Polish: No-Zoom, Upload Overlay, Year/Month Dropdowns
+
+**Disable zoom on all screens:** Added `maximum-scale=1.0, user-scalable=no` to the global viewport meta in `index.html`. Prevents double-tap zoom on RemixScreen and everywhere else.
+
+**Intake upload overlay redesigned:**
+- Replaced spinner with the cassette reel animation (same spinning SVG reels from RemixScreen)
+- Progress bar now lerps smoothly using a `setInterval` every 80ms: `smoothPct += (target - smoothPct) * 0.05`
+- Remuxing phase maps to 0–40%; uploading phase maps to 40–95%
+- Headline is italic Fraunces: "Getting ready…" / "Saving memories…" / "Adding clips…"
+- No more stall-then-jump — the bar moves constantly throughout the whole process
+
+**Year/month picker — `PickerDropdown` component:**
+- Replaced chevron steppers in both IntakeScreen (name sheet) and HomeScreen (Rename & Redate sheet) with a custom branded dropdown
+- Tap to open a scrollable list; selected option highlighted amber; tap outside to close
+- Year list: current year down to 2015 (newest first). Month list in rename sheet includes `···` (null) as first option.
+- Component defined locally in each file — not a shared util (used in only 2 places)
+
+---
+
 ### [2026-03-29] — Workspace: Watch Button + Back Navigation + Saved Flash
 
 - **Watch button replaces Save in WorkspaceScreen nav header.** Tapping Watch navigates to `/scrapbook/:id/watch` (PlaybackScreen). Changes are always auto-saved via `saveClipChanges` so a separate Save action is redundant.
@@ -741,6 +760,7 @@ Trim timestamps (`trimIn → trimOut · kept`) were shown below the mini timelin
 | Workspace Watch/Back/Saved-flash | Watch navigates to playback. Back → detail screen. "saved" flash confirms auto-save. ✅ |
 | Split tool redesign (3-step middle cut) | Set Split 1 → Set Split 2 → Confirm & Cut. cut_in/cut_out saved. ✅ |
 | Home two-tab + year/month folders | Your Scrapbooks (collapsible year/month) + Shared (Feed + By Person). scrapbooks.month column. ✅ |
+| UI polish (zoom, upload, dropdowns) | No-zoom viewport, cassette reel upload overlay with smooth lerping progress, PickerDropdown for year/month. ✅ |
 
 ---
 

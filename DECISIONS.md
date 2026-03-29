@@ -568,6 +568,71 @@ Three tappable mode toggles: `[TRIM] | [SPLIT] | [TOOLS]`
 
 ---
 
+### [2026-03-29] — Workspace: Watch Button + Back Navigation + Saved Flash
+
+- **Watch button replaces Save in WorkspaceScreen nav header.** Tapping Watch navigates to `/scrapbook/:id/watch` (PlaybackScreen). Changes are always auto-saved via `saveClipChanges` so a separate Save action is redundant.
+- **Back button now navigates to `/scrapbook/:id` (ScrapbookDetailScreen)** instead of the home library. "Library" label changed to "Back".
+- **"saved" flash indicator:** A small amber `saved` text appears to the left of Watch for 2.5s after any `saveClipChanges` call, confirming auto-save fired. Implemented via `savedFlash` boolean state + `savedFlashTimer` ref.
+
+**Why:** Joelle testing — she didn't know changes were being saved automatically and was confused by the Save button re-navigating to the detail screen instead of playback.
+
+---
+
+### [2026-03-29] — Split Tool: 3-Step Trim-Middle-Out Redesign
+
+**Previous flow:** Single marker → "Set cut point" → switches to TRIM mode with 4 handles (2 outer trim + 2 inner cut). Confusing to test users.
+
+**New flow — self-contained 3 steps:**
+1. SPLIT activated → single draggable bar at ~30% position; button says **"Set Split 1 · {time}"**
+2. "Set Split 1" → bar 1 locks (faded sienna, pointer-events-none); bar 2 spawns ~30% further; excluded zone shaded between bars; button says **"Set Split 2 · {time}"**
+3. "Set Split 2" → button changes to filled amber **"Confirm & Cut"**
+4. "Confirm & Cut" → saves `cut_in`/`cut_out` (sorted so cut_in < cut_out) → exits split mode
+
+State: `splitStep` (1|2|3), `splitPct` (active bar %), `splitPct1` (locked bar 1 %). Both reset when SPLIT is toggled on. `advanceSplitStep()` handles all three steps — do not reintroduce old `confirmSplitPoint()`.
+
+If clip already has `cut_in`/`cut_out`, button shows **"Remove cut"** as before (no step flow).
+
+**Why:** Joelle testing showed the old mode-switch flow was confusing. New flow is linear and self-explanatory without leaving split mode.
+
+---
+
+### [2026-03-29] — Home Screen: Two-Tab Redesign with Year/Month Folders
+
+**Old layout:** Single flat list (or year-grouped list) of all scrapbooks.
+
+**New layout: Two tabs**
+
+**"Your Scrapbooks" tab:**
+- Two-level collapsible hierarchy: Year folder → Month subfolders
+- Collapsed year shows inline month preview: `2026  Jun · Mar · ···`
+- On first load: current year + most recent month auto-expanded; everything else collapsed
+- Scrapbooks without a `month` value fall into `···` bucket at the bottom of their year
+- Collapse state: `collapsedYears` (Set of year ints) + `collapsedMonths` (Set of "year-month" strings)
+- FAB (+) only visible on this tab
+
+**"Shared" tab:**
+- Amber dot notification on tab button when any share has `seen: false`
+- **Feed view** (default): flat list sorted by scrapbook year/month desc; each card shows "from {ownerName}"
+- **By Person view**: collapsible folder per owner; amber dot on folder if unseen items; all folders start open when switching to this view
+- Owner names fetched from `profiles` table via `owner_id`
+
+**Rename → Rename & Redate sheet:**
+- Name input + year stepper + month stepper
+- Month stepper wraps: going below January → `···` (null), above `···` → January
+- Allows retroactive assignment of old scrapbooks to a month folder
+
+**Data model addition:**
+```sql
+ALTER TABLE scrapbooks ADD COLUMN IF NOT EXISTS month INTEGER;
+```
+`scrapbooks.month INTEGER` — nullable, 1–12. `null` = ungrouped `···` bucket.
+
+IntakeScreen month picker: auto-sets from earliest clip date; user can adjust before creating.
+
+**Why:** Joelle testing — flat list was getting hard to navigate as library grew.
+
+---
+
 ### [2026-03-28] — Swipe Transition + Pause-on-Swipe Fixes
 
 **Thumbnail preloading:** `<img>` tags rendering during a swipe fire network requests and show blank until loaded. Fixed by eagerly preloading all thumbnail URLs via `new Image()` immediately when the clip list loads — both in DiscoveryScreen (`loadClips`) and in RemixScreen during the "Making it groovy" phase. Browser caches the images so they're instant by first swipe.
@@ -673,6 +738,9 @@ Trim timestamps (`trimIn → trimOut · kept`) were shown below the mini timelin
 | Wake Lock API | Prevents upload failures from iPhone screen lock. ✅ |
 | The Remix | `/remix` studio + cassette loading + shuffled clip playback. ✅ |
 | Add clips to existing scrapbook | IntakeScreen `?addTo=` param. ✅ |
+| Workspace Watch/Back/Saved-flash | Watch navigates to playback. Back → detail screen. "saved" flash confirms auto-save. ✅ |
+| Split tool redesign (3-step middle cut) | Set Split 1 → Set Split 2 → Confirm & Cut. cut_in/cut_out saved. ✅ |
+| Home two-tab + year/month folders | Your Scrapbooks (collapsible year/month) + Shared (Feed + By Person). scrapbooks.month column. ✅ |
 
 ---
 

@@ -102,29 +102,39 @@ All UI must use the Cassette brand system. Never deviate without a plan approval
 
 ---
 
-## 🏗 Screen Architecture — 6 Screens Built & Working
+## 🏗 Screen Architecture — 9 Screens Built & Working
 
 ### Routes
 ```
-/              → HomeScreen       (protected)
-/signup        → SignupScreen     (PUBLIC — text this URL to new users)
-/intake        → IntakeScreen     (protected)
-/scrapbook/:id → PlaybackScreen   (protected)
-/scrapbook/:id/edit → WorkspaceScreen (protected)
-/discover      → DiscoveryScreen  (protected)
+/                    → HomeScreen             (protected)
+/signup              → SignupScreen           (PUBLIC — text this URL to new users)
+/intake              → IntakeScreen           (protected)
+/scrapbook/:id       → ScrapbookDetailScreen  (protected) — hub: Watch / Edit / Share options
+/scrapbook/:id/watch → PlaybackScreen         (protected)
+/scrapbook/:id/edit  → WorkspaceScreen        (protected)
+/scrapbook/:id/share → ShareScreen            (protected)
+/discover            → DiscoveryScreen        (protected)
+/remix               → RemixScreen            (protected) — mixing studio + reel loading anim
+/settings            → SettingsScreen         (protected)
 ```
 
 ### 1. Home Screen (`cassette-screen-home.html`)
-The library view. Shows all scrapbooks as medium cards, 2–3 visible at once.
+Two-tab library view. Rebuilt 2026-03-29.
 
-- **Card tap** → straight to Playback. No intermediate screen.
-- **New Scrapbook** button → amber pill in the nav header. Always visible.
-- **Card thumbnails** → two-tier system:
-  - Rich card: cover image (auto-extracted first frame or custom set during creation)
-  - Compact card: warm color block, list-like. Fallback when no image available.
-  - Cover image extraction is a **v1 stretch goal** — build compact first.
-- Scrapbook name, date range, clip count, and duration shown on each card.
-- Fourth card fades out to imply more content below the fold.
+**"Your Scrapbooks" tab:**
+- Two-level collapsible hierarchy: Year folder → Month subfolders (1–12, or `···` for ungrouped)
+- Collapsed year shows inline month name preview: `2026  Jun · Mar · ···`
+- On first load: current year + most recent month auto-expanded; all others collapsed. `initDone` ref prevents re-running default expansion.
+- Collapse state: `collapsedYears` (Set of year ints) + `collapsedMonths` (Set of `"year-month"` strings)
+- Grouped data structure: `{ [year]: { [month]: scrapbook[] } }` — month `0` = ungrouped `···` bucket, sorted last
+- FAB (+ button) only visible on this tab
+- **Rename & Redate sheet:** Replaces old Rename — adds year stepper + month stepper so old scrapbooks can be retroactively assigned a month folder. Month cycles: left from 1 → null (···), right from 12 → null, right from null → 1.
+
+**"Shared" tab:**
+- Amber 2px dot on tab button when any share has `seen: false`
+- **Feed view** (default): flat list sorted by year/month desc; cards show "from {ownerName}"
+- **By Person view:** collapsible folder per owner; amber dot on folder if unseen items; all start open on view switch
+- Owner display names fetched from `profiles` table via `owner_id`
 
 ### 2. Intake Session (`cassette-screen-intake.html`)
 The upload, preview, and cull flow. Creates a new Scrapbook.
@@ -146,23 +156,35 @@ The upload, preview, and cull flow. Creates a new Scrapbook.
 - Summary pill: `N clips · ~X min · date range`
 - Single "Create Scrapbook" CTA
 
-### 3. Scrapbook Workspace (`cassette-screen-workspace.html`)
+### 3. Scrapbook Detail Screen
+Hub screen when you tap a scrapbook from Home. Shows cover, title, clip count, duration with three action buttons: Watch, Edit, Share.
+
+- Tapping the cover/Watch → `/scrapbook/:id/watch`
+- Edit → `/scrapbook/:id/edit`
+- Share → `/scrapbook/:id/share`
+- Populates `dataCache` so WorkspaceScreen and PlaybackScreen get instant data without re-fetching.
+
+### 4. Scrapbook Workspace (`cassette-screen-workspace.html`)
 The editing environment. Fixed layout — everything visible at once.
 
 **Layout (top to bottom, fixed):**
-- **Nav bar:** Back to Library, scrapbook title, Watch button (→ Playback)
-- **Preview zone (~38%):** Selected clip preview. Shows current caption placement. Not a viewing experience — a working preview.
-- **Trim zone (~18%):** Always-visible filmstrip with amber drag handles for in/out points. In/out timestamps shown as amber pills. Playhead shows current position. Dimmed regions show what's cut.
-- **Tool row (4 icons):** Caption, Reorder, Preview (in-context), Remove
-- **Clip list (scrollable):** All clips in order. Tap to select → loads into preview + trim above. Status badges: `trimmed`, `caption`, duration. Amber checkmark on edited clips, hollow circle on untouched.
+- **Nav bar:** Back (←) left → navigates to `/scrapbook/:id` (ScrapbookDetailScreen). Scrapbook title center. Undo + **Watch** right. Watch → navigates to `/scrapbook/:id/watch` (PlaybackScreen). A small amber `saved` text flashes for 2.5s after any auto-save fires from `saveClipChanges`.
+- **Preview zone (flex-1):** Selected clip preview with poster thumbnail. `preload="auto"`.
+- **Mini timeline:** 6px slim progress bar above clip strip. Shows amber kept region, dark trimmed regions, white playhead. Expands to full trim/split filmstrip when TRIM or SPLIT tool is active.
+- **Crafting drawer (collapsible):** Header row: `[TRIM] | [SPLIT] | [TOOLS]` tabs. TOOLS is a toggle that shows/hides Caption, Reorder, Remove tool row. Trim timestamps shown in drawer header row only when TRIM active.
+- **Horizontal clip strip:** Scrollable row of 64×64 clip cards. Active card gets amber border. Each card shows clip number, duration, and status icon badges (scissors, caption T, muted). Auto-scrolls active card into view.
+- **Reorder mode:** Separate vertical drag-to-reorder list shown when Reorder tool is tapped. Cards can be long-pressed and dragged.
 
-**Reorder mode:**
-- Activated by tapping the Reorder icon in the tool row
-- Preview and trim zone dim to ~20% opacity (not applicable while reordering)
-- Amber banner appears: "Drag clips to reorder · Done"
-- Drag handles appear on every clip row
-- Long-press to lift, drag to position, dashed placeholder shows drop zone
-- Reorder icon glows amber while active
+**Split tool (3-step trim-middle-out):**
+- Tap SPLIT → draggable bar at ~30%; button says "Set Split 1 · {time}"
+- "Set Split 1" → bar 1 locks (faded); bar 2 spawns ~30% later; excluded zone shades between bars; "Set Split 2 · {time}"
+- "Set Split 2" → button becomes filled amber "Confirm & Cut"
+- "Confirm & Cut" → saves `cut_in`/`cut_out` (sorted, cut_in < cut_out) → exits split mode
+- If cut already exists: shows "Remove cut" only (no step flow). `advanceSplitStep()` handles all steps — do not reintroduce `confirmSplitPoint()`.
+
+**Single-level undo:**
+- `undoable` state captures pre-change snapshot for trim, mute, caption, and split
+- Undo button appears in nav header (left of Watch) when an undoable action exists
 
 **Caption editing:**
 - Tapping Caption tool opens caption overlay on the preview
@@ -170,7 +192,7 @@ The editing environment. Fixed layout — everything visible at once.
 - Caption data model: text + x/y position (% of frame) + font size
 - Stored as metadata per clip, rendered in both Workspace and Playback
 
-### 4. Playback View (`cassette-screen-playback.html`)
+### 5. Playback View (`cassette-screen-playback.html`)
 The full-screen Reels-style viewer. The payoff.
 
 - **Navigation:** Swipe up/down between clips
@@ -180,13 +202,27 @@ The full-screen Reels-style viewer. The payoff.
 - **Scrub bar:** Touch bottom 25% of screen → amber timeline appears. Drag to seek.
 - **Three-dot menu (⋯):** Edit Scrapbook, Scrapbook Details, **Export Scrapbook** (trim+concat → MP4 download/share).
 
-### 5. Discovery Screen
+### 6. Discovery Screen
 - `/discover` — shuffled playlist of all clips across all scrapbooks
 - Vertical swipe = next clip. Horizontal swipe = next scrapbook.
 - Hold-to-pause + scrub bar same as Playback.
 - Tap for scrapbook info + "Watch scrapbook →" link.
 
-### 6. Signup Screen
+### 7. Remix Screen (`/remix`)
+The mixing studio. Accessible from the shuffle icon on HomeScreen.
+
+- Clip count stepper (6–12, default 8)
+- Toggle: include shared clips in remix pool
+- "Make My Remix" CTA → cassette reel loading animation ("Making it groovy...") + 3s minimum
+- Fetches own clips + optionally shared clips, shuffles, picks N, preloads first blob
+- Navigates to DiscoveryScreen with `{ state: { clips, isRemix: true } }`
+
+DiscoveryScreen detects remix mode: skips its own fetch, shows "The Remix" pill in header, back → `/remix`, top-right → Disc3 icon back to remix studio.
+
+### 8. Share Screen (`/scrapbook/:id/share`)
+Manage per-scrapbook sharing. Add family members by email. Remove self from shared scrapbooks. Auto-share defaults live in SettingsScreen.
+
+### 9. Signup Screen
 - `/signup` — public route, outside AuthGate
 - Email + password + confirm. Supabase `signUp()`. Confirmation email sent.
 - Text this URL to new family members. No admin action required.
@@ -198,9 +234,11 @@ The full-screen Reels-style viewer. The payoff.
 ```
 Scrapbook {
   id
+  user_id
   name
   cover_image_url   // optional
   year              // integer, set at intake
+  month             // integer 1–12, nullable (null = ungrouped ··· bucket)
   created_at
   clips: Clip[]
 }
@@ -210,7 +248,7 @@ Clip {
   scrapbook_id
   video_url         // Supabase Storage URL (FastStart remuxed)
   thumbnail_url     // Supabase Storage URL for first-frame JPEG poster
-  order             // integer, reorderable
+  order             // integer, reorderable — unique constraint per scrapbook_id
   trim_in           // seconds, metadata only (no re-encoding)
   trim_out          // seconds, metadata only
   caption_text      // optional string
@@ -219,8 +257,27 @@ Clip {
   caption_size      // font size
   duration          // seconds, set on upload
   recorded_at       // from video metadata if available
+  // NOTE: NO `muted` column — mute is client-side only state
+}
+
+ScrapbookShare {
+  id
+  scrapbook_id      // FK → scrapbooks
+  owner_id          // FK → auth.users (who owns the scrapbook)
+  shared_with_id    // FK → auth.users (who can view it)
+  seen              // boolean — false = unread; drives amber dot on Shared tab
+  created_at
+}
+
+Profile {
+  user_id           // FK → auth.users
+  username          // UNIQUE, used for login + sharing
+  display_name      // shown in Shared tab "from {display_name}"
+  created_at
 }
 ```
+
+**Known gotcha:** The `clips` table has a unique constraint on `(scrapbook_id, order)`. When splitting a clip, shift existing clip orders BEFORE inserting the new clip, or the insert will silently fail.
 
 **Storage paths:**
 - Videos: `cassette-media/{userId}/videos/{clipId}.mp4`

@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react'
-import { ArrowLeft, Check, Image, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ArrowLeft, Check, Image, ChevronDown, X } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -99,6 +99,65 @@ function formatSummaryRange(items) {
   return `${min.toLocaleDateString('en-US', { ...opts, year: 'numeric' })}–${max.toLocaleDateString('en-US', { ...opts, year: 'numeric' })}`
 }
 
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+function Reel({ reverse = false }) {
+  return (
+    <div
+      className="animate-spin"
+      style={{ animationDuration: reverse ? '1.7s' : '2.1s', animationDirection: reverse ? 'reverse' : 'normal' }}
+    >
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <circle cx="24" cy="24" r="20" stroke="#F2A24A" strokeWidth="2.5" fill="none" />
+        <circle cx="24" cy="24" r="7" stroke="#F2A24A" strokeWidth="1.5" fill="none" />
+        <circle cx="24" cy="24" r="2.5" fill="#F2A24A" />
+        <line x1="24" y1="4" x2="24" y2="17" stroke="#F2A24A" strokeWidth="2" strokeLinecap="round" />
+        <line x1="41.3" y1="34" x2="30.1" y2="27.5" stroke="#F2A24A" strokeWidth="2" strokeLinecap="round" />
+        <line x1="6.7" y1="34" x2="17.9" y2="27.5" stroke="#F2A24A" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    </div>
+  )
+}
+
+function PickerDropdown({ value, options, onChange, mb = true }) {
+  const [open, setOpen] = useState(false)
+  const selectedLabel = options.find(o => o.value === value)?.label ?? '···'
+  return (
+    <div className={`relative ${mb ? 'mb-5' : ''}`}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between rounded-xl px-4 py-3 border border-walnut-light active:opacity-80"
+        style={{ background: '#2C1A0E' }}
+      >
+        <span className="font-display font-bold text-[18px] text-wheat">{selectedLabel}</span>
+        <ChevronDown size={18} strokeWidth={1.75} className="text-amber" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
+          <div
+            className="absolute left-0 right-0 top-full mt-1 rounded-xl border border-walnut-light z-30 overflow-y-auto"
+            style={{ background: '#2C1A0E', maxHeight: 210 }}
+          >
+            {options.map(opt => (
+              <button
+                key={String(opt.value)}
+                onClick={() => { onChange(opt.value); setOpen(false) }}
+                className="w-full px-4 py-3 text-left border-b active:opacity-70"
+                style={{ borderColor: '#3D2410', background: opt.value === value ? 'rgba(242,162,74,0.10)' : 'transparent' }}
+              >
+                <span className="font-display font-semibold text-[16px]" style={{ color: opt.value === value ? '#F2A24A' : '#F5DEB3' }}>
+                  {opt.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export default function IntakeScreen() {
@@ -122,6 +181,27 @@ export default function IntakeScreen() {
   const nameInputRef = useRef(null)
   const coverInputRef = useRef(null)
   const wakeLockRef = useRef(null)
+
+  // Smooth progress bar
+  const smoothPctRef = useRef(0)
+  const [displayPct, setDisplayPct] = useState(0)
+  const uploadPhaseRef = useRef(uploadPhase)
+  const uploadProgressRef = useRef(uploadProgress)
+  useEffect(() => { uploadPhaseRef.current = uploadPhase }, [uploadPhase])
+  useEffect(() => { uploadProgressRef.current = uploadProgress }, [uploadProgress])
+  useEffect(() => {
+    if (!uploading) { smoothPctRef.current = 0; setDisplayPct(0); return }
+    const id = setInterval(() => {
+      const prog = uploadProgressRef.current
+      const phase = uploadPhaseRef.current
+      const target = phase === 'remuxing'
+        ? (prog.current / Math.max(prog.total, 1)) * 40
+        : 40 + (prog.current / Math.max(prog.total, 1)) * 55
+      smoothPctRef.current += (target - smoothPctRef.current) * 0.05
+      setDisplayPct(smoothPctRef.current)
+    }, 80)
+    return () => clearInterval(id)
+  }, [uploading])
 
   // ── Wake lock helpers ────────────────────────────────────────────────────
   async function acquireWakeLock() {
@@ -441,25 +521,33 @@ export default function IntakeScreen() {
   // ── Uploading overlay ───────────────────────────────────────────────────
   if (uploading) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-walnut gap-6 px-8 text-center">
-        <div className="w-12 h-12 rounded-full border-2 border-amber border-t-transparent animate-spin" />
+      <div className="flex flex-col items-center justify-center bg-walnut gap-10 px-8 text-center" style={{ height: '100dvh' }}>
+        <div className="flex items-center gap-10">
+          <Reel />
+          <Reel reverse />
+        </div>
         <div>
-          <p className="font-display font-semibold text-xl text-wheat mb-1">
-            {uploadPhase === 'remuxing' ? 'Optimizing your clips…' : addToId ? 'Adding clips…' : 'Creating your scrapbook…'}
+          <p className="font-display italic text-amber text-3xl tracking-tight mb-2">
+            {uploadPhase === 'remuxing' ? 'Getting ready…' : addToId ? 'Adding clips…' : 'Saving memories…'}
           </p>
-          <p className="text-rust text-sm">
+          <p className="text-rust text-sm leading-relaxed">
             {uploadPhase === 'remuxing'
-              ? `Clip ${uploadProgress.current} of ${uploadProgress.total}`
+              ? `Optimizing clip ${uploadProgress.current} of ${uploadProgress.total}`
               : `Uploading clip ${uploadProgress.current} of ${uploadProgress.total}`
             }
           </p>
         </div>
-        {/* Mini progress bar */}
-        <div className="w-full max-w-xs h-1 bg-walnut-light rounded-full overflow-hidden">
-          <div
-            className="h-full bg-amber rounded-full transition-all duration-500"
-            style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
-          />
+        <div className="w-full max-w-xs">
+          <div className="h-1 bg-walnut-light rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${displayPct}%`,
+                background: 'linear-gradient(90deg, #F2A24A, #E8855A)',
+                transition: 'width 0.08s linear',
+              }}
+            />
+          </div>
         </div>
         <p className="text-rust/50 text-[11px]">Keep this screen open until it's done</p>
       </div>
@@ -707,51 +795,24 @@ export default function IntakeScreen() {
             <p className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase mb-2">
               Year
             </p>
-            <div
-              className="flex items-center justify-between rounded-xl px-2 py-1 mb-5 border border-walnut-light"
-              style={{ background: '#2C1A0E' }}
-            >
-              <button
-                onClick={() => setYear(y => y - 1)}
-                className="w-11 h-11 flex items-center justify-center active:opacity-60"
-              >
-                <ChevronLeft size={20} strokeWidth={1.75} className="text-amber" />
-              </button>
-              <span className="font-display font-bold text-[22px] text-wheat tabular-nums">
-                {year}
-              </span>
-              <button
-                onClick={() => setYear(y => y + 1)}
-                className="w-11 h-11 flex items-center justify-center active:opacity-60"
-              >
-                <ChevronRight size={20} strokeWidth={1.75} className="text-amber" />
-              </button>
-            </div>
+            <PickerDropdown
+              value={year}
+              options={Array.from({ length: new Date().getFullYear() - 2014 }, (_, i) => {
+                const y = new Date().getFullYear() - i
+                return { value: y, label: String(y) }
+              })}
+              onChange={setYear}
+            />
 
             {/* Month picker */}
             <p className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase mb-2">
               Month
             </p>
-            <div
-              className="flex items-center justify-between rounded-xl px-2 py-1 mb-5 border border-walnut-light"
-              style={{ background: '#2C1A0E' }}
-            >
-              <button
-                onClick={() => setMonth(m => m === 1 ? 12 : m - 1)}
-                className="w-11 h-11 flex items-center justify-center active:opacity-60"
-              >
-                <ChevronLeft size={20} strokeWidth={1.75} className="text-amber" />
-              </button>
-              <span className="font-display font-bold text-[18px] text-wheat">
-                {['January','February','March','April','May','June','July','August','September','October','November','December'][month - 1]}
-              </span>
-              <button
-                onClick={() => setMonth(m => m === 12 ? 1 : m + 1)}
-                className="w-11 h-11 flex items-center justify-center active:opacity-60"
-              >
-                <ChevronRight size={20} strokeWidth={1.75} className="text-amber" />
-              </button>
-            </div>
+            <PickerDropdown
+              value={month}
+              options={MONTH_NAMES.map((name, i) => ({ value: i + 1, label: name }))}
+              onChange={setMonth}
+            />
 
             {/* Cover picker */}
             <button

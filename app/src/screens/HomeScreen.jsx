@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Play, Search, X, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight, Image, Shuffle, Pencil, Settings } from 'lucide-react'
+import { Plus, Play, Search, X, MoreHorizontal, ChevronDown, Image, Shuffle, Pencil, Settings } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { APP_VERSION } from '../version'
@@ -99,6 +99,45 @@ function ScrapbookCard({ scrapbook, onClick, onOptionsPress, readOnly = false, i
         </div>
       </div>
     </button>
+  )
+}
+
+function PickerDropdown({ value, options, onChange, mb = true }) {
+  const [open, setOpen] = useState(false)
+  const selectedLabel = options.find(o => o.value === value)?.label ?? '···'
+  return (
+    <div className={`relative ${mb ? 'mb-4' : ''}`}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between rounded-xl px-4 py-3 border border-walnut-light active:opacity-80"
+        style={{ background: '#2C1A0E' }}
+      >
+        <span className="font-display font-bold text-[18px] text-wheat">{selectedLabel}</span>
+        <ChevronDown size={18} strokeWidth={1.75} className="text-amber" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div
+            className="absolute left-0 right-0 top-full mt-1 rounded-xl border border-walnut-light z-40 overflow-y-auto"
+            style={{ background: '#2C1A0E', maxHeight: 210 }}
+          >
+            {options.map(opt => (
+              <button
+                key={String(opt.value)}
+                onClick={() => { onChange(opt.value); setOpen(false) }}
+                className="w-full px-4 py-3 text-left border-b active:opacity-70"
+                style={{ borderColor: '#3D2410', background: opt.value === value ? 'rgba(242,162,74,0.10)' : 'transparent' }}
+              >
+                <span className="font-display font-semibold text-[16px]" style={{ color: opt.value === value ? '#F2A24A' : '#F5DEB3' }}>
+                  {opt.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -710,28 +749,24 @@ export default function HomeScreen() {
             />
 
             <p className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase mb-2">Year</p>
-            <div className="flex items-center justify-between rounded-xl px-2 py-1 mb-4 border border-walnut-light" style={{ background: '#2C1A0E' }}>
-              <button onClick={() => setRenameYear(y => y - 1)} className="w-11 h-11 flex items-center justify-center active:opacity-60">
-                <ChevronLeft size={20} strokeWidth={1.75} className="text-amber" />
-              </button>
-              <span className="font-display font-bold text-[22px] text-wheat tabular-nums">{renameYear}</span>
-              <button onClick={() => setRenameYear(y => y + 1)} className="w-11 h-11 flex items-center justify-center active:opacity-60">
-                <ChevronRight size={20} strokeWidth={1.75} className="text-amber" />
-              </button>
-            </div>
+            <PickerDropdown
+              value={renameYear}
+              options={Array.from({ length: new Date().getFullYear() - 2014 }, (_, i) => {
+                const y = new Date().getFullYear() - i
+                return { value: y, label: String(y) }
+              })}
+              onChange={setRenameYear}
+            />
 
             <p className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase mb-2">Month</p>
-            <div className="flex items-center justify-between rounded-xl px-2 py-1 mb-5 border border-walnut-light" style={{ background: '#2C1A0E' }}>
-              <button onClick={() => setRenameMonth(m => m == null ? 12 : m === 1 ? null : m - 1)} className="w-11 h-11 flex items-center justify-center active:opacity-60">
-                <ChevronLeft size={20} strokeWidth={1.75} className="text-amber" />
-              </button>
-              <span className="font-display font-bold text-[18px] text-wheat">
-                {renameMonth ? MONTH_NAMES[renameMonth - 1] : '···'}
-              </span>
-              <button onClick={() => setRenameMonth(m => m == null ? 1 : m === 12 ? null : m + 1)} className="w-11 h-11 flex items-center justify-center active:opacity-60">
-                <ChevronRight size={20} strokeWidth={1.75} className="text-amber" />
-              </button>
-            </div>
+            <PickerDropdown
+              value={renameMonth}
+              options={[
+                { value: null, label: '···' },
+                ...MONTH_NAMES.map((name, i) => ({ value: i + 1, label: name }))
+              ]}
+              onChange={setRenameMonth}
+            />
 
             <button onClick={handleRename} disabled={!renameDraft.trim()} className="w-full py-3.5 rounded-2xl font-sans font-bold text-[15px] mb-2 active:opacity-80 disabled:opacity-30" style={{ background: '#F2A24A', color: '#2C1A0E' }}>
               Save

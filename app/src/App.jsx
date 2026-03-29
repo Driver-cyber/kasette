@@ -15,7 +15,7 @@ const SignupScreen          = lazy(() => import('./screens/SignupScreen'))
 const ShareScreen           = lazy(() => import('./screens/ShareScreen'))
 const SettingsScreen        = lazy(() => import('./screens/SettingsScreen'))
 const ScrapbookDetailScreen = lazy(() => import('./screens/ScrapbookDetailScreen'))
-const RemixScreen           = lazy(() => import('./screens/RemixScreen'))
+const FilmFestScreen        = lazy(() => import('./screens/RemixScreen'))
 
 const FF_READY_KEY = 'cassette_ff_ready'
 
@@ -114,7 +114,7 @@ function AppRoutes() {
               <Route path="/scrapbook/:id/edit" element={<WorkspaceScreen />} />
               <Route path="/scrapbook/:id/share" element={<ShareScreen />} />
               <Route path="/discover" element={<DiscoveryScreen />} />
-              <Route path="/remix" element={<RemixScreen />} />
+              <Route path="/remix" element={<FilmFestScreen />} />
               <Route path="/settings" element={<SettingsScreen />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

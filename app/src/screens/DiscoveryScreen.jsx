@@ -19,6 +19,7 @@ export default function DiscoveryScreen() {
   const location = useLocation()
   const { session } = useAuth()
   const isRemix = !!location.state?.isRemix
+  const screenTitle = location.state?.screenTitle || 'The Remix'
   const videoRef = useRef(null)
   const prevVideoRef = useRef(null)
   const nextVideoRef = useRef(null)
@@ -491,7 +492,7 @@ export default function DiscoveryScreen() {
           style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(10px)' }}
         >
           {isRemix
-            ? <span className="font-display italic text-amber text-[12px]">The Remix</span>
+            ? <span className="font-display italic text-amber text-[12px]">{screenTitle}</span>
             : <span className="text-wheat/80 text-[11px] font-semibold tabular-nums">{currentIndex + 1} / {clips.length}</span>
           }
         </div>

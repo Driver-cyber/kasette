@@ -64,7 +64,11 @@ export default function WorkspaceScreen() {
   const [toolsExpanded, setToolsExpanded] = useState(false) // Tools row collapsed by default
   const [trimMode, setTrimMode] = useState(null) // null | 'trim' | 'split'
   const [undoable, setUndoable] = useState(null) // last undoable action
-  const [splitPct, setSplitPct] = useState(50)  // split marker position as % of full duration
+  const [savedFlash, setSavedFlash] = useState(false)
+  const savedFlashTimer = useRef(null)
+  const [splitPct, setSplitPct] = useState(50)   // active (draggable) split bar position as % of full duration
+  const [splitPct1, setSplitPct1] = useState(null) // locked first bar after "Set Split 1"
+  const [splitStep, setSplitStep] = useState(1)    // 1 | 2 | 3
 
   // Preview swipe navigation
   const previewSwipeStart = useRef(null)
@@ -174,6 +178,9 @@ export default function WorkspaceScreen() {
   async function saveClipChanges(clipId, changes) {
     updateClipLocal(clipId, changes)
     await supabase.from('clips').update(changes).eq('id', clipId)
+    clearTimeout(savedFlashTimer.current)
+    setSavedFlash(true)
+    savedFlashTimer.current = setTimeout(() => setSavedFlash(false), 2500)
   }
 
   // ── Video controls ─────────────────────────────────────────────────────
@@ -282,13 +289,17 @@ export default function WorkspaceScreen() {
     document.addEventListener('mouseup', onEnd)
   }
 
-  // ── Split mode: sync marker to midpoint when activated ──────────────────
+  // ── Split mode: reset to step 1 and position bar at ~30% when activated ──
   useEffect(() => {
     if (trimMode === 'split' && activeClip) {
-      const mid = ((trimIn + trimOut) / 2)
-      const pct = duration > 0 ? (mid / duration) * 100 : 50
+      const start = trimIn
+      const end = trimOut ?? duration
+      const bar1Time = start + (end - start) * 0.30
+      const pct = duration > 0 ? (bar1Time / duration) * 100 : 30
+      setSplitStep(1)
+      setSplitPct1(null)
       setSplitPct(pct)
-      if (videoRef.current) videoRef.current.currentTime = mid
+      if (videoRef.current) videoRef.current.currentTime = bar1Time
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trimMode])
@@ -326,13 +337,29 @@ export default function WorkspaceScreen() {
     document.addEventListener('mouseup', onEnd)
   }
 
-  // ── Confirm split point: sets cut_in + cut_out on current clip, opens trim mode ──
-  async function confirmSplitPoint() {
+  // ── Multi-step split: Set Split 1 → Set Split 2 → Confirm & Cut ──────────
+  async function advanceSplitStep() {
     if (!activeClip || !duration) return
-    const splitTime = (splitPct / 100) * duration
-    setUndoable({ type: 'clip', clipId: activeClip.id, prev: { cut_in: activeClip.cut_in ?? null, cut_out: activeClip.cut_out ?? null } })
-    await saveClipChanges(activeClip.id, { cut_in: splitTime, cut_out: splitTime })
-    setTrimMode('trim')
+    if (splitStep === 1) {
+      // Lock bar 1, spawn bar 2 at +30% or 75% cap
+      setSplitPct1(splitPct)
+      const bar2Pct = Math.min(splitPct + 30, 90)
+      setSplitPct(bar2Pct)
+      if (videoRef.current) videoRef.current.currentTime = (bar2Pct / 100) * duration
+      setSplitStep(2)
+    } else if (splitStep === 2) {
+      // Just advance to confirm state — user can still drag bar 2
+      setSplitStep(3)
+    } else if (splitStep === 3) {
+      // Commit — sort so cut_in < cut_out regardless of bar order
+      const p1 = Math.min(splitPct1, splitPct)
+      const p2 = Math.max(splitPct1, splitPct)
+      const cutInTime = (p1 / 100) * duration
+      const cutOutTime = (p2 / 100) * duration
+      setUndoable({ type: 'clip', clipId: activeClip.id, prev: { cut_in: activeClip.cut_in ?? null, cut_out: activeClip.cut_out ?? null } })
+      await saveClipChanges(activeClip.id, { cut_in: cutInTime, cut_out: cutOutTime })
+      setTrimMode(null)
+    }
   }
 
   // ── Mini timeline scrub ─────────────────────────────────────────────────
@@ -702,16 +729,19 @@ export default function WorkspaceScreen() {
       {/* ── Nav ── */}
       <header className="flex items-center justify-between px-5 pt-12 pb-2 flex-shrink-0">
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate(`/scrapbook/${id}`)}
           className="flex items-center gap-1.5 text-wheat/45 font-sans text-[15px] font-semibold active:opacity-60"
         >
           <ArrowLeft size={18} strokeWidth={2} />
-          Library
+          Back
         </button>
         <h1 className="font-display font-semibold text-[18px] text-wheat truncate mx-3 max-w-[160px]">
           {scrapbook?.name}
         </h1>
         <div className="flex items-center gap-2">
+          {savedFlash && (
+            <span className="text-amber/70 font-sans text-[12px] font-semibold">saved</span>
+          )}
           {undoable && (
             <button
               onClick={handleUndo}
@@ -722,11 +752,11 @@ export default function WorkspaceScreen() {
             </button>
           )}
           <button
-            onClick={() => navigate(`/scrapbook/${id}`)}
+            onClick={() => navigate(`/scrapbook/${id}/watch`)}
             className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-[13px] rounded-full px-5 py-2 active:opacity-80"
           >
-            <Check size={13} strokeWidth={2.5} />
-            Save
+            <Play size={13} fill="currentColor" strokeWidth={0} />
+            Watch
           </button>
         </div>
       </header>
@@ -982,13 +1012,13 @@ export default function WorkspaceScreen() {
                   style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%` }} />
                 <div className="absolute top-0 bottom-0 w-px bg-white/60 pointer-events-none"
                   style={{ left: `${playheadPct}%` }} />
-                {/* Split excluded zone overlay — only when no cut exists yet */}
-                {trimMode === 'split' && cutIn == null && (
+                {/* Split excluded zone — step 2/3: shade between bar 1 and bar 2 */}
+                {trimMode === 'split' && cutIn == null && splitStep >= 2 && splitPct1 != null && (
                   <div className="absolute top-0 bottom-0 pointer-events-none"
                     style={{
-                      left: `${splitPct}%`,
-                      right: 0,
-                      background: 'rgba(232,133,90,0.15)',
+                      left: `${Math.min(splitPct1, splitPct)}%`,
+                      width: `${Math.abs(splitPct - splitPct1)}%`,
+                      background: 'rgba(232,133,90,0.22)',
                     }} />
                 )}
               </div>
@@ -1060,10 +1090,25 @@ export default function WorkspaceScreen() {
                 </>
               )}
 
-              {/* Split marker — only when no cut exists yet */}
-              {trimMode === 'split' && cutIn == null && (
+              {/* Split markers — only when no cut exists yet */}
+              {trimMode === 'split' && cutIn == null && (<>
+                {/* Bar 1 — locked after step 1, shown in steps 2/3 */}
+                {splitStep >= 2 && splitPct1 != null && (
+                  <div
+                    className="absolute top-0 bottom-0 pointer-events-none z-10"
+                    style={{ left: `${splitPct1}%`, width: 52, marginLeft: -26 }}
+                  >
+                    <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-[3px]"
+                      style={{ background: '#E8855A', opacity: 0.5 }} />
+                    <div className="absolute left-1/2 -translate-x-1/2 -top-4 px-1.5 py-0.5 rounded-full text-[9px] font-bold text-walnut whitespace-nowrap"
+                      style={{ background: '#E8855A', opacity: 0.6 }}>
+                      {fmt((splitPct1 / 100) * duration)}
+                    </div>
+                  </div>
+                )}
+                {/* Active bar — draggable, shown in all steps */}
                 <div
-                  className="absolute top-0 bottom-0 cursor-ew-resize touch-none z-10"
+                  className="absolute top-0 bottom-0 cursor-ew-resize touch-none z-20"
                   style={{ left: `${splitPct}%`, width: 52, marginLeft: -26 }}
                   onTouchStart={startSplitDrag}
                   onMouseDown={startSplitDrag}
@@ -1075,7 +1120,7 @@ export default function WorkspaceScreen() {
                     {fmt((splitPct / 100) * duration)}
                   </div>
                 </div>
-              )}
+              </>)}
             </div>
 
             <div className="flex justify-between text-rust text-[8px] font-semibold tracking-wide">
@@ -1096,16 +1141,27 @@ export default function WorkspaceScreen() {
                 style={{ background: 'rgba(232,133,90,0.1)', border: '1px solid rgba(232,133,90,0.3)', color: '#E8855A' }}
               >
                 <Scissors size={13} />
-                Remove split
+                Remove cut
+              </button>
+            ) : splitStep === 3 ? (
+              <button
+                onClick={advanceSplitStep}
+                className="mt-2.5 w-full py-2.5 rounded-xl font-sans font-bold text-[13px] active:opacity-80 flex items-center justify-center gap-2"
+                style={{ background: '#E8855A', color: '#2C1A0E' }}
+              >
+                <Scissors size={13} />
+                Confirm &amp; Cut
               </button>
             ) : (
               <button
-                onClick={confirmSplitPoint}
+                onClick={advanceSplitStep}
                 className="mt-2.5 w-full py-2.5 rounded-xl font-sans font-bold text-[13px] active:opacity-80 flex items-center justify-center gap-2"
                 style={{ background: 'rgba(232,133,90,0.15)', border: '1px solid rgba(232,133,90,0.3)', color: '#E8855A' }}
               >
                 <Scissors size={13} />
-                Set cut point · {fmt((splitPct / 100) * duration)}
+                {splitStep === 1
+                  ? `Set Split 1 · ${fmt((splitPct / 100) * duration)}`
+                  : `Set Split 2 · ${fmt((splitPct / 100) * duration)}`}
               </button>
             )
           )}

@@ -618,6 +618,24 @@ Mini timeline (no-tool mode) is now a draggable scrub bar. The white playhead is
 
 ---
 
+### [2026-03-28] — Workspace: Time Labels Moved to Crafting Drawer
+
+Trim timestamps (`trimIn → trimOut · kept`) were shown below the mini timeline scrub bar. Moved them into the crafting drawer header row — always visible alongside TRIM / SPLIT / TOOLS regardless of which mode is active. Colors: amber when trim is applied, muted rust when untrimmed. Removed the labels from below the scrub bar entirely.
+
+---
+
+### [2026-03-28] — PlaybackScreen: Reduced Blank Screen Between Clips
+
+**Problem:** Visible loading spinner + blank screen between clips, especially past clip 2-3 in a scrapbook.
+
+**Root causes fixed:**
+- `onWaiting` was triggering the loading overlay on any brief mid-clip stall — too aggressive. Removed.
+- `setVideoLoading(true)` was always set on clip change, even when the blob was already in cache. Now checks `blobUrl.startsWith('blob:')` — skips overlay if blob is ready.
+- `preloadRest(clips, 0)` was missing from PlaybackScreen. Only next/prev were being preloaded one at a time. Now fires on both cache-hit load and fresh fetch so all clips download concurrently in the background.
+- Added `onPlaying` to clear `videoLoading` (was only clearing on `onCanPlay`).
+
+---
+
 ### [2026-03-27] — The Remix ✅ Complete
 
 **New feature:** A random cut from the user's library (and optionally shared scrapbooks).

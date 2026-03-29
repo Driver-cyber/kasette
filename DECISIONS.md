@@ -568,6 +568,31 @@ Three tappable mode toggles: `[TRIM] | [SPLIT] | [TOOLS]`
 
 ---
 
+### [2026-03-29] — RemixScreen → Film Fest Redesign
+
+**Renamed and redesigned** the Remix feature at `/remix` (`RemixScreen.jsx`) as a **Film Fest** library filter workspace.
+
+**What changed:**
+- Old: clip count stepper + shuffle + "Making it groovy" → random Discovery session
+- New: multi-select year/month filters → Watch loads all matching clips in order → navigates to DiscoveryScreen with `{ isRemix: true, screenTitle: 'Film Fest' }`
+
+**New layout:**
+- Header: Library back (left) + Surprise Me pill (right, amber outline)
+- Body: "Film Fest" italic Fraunces display title + "Filter your film" section with `MultiSelectDropdown` for years and months
+- Bottom bar: Watch (amber CTA, full-width half) + Download (outlined half)
+
+**Stubs (coming soon modal):**
+- **Download** button — future export feature
+- **Surprise Me** button — future random/remix feature (replaces old shuffle logic)
+
+**DiscoveryScreen update:** `screenTitle` added to route state — pill in header is now dynamic (`location.state?.screenTitle || 'The Remix'`). Film Fest sessions show "Film Fest" pill.
+
+**MultiSelectDropdown pattern:** Checkbox-style list with an "All X" option that clears selection. When nothing is selected, the button label says "All Years" / "All Months". Can be reused elsewhere.
+
+**Why:** The old Remix screen was a single-purpose shuffle tool. Film Fest turns `/remix` into a general-purpose viewing workspace — family can filter by time period and watch a curated slice of their library.
+
+---
+
 ### [2026-03-29] — Cancel Button on Loading / Processing Screens
 
 **Pattern:** All loading/processing overlay screens now have an X button (top-right, `absolute top-14 right-5`) that lets the user bail out without waiting.

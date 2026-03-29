@@ -215,17 +215,18 @@ The full-screen Reels-style viewer. The payoff.
 - Hold-to-pause + scrub bar same as Playback.
 - Tap for scrapbook info + "Watch scrapbook →" link.
 
-### 7. Remix Screen (`/remix`)
-The mixing studio. Accessible from the shuffle icon on HomeScreen.
+### 7. Film Fest Screen (`/remix`) — `RemixScreen.jsx`
+A library filter workspace. Accessible from the shuffle icon on HomeScreen.
 
-- Clip count stepper (6–12, default 8)
-- Toggle: include shared clips in remix pool
-- "Make My Remix" CTA → cassette reel loading animation ("Making it groovy...") + 3s minimum
-- Fetches own clips + optionally shared clips, shuffles, picks N, preloads first blob
-- Navigates to DiscoveryScreen with `{ state: { clips, isRemix: true } }`
-- **Cancel button** (X, top-right) on loading screen: returns to studio, `cancelledRef` prevents navigate if already cancelled
+- **Year filter:** multi-select dropdown; empty = All Years. Options fetched from user's scrapbooks on mount.
+- **Month filter:** multi-select dropdown; empty = All Months. Always shows all 12 months.
+- **Watch:** fetches scrapbooks filtered by selected years/months, flattens clips, preloads first 3, navigates to DiscoveryScreen with `{ clips, isRemix: true, screenTitle: 'Film Fest' }`. Min 2s loading screen with cassette reels.
+- **Download:** coming soon modal stub.
+- **Surprise Me** pill (top-right): coming soon modal stub — future random/remix feature.
+- **Cancel button** (X, top-right on loading screen): sets `cancelledRef`, returns to studio.
+- `MultiSelectDropdown` component defined locally — checkbox-style list, "All X" option clears selection.
 
-DiscoveryScreen detects remix mode: skips its own fetch, shows "The Remix" pill in header, back → `/remix`, top-right → Disc3 icon back to remix studio.
+DiscoveryScreen: `isRemix: true` → skips own fetch, shows `screenTitle` pill in header (dynamic from route state), back → `/remix`, top-right → Disc3 icon back.
 
 ### 8. Share Screen (`/scrapbook/:id/share`)
 Manage per-scrapbook sharing. Add family members by email. Remove self from shared scrapbooks. Auto-share defaults live in SettingsScreen.

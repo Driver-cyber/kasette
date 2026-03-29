@@ -89,7 +89,7 @@ export default function SettingsScreen() {
           .select('id')
           .eq('user_id', session.user.id)
         if (scrapbooks && scrapbooks.length > 0) {
-          await supabase.from('scrapbook_shares').upsert(
+          const { error: upsertErr } = await supabase.from('scrapbook_shares').upsert(
             scrapbooks.map(sb => ({
               scrapbook_id: sb.id,
               owner_id: session.user.id,
@@ -97,6 +97,17 @@ export default function SettingsScreen() {
             })),
             { onConflict: 'scrapbook_id,shared_with_id', ignoreDuplicates: true }
           )
+          if (upsertErr) {
+            // Roll back the sharing_defaults row we just inserted
+            await supabase.from('sharing_defaults')
+              .delete()
+              .eq('user_id', session.user.id)
+              .eq('recipient_id', pendingRecipient.id)
+            setAddStatus('error')
+            setPendingRecipient(null)
+            setConfirming(false)
+            return
+          }
         }
       }
 

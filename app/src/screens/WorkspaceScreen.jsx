@@ -79,6 +79,9 @@ export default function WorkspaceScreen() {
   const clipsRef = useRef(clips)
   useEffect(() => { clipsRef.current = clips }, [clips])
 
+  // Clean up any in-flight drag listeners if the component unmounts mid-drag
+  useEffect(() => () => { activeDragCleanup.current?.() }, [])
+
   // Auto-scroll horizontal strip to active card
   useEffect(() => {
     if (!clipStripRef.current || !activeClipId) return
@@ -101,6 +104,7 @@ export default function WorkspaceScreen() {
   const longPressData = useRef(null) // { index, rowEl, startY, clientY }
   const wasReorderDrag = useRef(false) // blocks onClick from selecting after a drag
   const isDraggingActive = useRef(false) // track if currently in drag mode
+  const activeDragCleanup = useRef(null) // stores listener cleanup fn for unmount safety
 
   // ── Fetch ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -176,8 +180,17 @@ export default function WorkspaceScreen() {
   }
 
   async function saveClipChanges(clipId, changes) {
+    const prevClip = clips.find(c => c.id === clipId)
     updateClipLocal(clipId, changes)
-    await supabase.from('clips').update(changes).eq('id', clipId)
+    const { error } = await supabase.from('clips').update(changes).eq('id', clipId)
+    if (error) {
+      // Revert local state to what it was before the optimistic update
+      if (prevClip) {
+        const revert = Object.fromEntries(Object.keys(changes).map(k => [k, prevClip[k] ?? null]))
+        updateClipLocal(clipId, revert)
+      }
+      return
+    }
     clearTimeout(savedFlashTimer.current)
     setSavedFlash(true)
     savedFlashTimer.current = setTimeout(() => setSavedFlash(false), 2500)
@@ -271,6 +284,7 @@ export default function WorkspaceScreen() {
       document.removeEventListener('touchend', onEnd)
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onEnd)
+      activeDragCleanup.current = null
 
       setTimeout(() => setTrimHandlesActive(false), 2000)
 
@@ -287,6 +301,12 @@ export default function WorkspaceScreen() {
     document.addEventListener('touchend', onEnd)
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onEnd)
+    activeDragCleanup.current = () => {
+      document.removeEventListener('touchmove', onMove)
+      document.removeEventListener('touchend', onEnd)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onEnd)
+    }
   }
 
   // ── Split mode: reset to step 1 and position bar at ~30% when activated ──
@@ -329,12 +349,19 @@ export default function WorkspaceScreen() {
       document.removeEventListener('touchend', onEnd)
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onEnd)
+      activeDragCleanup.current = null
     }
 
     document.addEventListener('touchmove', onMove, { passive: false })
     document.addEventListener('touchend', onEnd)
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onEnd)
+    activeDragCleanup.current = () => {
+      document.removeEventListener('touchmove', onMove)
+      document.removeEventListener('touchend', onEnd)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onEnd)
+    }
   }
 
   // ── Multi-step split: Set Split 1 → Set Split 2 → Confirm & Cut ──────────
@@ -388,11 +415,18 @@ export default function WorkspaceScreen() {
       document.removeEventListener('touchend', onEnd)
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onEnd)
+      activeDragCleanup.current = null
     }
     document.addEventListener('touchmove', onMove, { passive: false })
     document.addEventListener('touchend', onEnd)
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onEnd)
+    activeDragCleanup.current = () => {
+      document.removeEventListener('touchmove', onMove)
+      document.removeEventListener('touchend', onEnd)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onEnd)
+    }
   }
 
   // ── Remove split ────────────────────────────────────────────────────────
@@ -449,6 +483,7 @@ export default function WorkspaceScreen() {
       document.removeEventListener('touchend', onEnd)
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onEnd)
+      activeDragCleanup.current = null
       setCaptionPosDraft({ x: currentX, y: currentY })
       await supabase.from('clips').update({ caption_x: currentX, caption_y: currentY }).eq('id', activeClip.id)
     }
@@ -457,20 +492,24 @@ export default function WorkspaceScreen() {
     document.addEventListener('touchend', onEnd)
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onEnd)
+    activeDragCleanup.current = () => {
+      document.removeEventListener('touchmove', onMove)
+      document.removeEventListener('touchend', onEnd)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onEnd)
+    }
   }
 
   // ── Mute toggle ────────────────────────────────────────────────────────
-  async function toggleMute() {
+  // NOTE: muted is client-side only — no DB column. Never pass to saveClipChanges.
+  function toggleMute() {
     if (!activeClip) return
     const newMuted = !activeClip.muted
-    setUndoable({ type: 'clip', clipId: activeClip.id, prev: { muted: activeClip.muted || false } })
-    await saveClipChanges(activeClip.id, { muted: newMuted })
-    
-    // Update video element
+    // Set video element immediately
     const video = videoRef.current
-    if (video) {
-      video.muted = newMuted
-    }
+    if (video) video.muted = newMuted
+    setUndoable({ type: 'clip', clipId: activeClip.id, prev: { muted: activeClip.muted || false } })
+    updateClipLocal(activeClip.id, { muted: newMuted })
   }
 
   // ── Caption save ───────────────────────────────────────────────────────
@@ -623,6 +662,7 @@ export default function WorkspaceScreen() {
     async function onEnd() {
       document.removeEventListener('touchmove', onMove)
       document.removeEventListener('touchend', onEnd)
+      activeDragCleanup.current = null
       dragState.current = null
       setDragFromIndex(null)
       setGhostClip(null)
@@ -635,6 +675,10 @@ export default function WorkspaceScreen() {
 
     document.addEventListener('touchmove', onMove, { passive: false })
     document.addEventListener('touchend', onEnd)
+    activeDragCleanup.current = () => {
+      document.removeEventListener('touchmove', onMove)
+      document.removeEventListener('touchend', onEnd)
+    }
   }
 
   // ── Mouse drag to reorder (desktop) — mousedown on drag handle ─────────
@@ -675,6 +719,7 @@ export default function WorkspaceScreen() {
     async function onEnd() {
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onEnd)
+      activeDragCleanup.current = null
       dragState.current = null
       setDragFromIndex(null)
       setGhostClip(null)
@@ -687,6 +732,10 @@ export default function WorkspaceScreen() {
 
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onEnd)
+    activeDragCleanup.current = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onEnd)
+    }
   }
 
   // ── Tool toggle ────────────────────────────────────────────────────────

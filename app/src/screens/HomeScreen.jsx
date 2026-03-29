@@ -312,6 +312,9 @@ export default function HomeScreen() {
     const sbId = optionsId
     setOptionsId(null)
     e.target.value = ''
+    // Capture old cover URL so we can roll back if upload fails
+    const prevCoverUrl = scrapbooks.find(sb => sb.id === sbId)?.cover_image_url ?? null
+    // Optimistic preview with local data URL
     const reader = new FileReader()
     reader.onload = (ev) => {
       setScrapbooks(prev => prev.map(sb => sb.id === sbId ? { ...sb, cover_image_url: ev.target.result } : sb))
@@ -320,12 +323,15 @@ export default function HomeScreen() {
     const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
     const coverPath = `${session.user.id}/covers/${sbId}.${ext}`
     const { error } = await supabase.storage.from('cassette-media').upload(coverPath, file, { cacheControl: '0', upsert: true })
-    if (!error) {
-      const { data: { publicUrl } } = supabase.storage.from('cassette-media').getPublicUrl(coverPath)
-      const bustUrl = `${publicUrl}?v=${Date.now()}`
-      await supabase.from('scrapbooks').update({ cover_image_url: bustUrl }).eq('id', sbId)
-      setScrapbooks(prev => prev.map(sb => sb.id === sbId ? { ...sb, cover_image_url: bustUrl } : sb))
+    if (error) {
+      // Revert optimistic update — upload failed
+      setScrapbooks(prev => prev.map(sb => sb.id === sbId ? { ...sb, cover_image_url: prevCoverUrl } : sb))
+      return
     }
+    const { data: { publicUrl } } = supabase.storage.from('cassette-media').getPublicUrl(coverPath)
+    const bustUrl = `${publicUrl}?v=${Date.now()}`
+    await supabase.from('scrapbooks').update({ cover_image_url: bustUrl }).eq('id', sbId)
+    setScrapbooks(prev => prev.map(sb => sb.id === sbId ? { ...sb, cover_image_url: bustUrl } : sb))
   }
 
   async function deleteScrapbook() {

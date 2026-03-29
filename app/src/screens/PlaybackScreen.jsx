@@ -47,6 +47,14 @@ export default function PlaybackScreen() {
   const wasPlayingBeforeHold = useRef(false)
   const holdOccurredRef = useRef(false)
 
+  // Reset touch state refs on unmount so they don't bleed into the next mount
+  useEffect(() => {
+    return () => {
+      scrubActiveRef.current = false
+      if (holdTimerRef.current) clearTimeout(holdTimerRef.current)
+    }
+  }, [])
+
   // Horizontal swipe state
   const [dragOffset, setDragOffset] = useState(0)
   const [dragTransitioning, setDragTransitioning] = useState(false)
@@ -84,6 +92,7 @@ export default function PlaybackScreen() {
   useEffect(() => {
     const nextVideo = nextVideoRef.current
     if (nextVideo && nextClip) {
+      nextVideo.onerror = () => { nextVideo.src = nextClip.video_url; nextVideo.load() }
       nextVideo.src = getBlob(nextClip.video_url)
       nextVideo.currentTime = nextClip.trim_in || 0
       nextVideo.load()
@@ -96,6 +105,7 @@ export default function PlaybackScreen() {
   useEffect(() => {
     const prevVideo = prevVideoRef.current
     if (prevVideo && prevClip) {
+      prevVideo.onerror = () => { prevVideo.src = prevClip.video_url; prevVideo.load() }
       prevVideo.src = getBlob(prevClip.video_url)
       prevVideo.currentTime = prevClip.trim_in || 0
       prevVideo.load()
@@ -280,7 +290,7 @@ export default function PlaybackScreen() {
     const dx = dragStartX.current - e.touches[0].clientX
     const dy = Math.abs(dragStartY.current - e.touches[0].clientY)
 
-    if (Math.abs(dx) > 5 || dy > 5) {
+    if (Math.abs(dx) > 15 || dy > 15) {
       if (holdTimerRef.current) {
         clearTimeout(holdTimerRef.current)
         holdTimerRef.current = null

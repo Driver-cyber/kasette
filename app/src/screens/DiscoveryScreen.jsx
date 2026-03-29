@@ -82,7 +82,7 @@ export default function DiscoveryScreen() {
       shuffled.forEach(c => { if (c.thumbnail_url) { const img = new Image(); img.src = c.thumbnail_url } })
     }
     setLoading(false)
-  }, [session, isRemix])
+  }, [session, isRemix, location.state])
 
   useEffect(() => { loadClips() }, [loadClips])
 
@@ -95,6 +95,7 @@ export default function DiscoveryScreen() {
   useEffect(() => {
     const prev = prevVideoRef.current
     if (!prev || !prevClip) return
+    prev.onerror = () => { prev.src = prevClip.video_url; prev.load() }
     prev.src = getBlob(prevClip.video_url)
     prev.load()
     preloadClip(prevClip.video_url)
@@ -103,6 +104,7 @@ export default function DiscoveryScreen() {
   useEffect(() => {
     const next = nextVideoRef.current
     if (!next || !nextClip) return
+    next.onerror = () => { next.src = nextClip.video_url; next.load() }
     next.src = getBlob(nextClip.video_url)
     next.load()
     preloadClip(nextClip.video_url)
@@ -111,6 +113,7 @@ export default function DiscoveryScreen() {
   useEffect(() => {
     const next2 = next2VideoRef.current
     if (!next2 || !next2Clip) return
+    next2.onerror = () => { next2.src = next2Clip.video_url; next2.load() }
     next2.src = getBlob(next2Clip.video_url)
     next2.load()
     preloadClip(next2Clip.video_url)

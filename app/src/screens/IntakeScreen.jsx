@@ -181,6 +181,7 @@ export default function IntakeScreen() {
   const nameInputRef = useRef(null)
   const coverInputRef = useRef(null)
   const wakeLockRef = useRef(null)
+  const cancelledRef = useRef(false)
 
   // Smooth progress bar
   const smoothPctRef = useRef(0)
@@ -309,8 +310,16 @@ export default function IntakeScreen() {
     setCoverPreview(null)
   }
 
+  function handleCancel() {
+    cancelledRef.current = true
+    releaseWakeLock()
+    setUploading(false)
+    navigate(addToId ? `/scrapbook/${addToId}/edit` : '/')
+  }
+
   async function handleCreate() {
     if (!name.trim() || !selectedItems.length || uploading) return
+    cancelledRef.current = false
     setUploading(true)
     setError(null)
     await acquireWakeLock()
@@ -320,6 +329,7 @@ export default function IntakeScreen() {
       setUploadPhase('remuxing')
       const remuxedItems = []
       for (let i = 0; i < selectedItems.length; i++) {
+        if (cancelledRef.current) { releaseWakeLock(); return }
         setUploadProgress({ current: i + 1, total: selectedItems.length })
         const remuxedFile = await remuxWithFaststart(selectedItems[i].file)
         remuxedItems.push({ ...selectedItems[i], file: remuxedFile })
@@ -370,6 +380,7 @@ export default function IntakeScreen() {
 
       // 4. Upload each clip + thumbnail
       for (let i = 0; i < remuxedItems.length; i++) {
+        if (cancelledRef.current) { releaseWakeLock(); return }
         setUploadProgress({ current: i + 1, total: remuxedItems.length })
         const item = remuxedItems[i]
         const clipId = crypto.randomUUID()
@@ -430,6 +441,7 @@ export default function IntakeScreen() {
 
   async function handleAddClips() {
     if (!selectedItems.length || uploading) return
+    cancelledRef.current = false
     setUploading(true)
     setError(null)
     await acquireWakeLock()
@@ -439,6 +451,7 @@ export default function IntakeScreen() {
       setUploadPhase('remuxing')
       const remuxedItems = []
       for (let i = 0; i < selectedItems.length; i++) {
+        if (cancelledRef.current) { releaseWakeLock(); return }
         setUploadProgress({ current: i + 1, total: selectedItems.length })
         const remuxedFile = await remuxWithFaststart(selectedItems[i].file)
         remuxedItems.push({ ...selectedItems[i], file: remuxedFile })
@@ -457,6 +470,7 @@ export default function IntakeScreen() {
 
       // 3. Upload each new clip + thumbnail
       for (let i = 0; i < remuxedItems.length; i++) {
+        if (cancelledRef.current) { releaseWakeLock(); return }
         setUploadProgress({ current: i + 1, total: remuxedItems.length })
         const item = remuxedItems[i]
         const clipId = crypto.randomUUID()
@@ -521,7 +535,14 @@ export default function IntakeScreen() {
   // ── Uploading overlay ───────────────────────────────────────────────────
   if (uploading) {
     return (
-      <div className="flex flex-col items-center justify-center bg-walnut gap-10 px-8 text-center" style={{ height: '100dvh' }}>
+      <div className="relative flex flex-col items-center justify-center bg-walnut gap-10 px-8 text-center" style={{ height: '100dvh' }}>
+        <button
+          onClick={handleCancel}
+          className="absolute top-14 right-5 w-10 h-10 flex items-center justify-center rounded-full active:opacity-60"
+          style={{ background: 'rgba(74,46,24,0.6)' }}
+        >
+          <X size={20} strokeWidth={2} className="text-wheat/60" />
+        </button>
         <div className="flex items-center gap-10">
           <Reel />
           <Reel reverse />

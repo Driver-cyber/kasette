@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { preloadClip, preloadClips } from '../lib/blobCache'
@@ -39,8 +39,10 @@ export default function RemixScreen() {
   const [clipCount, setClipCount] = useState(8)
   const [includeShared, setIncludeShared] = useState(false)
   const [errorMsg, setErrorMsg] = useState(null)
+  const cancelledRef = useRef(false)
 
   async function handleMakeRemix() {
+    cancelledRef.current = false
     setPhase('loading')
     setErrorMsg(null)
 
@@ -116,6 +118,7 @@ export default function RemixScreen() {
       selected.slice(3).forEach(c => preloadClip(c.video_url)) // fire and forget rest
       await Promise.all([minDelay, firstReady])
 
+      if (cancelledRef.current) return
       navigate('/discover', { state: { clips: selected, isRemix: true } })
     } catch {
       setPhase('studio')
@@ -127,9 +130,16 @@ export default function RemixScreen() {
   if (phase === 'loading') {
     return (
       <div
-        className="flex flex-col items-center justify-center bg-walnut gap-10 px-8 text-center"
+        className="relative flex flex-col items-center justify-center bg-walnut gap-10 px-8 text-center"
         style={{ height: '100dvh' }}
       >
+        <button
+          onClick={() => { cancelledRef.current = true; setPhase('studio') }}
+          className="absolute top-14 right-5 w-10 h-10 flex items-center justify-center rounded-full active:opacity-60"
+          style={{ background: 'rgba(74,46,24,0.6)' }}
+        >
+          <X size={20} strokeWidth={2} className="text-wheat/60" />
+        </button>
         <div className="flex items-center gap-10">
           <Reel />
           <Reel reverse />

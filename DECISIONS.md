@@ -851,12 +851,39 @@ The FFmpeg virtual filesystem accumulates input files if an export fails mid-way
 **6. Tech stack table says React Router v6 — it's actually v7**
 Minor doc inconsistency in the `Active Tech Stack` table above.
 
+---
+
+### [2026-03-29] — Code Review: Bug Fixes Across 6 Files
+
+Full codebase review pass. All fixes in commit `fd68cfa`.
+
+**Critical fixes:**
+
+- **WorkspaceScreen — `activeDragCleanup` ref pattern:** All 6 drag handlers (`startTrimDrag`, `startSplitDrag`, `startMiniScrub`, `startCaptionDrag`, `startDragFromTouch`, `startDragFromMouse`) now store a cleanup fn in `activeDragCleanup = useRef(null)` immediately after adding `document` listeners. A single `useEffect(() => () => activeDragCleanup.current?.(), [])` fires on unmount. Each `onEnd` clears the ref. **All future drag features must follow this pattern.**
+
+- **WorkspaceScreen — `toggleMute` was writing to a non-existent DB column:** `muted` has no column in `clips`. The old code called `saveClipChanges(id, { muted })` which silently failed at Supabase. Fixed: `toggleMute` is sync, sets `video.muted` immediately, calls `updateClipLocal` only, never touches the DB. See also: performance_arch memory.
+
+- **PlaybackScreen — `scrubActiveRef` not cleared on unmount:** Navigating away mid-scrub left the ref `true`, blocking swipe navigation on next mount. Fixed: cleanup effect resets `scrubActiveRef` and clears `holdTimerRef` on unmount.
+
+**Other fixes:**
+
+- **WorkspaceScreen — `saveClipChanges`** now checks `{ error }` from Supabase, reverts local state on failure, skips false "saved" flash.
+- **PlaybackScreen + DiscoveryScreen** — all preload `<video>` refs now have `onerror` handlers that fall back to the direct URL on blob failure (no more silent black screen).
+- **DiscoveryScreen** — `location.state` added to `loadClips` useCallback deps so Film Fest re-navigations with a new clip set always reload.
+- **PlaybackScreen** — hold-to-pause cancel threshold increased 5px → 15px.
+- **SettingsScreen** — retroactive share `upsert` failure now rolls back the `sharing_defaults` insert.
+- **HomeScreen** — cover upload failure now reverts the optimistic data URL preview.
+- **dataCache** — `MAX_ENTRIES = 10` with oldest-entry eviction prevents unbounded Map growth.
+
+---
+
 ### Architecture Observations (good patterns to keep)
 
+- **`activeDragCleanup` ref pattern** — every drag handler that attaches to `document` must store its cleanup in `activeDragCleanup.current`. Do not add new drag features without this.
 - **Stale closure fix** (capture values before `setClips`) — correctly and consistently applied in trim, reorder, and caption drag interactions. Do not regress this.
 - **Document-level drag listeners** — correct approach. React's `onTouchMove` is passive; document-level lets you call `preventDefault()` to block scroll. Keep this pattern for all future drag features.
 - **FFmpeg singleton + custom `fetchToBlobURL`** — hard-won. Do not touch without good reason. The three-piece constraint (ESM files + custom fetch + COOP/COEP headers) must all stay in place.
-- **Optimistic UI** — used correctly in HomeScreen (delete), ShareScreen (remove share), WorkspaceScreen (clip removal). Good pattern for mobile latency.
+- **Optimistic UI with rollback** — HomeScreen cover change and WorkspaceScreen clip edits capture prev state before optimistic update and revert on error. All future optimistic updates must follow this pattern.
 - **RLS everywhere** — all tables scoped to `user_id`. Correct. Don't add any table without RLS.
 - **Lazy screen loading** — all screens are `React.lazy` + `Suspense`. Build stays lean.
 

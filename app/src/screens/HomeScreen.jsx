@@ -1,11 +1,13 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Play, Search, X, MoreHorizontal, ChevronDown, Image, Shuffle, Pencil, Settings } from 'lucide-react'
+import { Plus, Play, Search, X, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight, Image, Shuffle, Pencil, Settings } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { APP_VERSION } from '../version'
 
-// Warm gradient palettes for cards without a cover image
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
+const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
 const CARD_GRADIENTS = [
   'linear-gradient(135deg, #6B2D0E 0%, #3D1A0A 40%, #8B3A18 100%)',
   'linear-gradient(135deg, #1A3A2E 0%, #0E2218 40%, #2A5040 100%)',
@@ -17,9 +19,7 @@ const CARD_GRADIENTS = [
 
 function hashId(id) {
   let h = 0
-  for (let i = 0; i < id.length; i++) {
-    h = (Math.imul(31, h) + id.charCodeAt(i)) | 0
-  }
+  for (let i = 0; i < id.length; i++) h = (Math.imul(31, h) + id.charCodeAt(i)) | 0
   return Math.abs(h)
 }
 
@@ -34,12 +34,8 @@ function formatCardDuration(seconds) {
 }
 
 function formatCardDate(clips, createdAt) {
-  const dates = clips
-    .map(c => c.recorded_at ? new Date(c.recorded_at) : null)
-    .filter(Boolean)
-  const ref = dates.length > 0
-    ? new Date(Math.min(...dates.map(d => d.getTime())))
-    : new Date(createdAt)
+  const dates = clips.map(c => c.recorded_at ? new Date(c.recorded_at) : null).filter(Boolean)
+  const ref = dates.length > 0 ? new Date(Math.min(...dates.map(d => d.getTime()))) : new Date(createdAt)
   return ref.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 }
 
@@ -49,7 +45,7 @@ function extractStoragePath(url) {
   return idx >= 0 ? url.slice(idx + marker.length) : null
 }
 
-function ScrapbookCard({ scrapbook, onClick, onOptionsPress, readOnly = false, isNew = false }) {
+function ScrapbookCard({ scrapbook, onClick, onOptionsPress, readOnly = false, isNew = false, ownerName = null }) {
   const clips = scrapbook.clips ?? []
   const totalDuration = clips.reduce((sum, c) => {
     const out = c.trim_out ?? c.duration ?? 0
@@ -65,13 +61,9 @@ function ScrapbookCard({ scrapbook, onClick, onOptionsPress, readOnly = false, i
       className="w-full text-left rounded-[18px] overflow-hidden active:scale-[0.98] transition-transform border border-walnut-light"
       style={{ background: '#3D2410' }}
     >
-      {/* Thumbnail */}
       <div className="relative h-[148px] overflow-hidden">
         {scrapbook.cover_image_url ? (
-          <div
-            className="absolute inset-0 bg-center bg-cover"
-            style={{ backgroundImage: `url(${scrapbook.cover_image_url})` }}
-          />
+          <div className="absolute inset-0 bg-center bg-cover" style={{ backgroundImage: `url(${scrapbook.cover_image_url})` }} />
         ) : (
           <div className="absolute inset-0" style={{ background: gradient }} />
         )}
@@ -93,23 +85,17 @@ function ScrapbookCard({ scrapbook, onClick, onOptionsPress, readOnly = false, i
           style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)' }}>
           {clips.length} {clips.length === 1 ? 'clip' : 'clips'}
         </div>
-
-        {/* Play hint */}
         <div className="absolute bottom-3.5 right-3.5 w-9 h-9 rounded-full bg-amber flex items-center justify-center">
           <Play size={13} fill="#2C1A0E" strokeWidth={0} className="ml-0.5" />
         </div>
       </div>
-
-      {/* Card body */}
       <div className="px-4 pt-3.5 pb-4">
         <div className="font-display font-semibold text-[18px] text-wheat leading-snug mb-1">
           {scrapbook.name}
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-rust text-[11px]">{date}</span>
-          {duration && (
-            <span className="text-wheat text-[11px] opacity-35">{duration}</span>
-          )}
+          <span className="text-rust text-[11px]">{ownerName ? `from ${ownerName}` : date}</span>
+          {duration && <span className="text-wheat text-[11px] opacity-35">{duration}</span>}
         </div>
       </div>
     </button>
@@ -119,46 +105,43 @@ function ScrapbookCard({ scrapbook, onClick, onOptionsPress, readOnly = false, i
 export default function HomeScreen() {
   const navigate = useNavigate()
   const { session } = useAuth()
+
   const [scrapbooks, setScrapbooks] = useState([])
   const [loading, setLoading] = useState(true)
-  const [sharedScrapbooks, setSharedScrapbooks] = useState([]) // { id, seen, scrapbooks: {...} }
+  const [sharedScrapbooks, setSharedScrapbooks] = useState([])
+  const [ownerNames, setOwnerNames] = useState({}) // { [owner_id]: display_name }
   const [showSearch, setShowSearch] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [activeTab, setActiveTab] = useState('yours') // 'yours' | 'shared'
+  const [sharedView, setSharedView] = useState('feed') // 'feed' | 'byPerson'
+  const [collapsedYears, setCollapsedYears] = useState(new Set())
+  const [collapsedMonths, setCollapsedMonths] = useState(new Set())
+  const [collapsedOwners, setCollapsedOwners] = useState(new Set())
   const [optionsId, setOptionsId] = useState(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [sharedOptionsShareId, setSharedOptionsShareId] = useState(null)
   const [renameId, setRenameId] = useState(null)
   const [renameDraft, setRenameDraft] = useState('')
-  const [showVersion, setShowVersion] = useState(false) // Version popup
+  const [renameYear, setRenameYear] = useState(new Date().getFullYear())
+  const [renameMonth, setRenameMonth] = useState(null) // 1–12 or null
+  const [showVersion, setShowVersion] = useState(false)
   const [displayName, setDisplayName] = useState(null)
-   
-   const greetings = [
-     "Hello",
-     "Hey there",
-     "Good day",
-     "Top o' the mornin'",
-     "Welcome back",
-     "Howdy",
-     "G'day",
-     "Greetings",
-   ]
-   const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)]
+
+  const greetings = ['Hello','Hey there','Good day','Top o\' the mornin\'','Welcome back','Howdy','G\'day','Greetings']
+  const randomGreeting = useRef(greetings[Math.floor(Math.random() * greetings.length)]).current
   const searchInputRef = useRef(null)
   const coverChangeInputRef = useRef(null)
+  const initDone = useRef(false)
 
-useEffect(() => {
-     if (!session) return
-     supabase
-       .from('profiles')
-       .select('display_name')
-       .eq('user_id', session.user.id)
-       .single()
-       .then(({ data }) => {
-         if (data) setDisplayName(data.display_name)
-       })
-   }, [session])
-  
+  // ── Fetch display name ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!session) return
+    supabase.from('profiles').select('display_name').eq('user_id', session.user.id).single()
+      .then(({ data }) => { if (data) setDisplayName(data.display_name) })
+  }, [session])
+
+  // ── Fetch own scrapbooks ──────────────────────────────────────────────────
   useEffect(() => {
     if (!session) return
     setLoading(true)
@@ -173,93 +156,109 @@ useEffect(() => {
       })
   }, [session])
 
+  // ── Fetch shared scrapbooks + owner names ─────────────────────────────────
   useEffect(() => {
     if (!session) return
     supabase
       .from('scrapbook_shares')
-      .select('id, seen, scrapbooks(*, clips(id, video_url, duration, trim_in, trim_out, recorded_at))')
+      .select('id, seen, owner_id, scrapbooks(*, clips(id, video_url, duration, trim_in, trim_out, recorded_at))')
       .eq('shared_with_id', session.user.id)
       .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        if (data) setSharedScrapbooks(data)
+      .then(async ({ data }) => {
+        if (!data) return
+        setSharedScrapbooks(data)
+        const ownerIds = [...new Set(data.map(s => s.owner_id).filter(Boolean))]
+        if (ownerIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles').select('user_id, display_name').in('user_id', ownerIds)
+          if (profiles) {
+            const names = {}
+            profiles.forEach(p => { names[p.user_id] = p.display_name })
+            setOwnerNames(names)
+          }
+        }
       })
   }, [session])
 
-  // Focus search input when it opens
+  // ── Default expansion: current year + most recent month auto-open ─────────
   useEffect(() => {
-    if (showSearch) {
-      setTimeout(() => searchInputRef.current?.focus(), 100)
-    }
+    if (scrapbooks.length === 0 || initDone.current) return
+    initDone.current = true
+    const currentYear = new Date().getFullYear()
+    const allYears = [...new Set(scrapbooks.map(sb => sb.year ?? new Date(sb.created_at).getFullYear()))]
+    setCollapsedYears(new Set(allYears.filter(y => y !== currentYear)))
+    const currentYearBooks = scrapbooks.filter(sb =>
+      (sb.year ?? new Date(sb.created_at).getFullYear()) === currentYear
+    )
+    const months = currentYearBooks.map(sb => sb.month ?? 0).filter(m => m > 0)
+    const mostRecentMonth = months.length > 0 ? Math.max(...months) : 0
+    const allMonthKeys = new Set(scrapbooks.map(sb => {
+      const y = sb.year ?? new Date(sb.created_at).getFullYear()
+      return `${y}-${sb.month ?? 0}`
+    }))
+    const expandKey = mostRecentMonth > 0 ? `${currentYear}-${mostRecentMonth}` : null
+    setCollapsedMonths(new Set([...allMonthKeys].filter(k => k !== expandKey)))
+  }, [scrapbooks])
+
+  // ── Search focus ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (showSearch) setTimeout(() => searchInputRef.current?.focus(), 100)
   }, [showSearch])
 
-  function closeSearch() {
-    setShowSearch(false)
-    setSearchQuery('')
-  }
-
-  const [collapsedYears, setCollapsedYears] = useState(new Set())
-  const [sharedCollapsed, setSharedCollapsed] = useState(false)
+  function closeSearch() { setShowSearch(false); setSearchQuery('') }
 
   function toggleYear(year) {
-    setCollapsedYears(prev => {
-      const next = new Set(prev)
-      next.has(year) ? next.delete(year) : next.add(year)
-      return next
+    setCollapsedYears(prev => { const n = new Set(prev); n.has(year) ? n.delete(year) : n.add(year); return n })
+  }
+  function toggleMonth(key) {
+    setCollapsedMonths(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
+  }
+  function toggleOwner(ownerId) {
+    setCollapsedOwners(prev => { const n = new Set(prev); n.has(ownerId) ? n.delete(ownerId) : n.add(ownerId); return n })
+  }
+
+  // ── Grouping: yours ───────────────────────────────────────────────────────
+  const filteredScrapbooks = searchQuery.trim()
+    ? scrapbooks.filter(sb => sb.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : scrapbooks
+
+  const grouped = filteredScrapbooks.reduce((acc, sb) => {
+    const y = sb.year ?? new Date(sb.created_at).getFullYear()
+    const m = sb.month ?? 0
+    ;(acc[y] ??= {})[m] ??= []
+    acc[y][m].push(sb)
+    return acc
+  }, {})
+  const years = Object.keys(grouped).map(Number).sort((a, b) => b - a)
+
+  function sortedMonthsForYear(y) {
+    return Object.keys(grouped[y] ?? {}).map(Number).sort((a, b) => {
+      if (a === 0) return 1
+      if (b === 0) return -1
+      return b - a
     })
   }
 
-  const filteredScrapbooks = searchQuery.trim()
-    ? scrapbooks.filter(sb =>
-        sb.name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : scrapbooks
+  // ── Grouping: shared ──────────────────────────────────────────────────────
+  const sortedShared = [...sharedScrapbooks].sort((a, b) => {
+    const aYear = a.scrapbooks?.year ?? 0, bYear = b.scrapbooks?.year ?? 0
+    if (bYear !== aYear) return bYear - aYear
+    return (b.scrapbooks?.month ?? 0) - (a.scrapbooks?.month ?? 0)
+  })
 
-  // Group by year, sorted newest first
-  const groupedByYear = filteredScrapbooks.reduce((acc, sb) => {
-    const y = sb.year ?? new Date(sb.created_at).getFullYear()
-    ;(acc[y] ??= []).push(sb)
+  const groupedByOwner = sortedShared.reduce((acc, share) => {
+    ;(acc[share.owner_id] ??= []).push(share)
     return acc
   }, {})
-  const years = Object.keys(groupedByYear).map(Number).sort((a, b) => b - a)
 
+  const hasUnseenShared = sharedScrapbooks.some(s => !s.seen)
+
+  // ── Options derived ───────────────────────────────────────────────────────
   const optionsScrapbook = scrapbooks.find(sb => sb.id === optionsId)
   const sharedOptionsShare = sharedScrapbooks.find(s => s.id === sharedOptionsShareId)
   const confirmDeleteScrapbook = scrapbooks.find(sb => sb.id === confirmDeleteId)
 
-  async function handleCoverChange(e) {
-    const file = e.target.files?.[0]
-    if (!file || !optionsId) return
-    const sbId = optionsId
-    setOptionsId(null)
-    e.target.value = ''
-
-    // Optimistic preview while uploading
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      setScrapbooks(prev => prev.map(sb =>
-        sb.id === sbId ? { ...sb, cover_image_url: ev.target.result } : sb
-      ))
-    }
-    reader.readAsDataURL(file)
-
-    // Upload to storage (upsert — overwrites existing cover)
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-    const coverPath = `${session.user.id}/covers/${sbId}.${ext}`
-    const { error } = await supabase.storage
-      .from('cassette-media')
-      .upload(coverPath, file, { cacheControl: '0', upsert: true })
-    if (!error) {
-      const { data: { publicUrl } } = supabase.storage
-        .from('cassette-media')
-        .getPublicUrl(coverPath)
-      const bustUrl = `${publicUrl}?v=${Date.now()}`
-      await supabase.from('scrapbooks').update({ cover_image_url: bustUrl }).eq('id', sbId)
-      setScrapbooks(prev => prev.map(sb =>
-        sb.id === sbId ? { ...sb, cover_image_url: bustUrl } : sb
-      ))
-    }
-  }
-
+  // ── Handlers ──────────────────────────────────────────────────────────────
   async function handleSharedCardTap(share) {
     if (!share.seen) {
       setSharedScrapbooks(prev => prev.map(s => s.id === share.id ? { ...s, seen: true } : s))
@@ -268,29 +267,38 @@ useEffect(() => {
     navigate(`/scrapbook/${share.scrapbooks.id}`)
   }
 
+  async function handleCoverChange(e) {
+    const file = e.target.files?.[0]
+    if (!file || !optionsId) return
+    const sbId = optionsId
+    setOptionsId(null)
+    e.target.value = ''
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      setScrapbooks(prev => prev.map(sb => sb.id === sbId ? { ...sb, cover_image_url: ev.target.result } : sb))
+    }
+    reader.readAsDataURL(file)
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+    const coverPath = `${session.user.id}/covers/${sbId}.${ext}`
+    const { error } = await supabase.storage.from('cassette-media').upload(coverPath, file, { cacheControl: '0', upsert: true })
+    if (!error) {
+      const { data: { publicUrl } } = supabase.storage.from('cassette-media').getPublicUrl(coverPath)
+      const bustUrl = `${publicUrl}?v=${Date.now()}`
+      await supabase.from('scrapbooks').update({ cover_image_url: bustUrl }).eq('id', sbId)
+      setScrapbooks(prev => prev.map(sb => sb.id === sbId ? { ...sb, cover_image_url: bustUrl } : sb))
+    }
+  }
+
   async function deleteScrapbook() {
     if (!confirmDeleteId || deleting) return
     setDeleting(true)
-
     const target = scrapbooks.find(sb => sb.id === confirmDeleteId)
-
-    // Optimistically remove from UI
     setScrapbooks(prev => prev.filter(sb => sb.id !== confirmDeleteId))
     setConfirmDeleteId(null)
-
-    // Delete storage files (best effort)
-    const clips = target?.clips ?? []
-    const storagePaths = clips
-      .map(c => extractStoragePath(c.video_url))
-      .filter(Boolean)
-    if (storagePaths.length > 0) {
-      await supabase.storage.from('cassette-media').remove(storagePaths)
-    }
-
-    // Delete clips then scrapbook from DB
+    const storagePaths = (target?.clips ?? []).map(c => extractStoragePath(c.video_url)).filter(Boolean)
+    if (storagePaths.length > 0) await supabase.storage.from('cassette-media').remove(storagePaths)
     await supabase.from('clips').delete().eq('scrapbook_id', confirmDeleteId)
     await supabase.from('scrapbooks').delete().eq('id', confirmDeleteId)
-
     setDeleting(false)
   }
 
@@ -303,21 +311,19 @@ useEffect(() => {
   async function handleRename() {
     const name = renameDraft.trim()
     if (!name || !renameId) return
-    setScrapbooks(prev => prev.map(sb => sb.id === renameId ? { ...sb, name } : sb))
+    const updates = { name, year: renameYear, month: renameMonth ?? null }
+    setScrapbooks(prev => prev.map(sb => sb.id === renameId ? { ...sb, ...updates } : sb))
     setRenameId(null)
-    await supabase.from('scrapbooks').update({ name }).eq('id', renameId)
+    await supabase.from('scrapbooks').update(updates).eq('id', renameId)
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-screen bg-walnut">
 
-      {/* Nav - Compressed header */}
+      {/* Header */}
       <header className="flex items-center justify-between px-6 pt-12 pb-2 flex-shrink-0">
-        <button 
-          onClick={() => setShowVersion(true)}
-          className="flex items-center gap-2.5 active:opacity-70"
-        >
-          {/* Spool logo - slightly bigger */}
+        <button onClick={() => setShowVersion(true)} className="flex items-center gap-2.5 active:opacity-70">
           <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
             <rect width="48" height="48" rx="9" fill="#3D2410"/>
             <circle cx="16" cy="22" r="8" stroke="#F2A24A" strokeWidth="3.5" fill="none"/>
@@ -330,48 +336,33 @@ useEffect(() => {
             Cassette<em className="font-light text-sienna not-italic">.</em>
           </span>
         </button>
-
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate('/remix')}
-            className="w-10 h-10 flex items-center justify-center rounded-full active:opacity-70"
-          >
+          <button onClick={() => navigate('/remix')} className="w-10 h-10 flex items-center justify-center rounded-full active:opacity-70">
             <Shuffle size={18} strokeWidth={2} className="text-wheat/50" />
           </button>
-
           <button
             onClick={() => showSearch ? closeSearch() : setShowSearch(true)}
             className="w-10 h-10 flex items-center justify-center rounded-full active:opacity-70"
             style={{ background: showSearch ? 'rgba(242,162,74,0.15)' : 'transparent' }}
           >
-            {showSearch ? (
-              <X size={18} strokeWidth={2.5} className="text-amber" />
-            ) : (
-              <Search size={18} strokeWidth={2} className="text-wheat/50" />
-            )}
+            {showSearch ? <X size={18} strokeWidth={2.5} className="text-amber" /> : <Search size={18} strokeWidth={2} className="text-wheat/50" />}
           </button>
-
-          <button
-            onClick={() => navigate('/settings')}
-            className="w-10 h-10 flex items-center justify-center rounded-full active:opacity-70"
-          >
+          <button onClick={() => navigate('/settings')} className="w-10 h-10 flex items-center justify-center rounded-full active:opacity-70">
             <Settings size={18} strokeWidth={2} className="text-wheat/50" />
           </button>
         </div>
       </header>
 
-{/* Whimsical greeting */}
-   {displayName && !showSearch && (
-     <div className="px-6 pt-2 pb-1">
-       <p className="font-display italic text-wheat/60 text-[15px]">
-         {randomGreeting}, {displayName}
-       </p>
-     </div>
-   )}
-      
-      {/* Search input */}
+      {/* Greeting */}
+      {displayName && !showSearch && (
+        <div className="px-6 pt-1 pb-1">
+          <p className="font-display italic text-wheat/60 text-[15px]">{randomGreeting}, {displayName}</p>
+        </div>
+      )}
+
+      {/* Search */}
       {showSearch && (
-        <div className="px-6 pb-4 flex-shrink-0">
+        <div className="px-6 pb-3 flex-shrink-0">
           <input
             ref={searchInputRef}
             type="search"
@@ -383,208 +374,308 @@ useEffect(() => {
         </div>
       )}
 
-      {/* Main content */}
-      <main className="flex-1 overflow-y-auto px-6 pb-20">
-        {loading ? (
-          <div className="flex items-center justify-center pt-20">
-            <div className="w-8 h-8 rounded-full border-2 border-amber border-t-transparent animate-spin" />
-          </div>
-        ) : filteredScrapbooks.length === 0 && sharedScrapbooks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center text-center pt-20 px-8">
-            <div className="w-16 h-16 rounded-full flex items-center justify-center mb-6"
-              style={{ background: 'rgba(242,162,74,0.1)' }}>
-              <Play size={24} strokeWidth={2} className="text-amber ml-1" />
-            </div>
-            <p className="text-wheat font-display font-semibold text-xl mb-2">No scrapbooks yet</p>
-            <p className="text-rust text-sm leading-relaxed mb-8">
-              Create your first scrapbook to get started.
-            </p>
-            <button
-              onClick={() => navigate('/intake')}
-              className="px-6 py-3 bg-amber text-walnut font-sans font-bold text-[15px] rounded-2xl active:opacity-80 flex items-center gap-2"
-            >
-              <Plus size={18} strokeWidth={2.5} />
-              New Scrapbook
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-8 pt-4">
-            {/* Shared with you section */}
-            {sharedScrapbooks.length > 0 && (
-              <div>
+      {/* Tab bar */}
+      <div className="flex px-6 pt-1 pb-0 flex-shrink-0 border-b border-walnut-light">
+        <button
+          onClick={() => setActiveTab('yours')}
+          className="relative pb-3 mr-6 font-sans font-semibold text-[14px] active:opacity-70"
+          style={{ color: activeTab === 'yours' ? '#F2A24A' : '#7A3B1E' }}
+        >
+          Your Scrapbooks
+          {activeTab === 'yours' && (
+            <div className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-amber" />
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab('shared')}
+          className="relative pb-3 font-sans font-semibold text-[14px] active:opacity-70"
+          style={{ color: activeTab === 'shared' ? '#F2A24A' : '#7A3B1E' }}
+        >
+          Shared
+          {hasUnseenShared && (
+            <div className="absolute -top-0.5 -right-2.5 w-2 h-2 rounded-full bg-amber" />
+          )}
+          {activeTab === 'shared' && (
+            <div className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-amber" />
+          )}
+        </button>
+      </div>
+
+      {/* Main scroll area */}
+      <main className="flex-1 overflow-y-auto pb-24">
+
+        {/* ── YOUR SCRAPBOOKS TAB ── */}
+        {activeTab === 'yours' && (
+          <div className="px-5 pt-4">
+            {loading ? (
+              <div className="flex items-center justify-center pt-20">
+                <div className="w-8 h-8 rounded-full border-2 border-amber border-t-transparent animate-spin" />
+              </div>
+            ) : filteredScrapbooks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center text-center pt-20 px-8">
+                <div className="w-16 h-16 rounded-full flex items-center justify-center mb-6" style={{ background: 'rgba(242,162,74,0.1)' }}>
+                  <Play size={24} strokeWidth={2} className="text-amber ml-1" />
+                </div>
+                <p className="text-wheat font-display font-semibold text-xl mb-2">No scrapbooks yet</p>
+                <p className="text-rust text-sm leading-relaxed mb-8">Create your first scrapbook to get started.</p>
                 <button
-                  onClick={() => setSharedCollapsed(!sharedCollapsed)}
-                  className="flex items-center justify-between w-full mb-3 active:opacity-70"
+                  onClick={() => navigate('/intake')}
+                  className="px-6 py-3 bg-amber text-walnut font-sans font-bold text-[15px] rounded-2xl active:opacity-80 flex items-center gap-2"
                 >
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-rust font-sans font-semibold text-[13px] tracking-wide uppercase">
-                      Shared with you
-                    </h2>
-                    <ChevronDown
-                      size={16}
-                      strokeWidth={2}
-                      className={`text-rust transition-transform ${sharedCollapsed ? '-rotate-90' : ''}`}
-                    />
-                  </div>
+                  <Plus size={18} strokeWidth={2.5} />
+                  New Scrapbook
                 </button>
-                {!sharedCollapsed && (
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {years.map((year) => {
+                  const isYearCollapsed = collapsedYears.has(year)
+                  const monthKeys = sortedMonthsForYear(year)
+                  // Month names preview shown when year is collapsed
+                  const monthPreview = monthKeys
+                    .filter(m => m > 0)
+                    .map(m => MONTH_SHORT[m - 1])
+                    .join(' · ') + (monthKeys.includes(0) ? (monthKeys.filter(m=>m>0).length > 0 ? ' · ···' : '···') : '')
+
+                  return (
+                    <div key={year} className="mb-2">
+                      {/* Year header */}
+                      <button
+                        onClick={() => toggleYear(year)}
+                        className="flex items-center justify-between w-full py-2.5 active:opacity-70"
+                      >
+                        <div className="flex items-center gap-2">
+                          <ChevronDown
+                            size={14} strokeWidth={2.5}
+                            className="text-rust transition-transform flex-shrink-0"
+                            style={{ transform: isYearCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+                          />
+                          <span className="text-rust font-sans font-bold text-[12px] tracking-[0.15em] uppercase">{year}</span>
+                        </div>
+                        {isYearCollapsed && monthPreview && (
+                          <span className="text-rust/45 text-[11px] font-sans truncate ml-4 text-right">{monthPreview}</span>
+                        )}
+                      </button>
+
+                      {/* Month subfolders */}
+                      {!isYearCollapsed && (
+                        <div className="space-y-1 ml-1">
+                          {monthKeys.map((m) => {
+                            const monthKey = `${year}-${m}`
+                            const isMonthCollapsed = collapsedMonths.has(monthKey)
+                            const monthScrapbooks = grouped[year][m]
+                            const label = m === 0 ? '···' : MONTH_NAMES[m - 1]
+
+                            return (
+                              <div key={monthKey} className="mb-1">
+                                {/* Month header */}
+                                <button
+                                  onClick={() => toggleMonth(monthKey)}
+                                  className="flex items-center gap-2 w-full py-2 pl-3 active:opacity-70"
+                                >
+                                  <ChevronDown
+                                    size={13} strokeWidth={2.5}
+                                    className="text-rust/60 transition-transform flex-shrink-0"
+                                    style={{ transform: isMonthCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+                                  />
+                                  <span className="text-rust/70 font-sans font-semibold text-[11px] tracking-wider uppercase">{label}</span>
+                                  <span className="text-rust/35 font-sans text-[10px]">{monthScrapbooks.length}</span>
+                                </button>
+
+                                {/* Cards */}
+                                {!isMonthCollapsed && (
+                                  <div className="grid gap-4 pl-1 pb-2">
+                                    {monthScrapbooks.map((sb) => (
+                                      <ScrapbookCard
+                                        key={sb.id}
+                                        scrapbook={sb}
+                                        onClick={() => navigate(`/scrapbook/${sb.id}`)}
+                                        onOptionsPress={() => setOptionsId(sb.id)}
+                                      />
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── SHARED TAB ── */}
+        {activeTab === 'shared' && (
+          <div className="px-5 pt-4">
+            {sortedShared.length === 0 ? (
+              <div className="flex flex-col items-center justify-center text-center pt-20 px-8">
+                <p className="text-wheat font-display font-semibold text-xl mb-2">Nothing shared yet</p>
+                <p className="text-rust text-sm leading-relaxed">When someone shares a scrapbook with you, it'll appear here.</p>
+              </div>
+            ) : (
+              <>
+                {/* View toggle */}
+                <div className="flex items-center gap-2 mb-5">
+                  <span className="text-rust text-[10px] font-bold tracking-[0.14em] uppercase mr-1">View</span>
+                  <button
+                    onClick={() => setSharedView('feed')}
+                    className="px-3 py-1.5 rounded-full font-sans font-semibold text-[12px] active:opacity-70 transition-colors"
+                    style={{
+                      background: sharedView === 'feed' ? 'rgba(242,162,74,0.15)' : 'transparent',
+                      color: sharedView === 'feed' ? '#F2A24A' : '#7A3B1E',
+                      border: `1px solid ${sharedView === 'feed' ? 'rgba(242,162,74,0.3)' : 'rgba(122,59,30,0.3)'}`,
+                    }}
+                  >
+                    Feed
+                  </button>
+                  <button
+                    onClick={() => { setSharedView('byPerson'); setCollapsedOwners(new Set()) }}
+                    className="px-3 py-1.5 rounded-full font-sans font-semibold text-[12px] active:opacity-70 transition-colors"
+                    style={{
+                      background: sharedView === 'byPerson' ? 'rgba(242,162,74,0.15)' : 'transparent',
+                      color: sharedView === 'byPerson' ? '#F2A24A' : '#7A3B1E',
+                      border: `1px solid ${sharedView === 'byPerson' ? 'rgba(242,162,74,0.3)' : 'rgba(122,59,30,0.3)'}`,
+                    }}
+                  >
+                    By Person
+                  </button>
+                </div>
+
+                {/* Feed view */}
+                {sharedView === 'feed' && (
                   <div className="grid gap-4">
-                    {sharedScrapbooks.map((share) => (
+                    {sortedShared.map((share) => (
                       <ScrapbookCard
                         key={share.id}
                         scrapbook={share.scrapbooks}
                         onClick={() => handleSharedCardTap(share)}
                         onOptionsPress={() => setSharedOptionsShareId(share.id)}
-                        readOnly={true}
+                        readOnly
                         isNew={!share.seen}
+                        ownerName={ownerNames[share.owner_id] ?? null}
                       />
                     ))}
                   </div>
                 )}
-              </div>
-            )}
 
-            {/* Year groups */}
-            {years.map((year) => {
-              const yearScrapbooks = groupedByYear[year]
-              const isCollapsed = collapsedYears.has(year)
-              return (
-                <div key={year}>
-                  <button
-                    onClick={() => toggleYear(year)}
-                    className="flex items-center gap-2 mb-3 active:opacity-70"
-                  >
-                    <h2 className="text-rust font-sans font-semibold text-[13px] tracking-wide uppercase">
-                      {year}
-                    </h2>
-                    <ChevronDown
-                      size={16}
-                      strokeWidth={2}
-                      className={`text-rust transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
-                    />
-                  </button>
-                  {!isCollapsed && (
-                    <div className="grid gap-4">
-                      {yearScrapbooks.map((sb) => (
-                        <ScrapbookCard
-                          key={sb.id}
-                          scrapbook={sb}
-                          onClick={() => navigate(`/scrapbook/${sb.id}`)}
-                          onOptionsPress={() => setOptionsId(sb.id)}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+                {/* By Person view */}
+                {sharedView === 'byPerson' && (
+                  <div className="space-y-1">
+                    {Object.entries(groupedByOwner).map(([ownerId, shares]) => {
+                      const name = ownerNames[ownerId] ?? 'Someone'
+                      const isCollapsed = collapsedOwners.has(ownerId)
+                      const hasUnseen = shares.some(s => !s.seen)
+                      return (
+                        <div key={ownerId} className="mb-2">
+                          <button
+                            onClick={() => toggleOwner(ownerId)}
+                            className="flex items-center gap-2 w-full py-2.5 active:opacity-70"
+                          >
+                            <ChevronDown
+                              size={14} strokeWidth={2.5}
+                              className="text-rust transition-transform flex-shrink-0"
+                              style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+                            />
+                            <span className="text-rust font-sans font-bold text-[12px] tracking-[0.12em] uppercase">{name}</span>
+                            <span className="text-rust/40 font-sans text-[10px]">{shares.length}</span>
+                            {hasUnseen && <div className="w-1.5 h-1.5 rounded-full bg-amber ml-1" />}
+                          </button>
+                          {!isCollapsed && (
+                            <div className="grid gap-4 pl-1 pb-2">
+                              {shares.map((share) => (
+                                <ScrapbookCard
+                                  key={share.id}
+                                  scrapbook={share.scrapbooks}
+                                  onClick={() => handleSharedCardTap(share)}
+                                  onOptionsPress={() => setSharedOptionsShareId(share.id)}
+                                  readOnly
+                                  isNew={!share.seen}
+                                  ownerName={name}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
       </main>
 
-      {/* FAB */}
-      <button
-        onClick={() => navigate('/intake')}
-        className="absolute bottom-8 right-6 w-14 h-14 rounded-full bg-amber flex items-center justify-center active:scale-95 transition-transform shadow-lg"
-      >
-        <Plus size={24} strokeWidth={2.5} className="text-walnut" />
-      </button>
+      {/* FAB — only on yours tab */}
+      {activeTab === 'yours' && (
+        <button
+          onClick={() => navigate('/intake')}
+          className="absolute bottom-8 right-6 w-14 h-14 rounded-full bg-amber flex items-center justify-center active:scale-95 transition-transform shadow-lg"
+        >
+          <Plus size={24} strokeWidth={2.5} className="text-walnut" />
+        </button>
+      )}
 
-      {/* Delete confirmation sheet */}
+      {/* ── Delete confirmation sheet ── */}
       {confirmDeleteId && (
         <>
-          <div
-            className="absolute inset-0 bg-black/50 z-10"
-            onClick={() => setConfirmDeleteId(null)}
-          />
-          <div
-            className="absolute bottom-0 left-0 right-0 z-20 rounded-t-3xl border-t border-walnut-light px-5 pb-10 pt-1"
-            style={{ background: '#3D2410' }}
-          >
+          <div className="absolute inset-0 bg-black/50 z-10" onClick={() => setConfirmDeleteId(null)} />
+          <div className="absolute bottom-0 left-0 right-0 z-20 rounded-t-3xl border-t border-walnut-light px-5 pb-10 pt-1" style={{ background: '#3D2410' }}>
             <div className="w-10 h-1 rounded-full bg-walnut-light mx-auto mt-3 mb-6" />
-            <p className="font-display font-semibold text-xl text-wheat mb-1">
-              Delete "{confirmDeleteScrapbook?.name}"?
-            </p>
-            <p className="text-rust text-sm mb-8 leading-relaxed">
-              This will permanently delete the scrapbook and remove all clips from Cassette. Your original videos won't be affected.
-            </p>
-            <button
-              onClick={deleteScrapbook}
-              disabled={deleting}
-              className="w-full bg-sienna text-white font-sans font-bold text-[15px] rounded-2xl py-4 mb-3 active:opacity-80 disabled:opacity-50"
-            >
+            <p className="font-display font-semibold text-xl text-wheat mb-1">Delete "{confirmDeleteScrapbook?.name}"?</p>
+            <p className="text-rust text-sm mb-8 leading-relaxed">This will permanently delete the scrapbook and remove all clips from Cassette. Your original videos won't be affected.</p>
+            <button onClick={deleteScrapbook} disabled={deleting} className="w-full bg-sienna text-white font-sans font-bold text-[15px] rounded-2xl py-4 mb-3 active:opacity-80 disabled:opacity-50">
               {deleting ? 'Deleting…' : 'Delete Scrapbook'}
             </button>
-            <button
-              onClick={() => setConfirmDeleteId(null)}
-              className="w-full py-3 text-center text-rust font-semibold text-[15px] active:opacity-70"
-            >
-              Cancel
-            </button>
+            <button onClick={() => setConfirmDeleteId(null)} className="w-full py-3 text-center text-rust font-semibold text-[15px] active:opacity-70">Cancel</button>
           </div>
         </>
       )}
-      {/* Options sheet */}
+
+      {/* ── Options sheet ── */}
       {optionsId && (
         <>
-          <div
-            className="absolute inset-0 bg-black/50 z-10"
-            onClick={() => setOptionsId(null)}
-          />
-          <div
-            className="absolute bottom-0 left-0 right-0 z-20 rounded-t-3xl border-t border-walnut-light px-5 pb-10 pt-1"
-            style={{ background: '#3D2410' }}
-          >
+          <div className="absolute inset-0 bg-black/50 z-10" onClick={() => setOptionsId(null)} />
+          <div className="absolute bottom-0 left-0 right-0 z-20 rounded-t-3xl border-t border-walnut-light px-5 pb-10 pt-1" style={{ background: '#3D2410' }}>
             <div className="w-10 h-1 rounded-full bg-walnut-light mx-auto mt-3 mb-5" />
-            <p className="font-display font-semibold text-lg text-wheat mb-5 px-1">
-              {optionsScrapbook?.name}
-            </p>
+            <p className="font-display font-semibold text-lg text-wheat mb-5 px-1">{optionsScrapbook?.name}</p>
 
-            {/* Change cover */}
-            <button
-              onClick={() => coverChangeInputRef.current?.click()}
-              className="w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl mb-2 active:opacity-75"
-              style={{ background: '#2C1A0E' }}
-            >
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: 'rgba(242,162,74,0.1)' }}>
+            <button onClick={() => coverChangeInputRef.current?.click()} className="w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl mb-2 active:opacity-75" style={{ background: '#2C1A0E' }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(242,162,74,0.1)' }}>
                 <Image size={16} strokeWidth={1.75} className="text-amber" />
               </div>
               <div className="flex-1 text-left">
-                <p className="text-wheat text-[14px] font-semibold leading-none mb-0.5">
-                  {optionsScrapbook?.cover_image_url ? 'Change Cover' : 'Add Cover Photo'}
-                </p>
+                <p className="text-wheat text-[14px] font-semibold leading-none mb-0.5">{optionsScrapbook?.cover_image_url ? 'Change Cover' : 'Add Cover Photo'}</p>
                 <p className="text-rust text-[11px]">Choose from your photos</p>
               </div>
             </button>
 
-            {/* Rename */}
-            <button
-              onClick={() => { setOptionsId(null); setRenameDraft(optionsScrapbook?.name || ''); setRenameId(optionsId) }}
-              className="w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl mb-2 active:opacity-75"
-              style={{ background: '#2C1A0E' }}
-            >
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: 'rgba(242,162,74,0.1)' }}>
-                <Pencil size={16} strokeWidth={1.75} className="text-amber" />
-              </div>
-              <div className="flex-1 text-left">
-                <p className="text-wheat text-[14px] font-semibold leading-none mb-0.5">Rename</p>
-                <p className="text-rust text-[11px]">Change the scrapbook name</p>
-              </div>
-            </button>
-
-            {/* Delete */}
             <button
               onClick={() => {
                 setOptionsId(null)
-                setConfirmDeleteId(optionsId)
+                setRenameDraft(optionsScrapbook?.name || '')
+                setRenameYear(optionsScrapbook?.year ?? new Date().getFullYear())
+                setRenameMonth(optionsScrapbook?.month ?? null)
+                setRenameId(optionsId)
               }}
-              className="w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl mb-4 active:opacity-75"
+              className="w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl mb-2 active:opacity-75"
               style={{ background: '#2C1A0E' }}
             >
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: 'rgba(232,133,90,0.1)' }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(242,162,74,0.1)' }}>
+                <Pencil size={16} strokeWidth={1.75} className="text-amber" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-wheat text-[14px] font-semibold leading-none mb-0.5">Rename &amp; Redate</p>
+                <p className="text-rust text-[11px]">Change name, year, or month</p>
+              </div>
+            </button>
+
+            <button onClick={() => { setOptionsId(null); setConfirmDeleteId(optionsId) }} className="w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl mb-4 active:opacity-75" style={{ background: '#2C1A0E' }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(232,133,90,0.1)' }}>
                 <X size={16} strokeWidth={2} className="text-sienna" />
               </div>
               <div className="flex-1 text-left">
@@ -593,29 +684,20 @@ useEffect(() => {
               </div>
             </button>
 
-            <button
-              onClick={() => setOptionsId(null)}
-              className="w-full py-3 text-center text-rust font-semibold text-[15px] active:opacity-70"
-            >
-              Cancel
-            </button>
+            <button onClick={() => setOptionsId(null)} className="w-full py-3 text-center text-rust font-semibold text-[15px] active:opacity-70">Cancel</button>
           </div>
         </>
       )}
 
-      {/* Rename sheet */}
+      {/* ── Rename & Redate sheet ── */}
       {renameId && (
         <>
-          <div
-            className="absolute inset-0 bg-black/50 z-10"
-            onClick={() => setRenameId(null)}
-          />
-          <div
-            className="absolute bottom-0 left-0 right-0 z-20 rounded-t-3xl border-t border-walnut-light px-5 pb-10 pt-1"
-            style={{ background: '#3D2410' }}
-          >
+          <div className="absolute inset-0 bg-black/50 z-10" onClick={() => setRenameId(null)} />
+          <div className="absolute bottom-0 left-0 right-0 z-20 rounded-t-3xl border-t border-walnut-light px-5 pb-10 pt-1" style={{ background: '#3D2410' }}>
             <div className="w-10 h-1 rounded-full bg-walnut-light mx-auto mt-3 mb-5" />
-            <p className="font-display font-semibold text-lg text-wheat mb-4 px-1">Rename Scrapbook</p>
+            <p className="font-display font-semibold text-lg text-wheat mb-5 px-1">Rename &amp; Redate</p>
+
+            <p className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase mb-2">Name</p>
             <input
               type="text"
               value={renameDraft}
@@ -623,51 +705,51 @@ useEffect(() => {
               onKeyDown={e => e.key === 'Enter' && handleRename()}
               autoFocus
               maxLength={60}
-              className="w-full px-4 py-3.5 rounded-2xl text-wheat text-[15px] font-sans outline-none mb-3"
+              className="w-full px-4 py-3.5 rounded-2xl text-wheat text-[15px] font-sans outline-none mb-4"
               style={{ background: '#2C1A0E', border: '1px solid #4A2E18' }}
             />
-            <button
-              onClick={handleRename}
-              disabled={!renameDraft.trim()}
-              className="w-full py-3.5 rounded-2xl font-sans font-bold text-[15px] mb-2 active:opacity-80 disabled:opacity-30"
-              style={{ background: '#F2A24A', color: '#2C1A0E' }}
-            >
+
+            <p className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase mb-2">Year</p>
+            <div className="flex items-center justify-between rounded-xl px-2 py-1 mb-4 border border-walnut-light" style={{ background: '#2C1A0E' }}>
+              <button onClick={() => setRenameYear(y => y - 1)} className="w-11 h-11 flex items-center justify-center active:opacity-60">
+                <ChevronLeft size={20} strokeWidth={1.75} className="text-amber" />
+              </button>
+              <span className="font-display font-bold text-[22px] text-wheat tabular-nums">{renameYear}</span>
+              <button onClick={() => setRenameYear(y => y + 1)} className="w-11 h-11 flex items-center justify-center active:opacity-60">
+                <ChevronRight size={20} strokeWidth={1.75} className="text-amber" />
+              </button>
+            </div>
+
+            <p className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase mb-2">Month</p>
+            <div className="flex items-center justify-between rounded-xl px-2 py-1 mb-5 border border-walnut-light" style={{ background: '#2C1A0E' }}>
+              <button onClick={() => setRenameMonth(m => m == null ? 12 : m === 1 ? null : m - 1)} className="w-11 h-11 flex items-center justify-center active:opacity-60">
+                <ChevronLeft size={20} strokeWidth={1.75} className="text-amber" />
+              </button>
+              <span className="font-display font-bold text-[18px] text-wheat">
+                {renameMonth ? MONTH_NAMES[renameMonth - 1] : '···'}
+              </span>
+              <button onClick={() => setRenameMonth(m => m == null ? 1 : m === 12 ? null : m + 1)} className="w-11 h-11 flex items-center justify-center active:opacity-60">
+                <ChevronRight size={20} strokeWidth={1.75} className="text-amber" />
+              </button>
+            </div>
+
+            <button onClick={handleRename} disabled={!renameDraft.trim()} className="w-full py-3.5 rounded-2xl font-sans font-bold text-[15px] mb-2 active:opacity-80 disabled:opacity-30" style={{ background: '#F2A24A', color: '#2C1A0E' }}>
               Save
             </button>
-            <button
-              onClick={() => setRenameId(null)}
-              className="w-full py-3 text-center text-rust font-semibold text-[15px] active:opacity-70"
-            >
-              Cancel
-            </button>
+            <button onClick={() => setRenameId(null)} className="w-full py-3 text-center text-rust font-semibold text-[15px] active:opacity-70">Cancel</button>
           </div>
         </>
       )}
 
-      {/* Shared scrapbook options sheet */}
+      {/* ── Shared scrapbook options sheet ── */}
       {sharedOptionsShareId && (
         <>
-          <div
-            className="absolute inset-0 bg-black/50 z-10"
-            onClick={() => setSharedOptionsShareId(null)}
-          />
-          <div
-            className="absolute bottom-0 left-0 right-0 z-20 rounded-t-3xl border-t border-walnut-light px-5 pb-10 pt-1"
-            style={{ background: '#3D2410' }}
-          >
+          <div className="absolute inset-0 bg-black/50 z-10" onClick={() => setSharedOptionsShareId(null)} />
+          <div className="absolute bottom-0 left-0 right-0 z-20 rounded-t-3xl border-t border-walnut-light px-5 pb-10 pt-1" style={{ background: '#3D2410' }}>
             <div className="w-10 h-1 rounded-full bg-walnut-light mx-auto mt-3 mb-5" />
-            <p className="font-display font-semibold text-lg text-wheat mb-5 px-1">
-              {sharedOptionsShare?.scrapbooks?.name}
-            </p>
-
-            {/* Remove from library */}
-            <button
-              onClick={() => removeFromLibrary(sharedOptionsShareId)}
-              className="w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl mb-4 active:opacity-75"
-              style={{ background: '#2C1A0E' }}
-            >
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: 'rgba(232,133,90,0.1)' }}>
+            <p className="font-display font-semibold text-lg text-wheat mb-5 px-1">{sharedOptionsShare?.scrapbooks?.name}</p>
+            <button onClick={() => removeFromLibrary(sharedOptionsShareId)} className="w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl mb-4 active:opacity-75" style={{ background: '#2C1A0E' }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(232,133,90,0.1)' }}>
                 <X size={16} strokeWidth={2} className="text-sienna" />
               </div>
               <div className="flex-1 text-left">
@@ -675,99 +757,55 @@ useEffect(() => {
                 <p className="text-rust text-[11px]">You'll no longer have access to this scrapbook</p>
               </div>
             </button>
+            <button onClick={() => setSharedOptionsShareId(null)} className="w-full py-3 text-center text-rust font-semibold text-[15px] active:opacity-70">Cancel</button>
+          </div>
+        </>
+      )}
 
-            <button
-              onClick={() => setSharedOptionsShareId(null)}
-              className="w-full py-3 text-center text-rust font-semibold text-[15px] active:opacity-70"
-            >
-              Cancel
+      {/* ── Version popup ── */}
+      {showVersion && (
+        <div className="absolute inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={() => setShowVersion(false)}>
+          <div className="mx-6 max-w-sm w-full bg-walnut rounded-2xl p-6 border border-walnut-light" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <svg width="40" height="40" viewBox="0 0 48 48" fill="none">
+                <rect width="48" height="48" rx="9" fill="#3D2410"/>
+                <circle cx="16" cy="22" r="8" stroke="#F2A24A" strokeWidth="3.5" fill="none"/>
+                <circle cx="32" cy="22" r="8" stroke="#F2A24A" strokeWidth="3.5" fill="none"/>
+                <circle cx="16" cy="22" r="2.5" fill="#F2A24A"/>
+                <circle cx="32" cy="22" r="2.5" fill="#F2A24A"/>
+                <rect x="14" y="31" width="20" height="3" rx="1.5" fill="#E8855A"/>
+              </svg>
+              <span className="font-display font-bold text-[28px] text-amber leading-none">Cassette<em className="font-light text-sienna not-italic">.</em></span>
+            </div>
+            <div className="text-center mb-5">
+              <p className="text-wheat/40 text-[11px] font-bold tracking-[0.15em] uppercase mb-1">Version</p>
+              <p className="font-display text-[32px] font-bold text-amber">{APP_VERSION.number}</p>
+            </div>
+            <div className="bg-deep rounded-xl p-4 mb-5 border border-walnut-light">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-rust text-[10px] font-bold tracking-widest uppercase">Build</span>
+                <span className="text-wheat/60 font-mono text-xs">{APP_VERSION.build}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-rust text-[10px] font-bold tracking-widest uppercase">Status</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-amber animate-pulse" />
+                  <span className="text-amber text-xs font-semibold">{APP_VERSION.status}</span>
+                </div>
+              </div>
+            </div>
+            <button onClick={async () => { await supabase.auth.signOut(); setShowVersion(false) }} className="w-full bg-walnut-mid text-rust font-sans font-semibold text-[14px] rounded-xl py-3 active:opacity-80 mb-2 border border-walnut-light">
+              Log Out
+            </button>
+            <button onClick={() => setShowVersion(false)} className="w-full bg-amber text-walnut font-sans font-bold text-[15px] rounded-xl py-3.5 active:opacity-80">
+              Got it
             </button>
           </div>
-        </>
+        </div>
       )}
 
-      {/* Version popup */}
-      {showVersion && (
-        <>
-          <div 
-            className="absolute inset-0 bg-black/60 z-50 flex items-center justify-center"
-            onClick={() => setShowVersion(false)}
-          >
-            <div 
-              className="mx-6 max-w-sm w-full bg-walnut rounded-2xl p-6 border border-walnut-light"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Logo */}
-              <div className="flex items-center justify-center gap-3 mb-4">
-                <svg width="40" height="40" viewBox="0 0 48 48" fill="none">
-                  <rect width="48" height="48" rx="9" fill="#3D2410"/>
-                  <circle cx="16" cy="22" r="8" stroke="#F2A24A" strokeWidth="3.5" fill="none"/>
-                  <circle cx="32" cy="22" r="8" stroke="#F2A24A" strokeWidth="3.5" fill="none"/>
-                  <circle cx="16" cy="22" r="2.5" fill="#F2A24A"/>
-                  <circle cx="32" cy="22" r="2.5" fill="#F2A24A"/>
-                  <rect x="14" y="31" width="20" height="3" rx="1.5" fill="#E8855A"/>
-                </svg>
-                <span className="font-display font-bold text-[28px] text-amber leading-none">
-                  Cassette<em className="font-light text-sienna not-italic">.</em>
-                </span>
-              </div>
-
-              {/* Version info */}
-              <div className="text-center mb-5">
-                <p className="text-wheat/40 text-[11px] font-bold tracking-[0.15em] uppercase mb-1">
-                  Version
-                </p>
-                <p className="font-display text-[32px] font-bold text-amber">
-                  {APP_VERSION.number}
-                </p>
-              </div>
-
-              {/* Build info */}
-              <div className="bg-deep rounded-xl p-4 mb-5 border border-walnut-light">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-rust text-[10px] font-bold tracking-widest uppercase">Build</span>
-                  <span className="text-wheat/60 font-mono text-xs">{APP_VERSION.build}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-rust text-[10px] font-bold tracking-widest uppercase">Status</span>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-amber animate-pulse" />
-                    <span className="text-amber text-xs font-semibold">{APP_VERSION.status}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Logout button */}
-              <button
-                onClick={async () => {
-                  await supabase.auth.signOut()
-                  setShowVersion(false)
-                }}
-                className="w-full bg-walnut-mid text-rust font-sans font-semibold text-[14px] rounded-xl py-3 active:opacity-80 mb-2 border border-walnut-light"
-              >
-                Log Out
-              </button>
-
-              {/* Close button */}
-              <button
-                onClick={() => setShowVersion(false)}
-                className="w-full bg-amber text-walnut font-sans font-bold text-[15px] rounded-xl py-3.5 active:opacity-80"
-              >
-                Got it
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Hidden cover image input */}
-      <input
-        ref={coverChangeInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleCoverChange}
-      />
+      {/* Hidden cover input */}
+      <input ref={coverChangeInputRef} type="file" accept="image/*" className="hidden" onChange={handleCoverChange} />
     </div>
   )
 }

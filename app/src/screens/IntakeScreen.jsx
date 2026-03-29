@@ -116,6 +116,7 @@ export default function IntakeScreen() {
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 })
   const [error, setError] = useState(null)
   const [year, setYear] = useState(new Date().getFullYear())
+  const [month, setMonth] = useState(new Date().getMonth() + 1)
   const [coverFile, setCoverFile] = useState(null)
   const [coverPreview, setCoverPreview] = useState(null)
   const nameInputRef = useRef(null)
@@ -173,6 +174,7 @@ export default function IntakeScreen() {
       const dates = sel.map(i => i.date.getTime())
       const earliest = dates.length > 0 ? new Date(Math.min(...dates)) : new Date()
       setYear(earliest.getFullYear())
+      setMonth(earliest.getMonth() + 1)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
@@ -248,7 +250,7 @@ export default function IntakeScreen() {
       setUploadProgress({ current: 0, total: remuxedItems.length })
       const { data: sb, error: sbErr } = await supabase
         .from('scrapbooks')
-        .insert({ name: name.trim(), user_id: session.user.id, year })
+        .insert({ name: name.trim(), user_id: session.user.id, year, month })
         .select()
         .single()
       if (sbErr) throw sbErr
@@ -720,6 +722,31 @@ export default function IntakeScreen() {
               </span>
               <button
                 onClick={() => setYear(y => y + 1)}
+                className="w-11 h-11 flex items-center justify-center active:opacity-60"
+              >
+                <ChevronRight size={20} strokeWidth={1.75} className="text-amber" />
+              </button>
+            </div>
+
+            {/* Month picker */}
+            <p className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase mb-2">
+              Month
+            </p>
+            <div
+              className="flex items-center justify-between rounded-xl px-2 py-1 mb-5 border border-walnut-light"
+              style={{ background: '#2C1A0E' }}
+            >
+              <button
+                onClick={() => setMonth(m => m === 1 ? 12 : m - 1)}
+                className="w-11 h-11 flex items-center justify-center active:opacity-60"
+              >
+                <ChevronLeft size={20} strokeWidth={1.75} className="text-amber" />
+              </button>
+              <span className="font-display font-bold text-[18px] text-wheat">
+                {['January','February','March','April','May','June','July','August','September','October','November','December'][month - 1]}
+              </span>
+              <button
+                onClick={() => setMonth(m => m === 12 ? 1 : m + 1)}
                 className="w-11 h-11 flex items-center justify-center active:opacity-60"
               >
                 <ChevronRight size={20} strokeWidth={1.75} className="text-amber" />

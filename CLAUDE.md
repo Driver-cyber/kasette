@@ -102,20 +102,23 @@ All UI must use the Cassette brand system. Never deviate without a plan approval
 
 ---
 
-## 🏗 Screen Architecture — 9 Screens Built & Working
+## 🏗 Screen Architecture — 11 Screens Built & Working
+
+**Full screen inventory with descriptions:** `cassette-screens.html` (keep updated when screens change)
 
 ### Routes
 ```
-/                    → HomeScreen             (protected)
-/signup              → SignupScreen           (PUBLIC — text this URL to new users)
-/intake              → IntakeScreen           (protected)
-/scrapbook/:id       → ScrapbookDetailScreen  (protected) — hub: Watch / Edit / Share options
-/scrapbook/:id/watch → PlaybackScreen         (protected)
-/scrapbook/:id/edit  → WorkspaceScreen        (protected)
-/scrapbook/:id/share → ShareScreen            (protected)
-/discover            → DiscoveryScreen        (protected)
-/remix               → RemixScreen            (protected) — mixing studio + reel loading anim
-/settings            → SettingsScreen         (protected)
+/                         → HomeScreen             (protected)
+/login                    → LoginScreen            (public)
+/signup                   → SignupScreen           (PUBLIC — text this URL to new users)
+/scrapbook/:id            → ScrapbookDetailScreen  (protected) — hub: Watch / Edit / Share options
+/scrapbook/:id/intake     → IntakeScreen           (protected)
+/scrapbook/:id/watch      → PlaybackScreen         (protected)
+/scrapbook/:id/workspace  → WorkspaceScreen        (protected)
+/scrapbook/:id/share      → ShareScreen            (protected)
+/discovery                → DiscoveryScreen        (protected)
+/remix                    → RemixScreen            (protected) — Film Fest filter + loading anim
+/settings                 → SettingsScreen         (protected)
 ```
 
 ### 1. Home Screen (`cassette-screen-home.html`)
@@ -167,7 +170,7 @@ The upload, preview, and cull flow. Creates a new Scrapbook.
 Hub screen when you tap a scrapbook from Home. Shows cover, title, clip count, duration with three action buttons: Watch, Edit, Share.
 
 - Tapping the cover/Watch → `/scrapbook/:id/watch`
-- Edit → `/scrapbook/:id/edit`
+- Edit → `/scrapbook/:id/workspace`
 - Share → `/scrapbook/:id/share`
 - Populates `dataCache` so WorkspaceScreen and PlaybackScreen get instant data without re-fetching.
 
@@ -210,7 +213,7 @@ The full-screen Reels-style viewer. The payoff.
 - **Three-dot menu (⋯):** Edit Scrapbook, Scrapbook Details, **Export Scrapbook** (trim+concat → MP4 download/share).
 
 ### 6. Discovery Screen
-- `/discover` — shuffled playlist of all clips across all scrapbooks
+- `/discovery` — shuffled playlist of all clips across all scrapbooks
 - Vertical swipe = next clip. Horizontal swipe = next scrapbook.
 - Hold-to-pause + scrub bar same as Playback.
 - Tap for scrapbook info + "Watch scrapbook →" link.
@@ -314,3 +317,4 @@ Explicitly out of scope. Do not build, do not plan for:
 - **Long conversations:** Remind user to `/clear` if chat history exceeds 20 messages.
 - **Scope creep check:** If a feature would touch core architecture, flag it first.
 - **Never silently expand scope.** Always ask.
+- **Screen inventory:** Keep `cassette-screens.html` up to date whenever screens are added, renamed, rerouted, or removed.

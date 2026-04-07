@@ -877,6 +877,19 @@ Full codebase review pass. All fixes in commit `fd68cfa`.
 
 ---
 
+### [2026-03-29] — Screen Inventory Doc + Stale Route Fixes
+
+**`cassette-screens.html` created** as a founding reference doc in the repo root. Shows all 11 screens with card descriptions (name, route, file, status, feature tags) plus a compact quick-reference table. Desktop alias created at `/Users/ordocfo/Desktop/cassette-screens.html`. Added to `CLAUDE.md` Maintenance Rules and `memory/feedback_docs.md` — keep updated whenever screens are added, renamed, rerouted, or removed.
+
+**CLAUDE.md stale routes corrected:**
+- Screen count: "9 Screens" → "11 Screens" (Login + Signup were missing from the count)
+- `/intake` → `/scrapbook/:id/intake`
+- `/scrapbook/:id/edit` → `/scrapbook/:id/workspace`
+- `/discover` → `/discovery`
+- `/login` added to route table (was missing)
+
+---
+
 ### Architecture Observations (good patterns to keep)
 
 - **`activeDragCleanup` ref pattern** — every drag handler that attaches to `document` must store its cleanup in `activeDragCleanup.current`. Do not add new drag features without this.

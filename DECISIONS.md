@@ -25,7 +25,7 @@ Mobile-first always. Don't let perfect be the enemy of shipped.
 | Frontend | React + Vite | Fast dev loop, component model fits the screen architecture |
 | Styling | Tailwind CSS | Mobile-first utilities, speed over pixel perfection |
 | Auth | Supabase Auth | Single family account, persistent login |
-| Storage | Supabase Storage | Video files live in the cloud, accessible from any device |
+| Storage | Cloudflare R2 | Migrated from Supabase Storage 2026-04-09. Free egress, Cloudflare edge CDN, ready for large Film Fest exports. Upload code migration (Checkpoint 4) pending. |
 | Database | Supabase Postgres | Scrapbook/clip metadata |
 | Deployment | Cloudflare Pages | CD from main branch via GitHub |
 | State | React Context | No Redux until complexity demands it |
@@ -921,3 +921,105 @@ Full codebase review pass. All fixes in commit `fd68cfa`.
 | **Haptic feedback** | Low | Low/Medium — `navigator.vibrate()` on key taps |
 | **Offline indicator banner** | Low | Medium — graceful network loss handling |
 | **"New clips" badge on shared scrapbooks** | High | High — v2 sharing enhancement |
+
+---
+
+### [2026-04-09] — Surprise Me Feature + Discovery Screen Cleanup
+
+**Surprise Me — LIVE**
+
+Replaced the "coming soon" stub on the Film Fest Surprise Me pill with a real random clip mode.
+
+**Data model change:**
+```sql
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS surprise_me_include_shared boolean DEFAULT false;
+```
+
+**RemixScreen changes:**
+- `CLIP_SELECT` constant at top of file — shared by `handleWatch` and `handleSurpriseMe` to avoid duplicate Supabase select strings
+- `prewarm()` fires on mount alongside year fetch: queries all own clip URLs (lightweight), shuffles, starts `preloadClip()` + thumbnail preload on 5 random clips. Warms blob cache before user taps Surprise Me.
+- `handleSurpriseMe()`: fetches `profiles.surprise_me_include_shared` + own clips in parallel. If setting on, also queries `scrapbook_shares` for shared clips. Shuffles full pool, picks 10–15 random clips (`Math.floor(Math.random() * 6) + 10`). Same preload + 2s min delay as Film Fest Watch. Navigates to DiscoveryScreen with `screenTitle: 'Surprise Me'`.
+- Loading screen: phase `'loading-surprise'` shows "Rolling the dice… / Picking a mix just for you" vs Film Fest's text.
+
+**SettingsScreen changes:**
+- New "Surprise Me" section with include-shared toggle
+- iOS toggle pattern: 44×26px track, 20×20px wheat knob, 3px padding on all sides. OFF = `#4A2E18` track, ON = `#F2A24A` (amber) track. Wheat (`#F5DEB3`) knob always. Fully contained knob — no overflow.
+- Optimistic toggle saves to `profiles.surprise_me_include_shared`.
+
+**DiscoveryScreen changes (remix mode only):**
+- Top-right Disc3 button: no longer navigates back to `/remix`. Now opens bottom sheet (`scrapbookSheet` state) with current clip's scrapbook name + year, "Go to this scrapbook" CTA (amber), and "Stay in [screenTitle]" cancel. Warning copy: "Heading there will exit [screenTitle]."
+- Bottom scrapbook info (name + Watch → link): hidden in `isRemix` mode. Normal library Discovery unchanged.
+- Sheet closes on backdrop tap.
+
+**Toggle visual pattern (canonical going forward):**
+```jsx
+// Track: fixed px dimensions, not Tailwind w-/h- classes (avoids knob overflow)
+// Knob: absolute, top: 3, width/height: 20, translateX(3px) off / translateX(21px) on
+// Wheat knob always — OFF dark track vs ON amber track = clear state distinction
+```
+
+---
+
+## [2026-04-09] Photo Support in Scrapbooks
+
+**Decision:** Scrapbooks now support photos alongside videos.
+
+**What was built:**
+
+**DB:**
+```sql
+ALTER TABLE clips ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'video';
+```
+
+**IntakeScreen:**
+- File picker now accepts `video/*,image/*`
+- Photos skip FFmpeg remux — uploaded directly
+- `getPhotoMeta()` extracts a data URL thumbnail from the image (no video element needed)
+- Photos get `thumbnail_url = video_url` (same file, no separate thumb upload)
+- Photo `duration` defaults to 5 seconds (user-configurable in Workspace)
+- `media_type: 'photo'` stored on clip row
+
+**WorkspaceScreen:**
+- Photo clips show a static `<img>` in the preview zone instead of `<video>`
+- Play/pause button hidden for photos
+- Trim and Split tabs hidden — only **Tools** shows in the drawer header
+- Header right side shows `Photo · Xs` instead of trim timestamps
+- Mini timeline shows a static full amber bar (no scrub handles)
+- Tools row: Mute removed (photos have no audio); Caption, Add Clips, Reorder, Remove remain
+- **Display Duration stepper** appears below the tools row for photo clips: −/+ buttons, 1–30s range, saves to `duration` + `trim_out` columns
+- Clip strip cards show a small `Image` icon badge for photo clips
+
+**PlaybackScreen:**
+- Photo clips render `<img>` in all three sliding slots (prev/current/next)
+- Auto-advance timer fires after `clip.duration` seconds (5s default)
+- Progress bar animates over the display duration via `setInterval`
+- Play/pause button hidden; scrub blocked for photos
+- Scrapbook name + clip counter still visible during photo display
+
+**Data model note:** For photo clips, `video_url` holds the image URL. `thumbnail_url` = same value. `duration` = display seconds (not media duration). `trim_in = 0`, `trim_out = duration`.
+
+---
+
+## [2026-04-09] R2 Storage Migration (Checkpoints 1–3)
+
+**Decision:** Migrate all media storage from Supabase Storage → Cloudflare R2.
+
+**Why:** Free egress (vs Supabase egress fees at scale), Cloudflare edge CDN for faster global delivery, and prerequisite for Film Fest export (server-side video concat needs direct R2 access from a Worker).
+
+**What was done:**
+- Created `cassette-media` R2 bucket with public access enabled
+- Wrote `kassette/scripts/migrate-to-r2.js` — downloads all files from Supabase Storage via service role key, uploads to R2 via S3-compatible API, generates `migration-mapping.json` + `migration-update.sql`
+- Migrated 69 files (39 videos, 27 thumbnails, 3 covers) — zero failures
+- Ran `migration-update.sql` in Supabase SQL editor — all `video_url`, `thumbnail_url`, `cover_image_url` columns now point to R2 URLs
+
+**R2 config:**
+- Bucket: `cassette-media`
+- Public URL: `https://pub-bab6003c5bee4548b6a48fc2eca4583a.r2.dev`
+- Account ID: `72f8fd10fc39dcf4ee7a608fecbbadfe`
+- Credentials stored in: `kassette/scripts/.env` (gitignored)
+
+**Checkpoint 4 — still pending (next session):**
+- Update upload code in IntakeScreen + HomeScreen to PUT to R2 instead of Supabase Storage
+- Update delete operations in WorkspaceScreen, HomeScreen, ScrapbookDetailScreen
+- Requires a Cloudflare Worker to generate presigned R2 upload URLs (can't expose secret key in frontend)
+- Until then: new uploads still go to Supabase Storage (app works, just splits new vs old files across two buckets)

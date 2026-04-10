@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Play, Pause, Type, Trash2, Check, GripVertical, Volume2, VolumeX, PlusCircle, ChevronLeft, ChevronRight, Scissors, Wrench, Undo2 } from 'lucide-react'
+import { ArrowLeft, Play, Pause, Type, Trash2, Check, GripVertical, Volume2, VolumeX, PlusCircle, ChevronLeft, ChevronRight, Scissors, Wrench, Undo2, Image } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { getBlob, preloadClip, preloadRest } from '../lib/blobCache'
@@ -89,8 +89,15 @@ export default function WorkspaceScreen() {
     if (card) card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
   }, [activeClipId])
 
-  // Clear undo when switching clips
-  useEffect(() => { setUndoable(null) }, [activeClipId])
+  // Clear undo when switching clips; reset video-only state when switching to a photo
+  useEffect(() => {
+    setUndoable(null)
+    const clip = clips.find(c => c.id === activeClipId)
+    if (clip?.media_type === 'photo') {
+      setTrimMode(null)
+      setActiveTool(null)
+    }
+  }, [activeClipId])
 
   // Ghost drag card state
   const [ghostClip, setGhostClip] = useState(null)
@@ -144,13 +151,16 @@ export default function WorkspaceScreen() {
 
   // Load video when active clip changes — use blob URL if cached for instant start
   useEffect(() => {
+    if (!activeClip) return
+    setIsPlaying(false)
+    setPlayheadPct(0)
+    if (activeClip.media_type === 'photo') return
     const video = videoRef.current
-    if (!video || !activeClip) return
+    if (!video) return
     video.src = getBlob(activeClip.video_url)
     video.currentTime = activeClip.trim_in || 0
     video.muted = activeClip.muted || false
     video.load()
-    setIsPlaying(false)
     setPlayheadPct((activeClip.trim_in || 0) / (activeClip.duration || 1) * 100)
     // Preload adjacent clips in background
     const idx = clips.findIndex(c => c.id === activeClipId)
@@ -749,6 +759,7 @@ export default function WorkspaceScreen() {
   }
 
   // ── Derived values ─────────────────────────────────────────────────────
+  const isPhoto = activeClip?.media_type === 'photo'
   const trimIn = activeClip?.trim_in ?? 0
   const trimOut = activeClip?.trim_out ?? activeClip?.duration ?? 0
   const duration = activeClip?.duration ?? 0
@@ -823,16 +834,24 @@ export default function WorkspaceScreen() {
           onTouchStart={isCaption ? undefined : handlePreviewTouchStart}
           onTouchEnd={isCaption ? undefined : handlePreviewTouchEnd}
         >
-        <video
-          ref={videoRef}
-          className="absolute inset-0 w-full h-full object-cover"
-          onTimeUpdate={handleTimeUpdate}
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-          playsInline
-          preload="auto"
-          poster={activeClip?.thumbnail_url || undefined}
-        />
+        {isPhoto ? (
+          <img
+            src={activeClip?.video_url}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : (
+          <video
+            ref={videoRef}
+            className="absolute inset-0 w-full h-full object-cover"
+            onTimeUpdate={handleTimeUpdate}
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+            playsInline
+            preload="auto"
+            poster={activeClip?.thumbnail_url || undefined}
+          />
+        )}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.5) 100%)' }}
@@ -876,7 +895,7 @@ export default function WorkspaceScreen() {
           )
         })()}
 
-        {!isCaption && (
+        {!isCaption && !isPhoto && (
           <button
             onClick={togglePlay}
             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center active:opacity-70"
@@ -927,31 +946,35 @@ export default function WorkspaceScreen() {
       {!reorderMode && !isCaption && (
         <div className="flex items-center justify-between px-4 py-2 border-b border-walnut-light flex-shrink-0">
           <div className="flex items-center gap-1">
-            <button
-              onClick={() => setTrimMode(m => m === 'trim' ? null : 'trim')}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg active:opacity-70 transition-all"
-              style={{
-                background: trimMode === 'trim' ? 'rgba(242,162,74,0.15)' : 'transparent',
-                border: trimMode === 'trim' ? '1px solid rgba(242,162,74,0.3)' : '1px solid transparent',
-              }}
-            >
-              <span className="text-[10px] font-bold tracking-[0.14em] uppercase"
-                style={{ color: trimMode === 'trim' ? '#F2A24A' : '#7A3B1E' }}>Trim</span>
-            </button>
-            <div className="w-px h-3 bg-walnut-light mx-0.5" />
-            <button
-              onClick={() => setTrimMode(m => m === 'split' ? null : 'split')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg active:opacity-70 transition-all"
-              style={{
-                background: trimMode === 'split' ? 'rgba(232,133,90,0.15)' : 'transparent',
-                border: trimMode === 'split' ? '1px solid rgba(232,133,90,0.3)' : '1px solid transparent',
-              }}
-            >
-              <Scissors size={10} style={{ color: trimMode === 'split' ? '#E8855A' : '#7A3B1E' }} />
-              <span className="text-[10px] font-bold tracking-[0.14em] uppercase"
-                style={{ color: trimMode === 'split' ? '#E8855A' : '#7A3B1E' }}>Split</span>
-            </button>
-            <div className="w-px h-3 bg-walnut-light mx-0.5" />
+            {!isPhoto && (
+              <>
+                <button
+                  onClick={() => setTrimMode(m => m === 'trim' ? null : 'trim')}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg active:opacity-70 transition-all"
+                  style={{
+                    background: trimMode === 'trim' ? 'rgba(242,162,74,0.15)' : 'transparent',
+                    border: trimMode === 'trim' ? '1px solid rgba(242,162,74,0.3)' : '1px solid transparent',
+                  }}
+                >
+                  <span className="text-[10px] font-bold tracking-[0.14em] uppercase"
+                    style={{ color: trimMode === 'trim' ? '#F2A24A' : '#7A3B1E' }}>Trim</span>
+                </button>
+                <div className="w-px h-3 bg-walnut-light mx-0.5" />
+                <button
+                  onClick={() => setTrimMode(m => m === 'split' ? null : 'split')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg active:opacity-70 transition-all"
+                  style={{
+                    background: trimMode === 'split' ? 'rgba(232,133,90,0.15)' : 'transparent',
+                    border: trimMode === 'split' ? '1px solid rgba(232,133,90,0.3)' : '1px solid transparent',
+                  }}
+                >
+                  <Scissors size={10} style={{ color: trimMode === 'split' ? '#E8855A' : '#7A3B1E' }} />
+                  <span className="text-[10px] font-bold tracking-[0.14em] uppercase"
+                    style={{ color: trimMode === 'split' ? '#E8855A' : '#7A3B1E' }}>Split</span>
+                </button>
+                <div className="w-px h-3 bg-walnut-light mx-0.5" />
+              </>
+            )}
             <button
               onClick={() => setToolsExpanded(e => !e)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg active:opacity-70 transition-all"
@@ -965,7 +988,7 @@ export default function WorkspaceScreen() {
                 style={{ color: toolsExpanded ? '#F2A24A' : '#7A3B1E' }}>Tools</span>
             </button>
           </div>
-          {activeClip && (
+          {activeClip && !isPhoto && (
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] font-bold" style={{ color: trimInPct > 0 ? '#F2A24A' : '#7A3B1E' }}>{fmt(trimIn)}</span>
               <span className="text-rust/50 text-[9px]">→</span>
@@ -974,12 +997,26 @@ export default function WorkspaceScreen() {
               <span className="text-wheat/35 text-[10px]">{fmt(keptDuration)} kept</span>
             </div>
           )}
+          {activeClip && isPhoto && (
+            <div className="flex items-center gap-1.5">
+              <Image size={9} style={{ color: '#7A3B1E' }} />
+              <span className="text-wheat/35 text-[10px]">Photo · {activeClip.duration || 5}s</span>
+            </div>
+          )}
         </div>
       )}
 
       {/* ── Mini clip timeline — visible when no trim/split mode ── */}
       {!reorderMode && !isCaption && !trimMode && activeClip && (
         <div className="px-4 pt-2.5 pb-2 border-b border-walnut-light flex-shrink-0">
+          {isPhoto ? (
+            /* Static full bar for photos — no scrub, just shows duration */
+            <div className="relative" style={{ height: 28 }}>
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-full overflow-hidden" style={{ height: 6, background: '#2C1A0E' }}>
+                <div className="absolute inset-0 rounded-full" style={{ background: 'rgba(242,162,74,0.45)' }} />
+              </div>
+            </div>
+          ) : (
           <div
             className="relative touch-none"
             style={{ height: 28 }}
@@ -1030,6 +1067,7 @@ export default function WorkspaceScreen() {
               <div className="absolute top-0 bottom-0 w-[2px] rounded-full" style={{ left: `${trimOutPct}%`, background: '#F2A24A' }} />
             )}
           </div>
+          )}
         </div>
       )}
 
@@ -1219,14 +1257,23 @@ export default function WorkspaceScreen() {
 
       {/* ── Tool row ── */}
       {!isCaption && !reorderMode && toolsExpanded && (
+        <>
         <div className="flex items-center justify-around px-4 py-2 border-b border-walnut-light flex-shrink-0">
-          {[
-            { key: 'mute', Icon: activeClip?.muted ? VolumeX : Volume2, label: activeClip?.muted ? 'Unmute' : 'Mute', danger: false },
-            { key: 'caption', Icon: Type, label: 'Caption', danger: false },
-            { key: 'addclips', Icon: PlusCircle, label: 'Add Clips', danger: false },
-            { key: 'reorder', Icon: GripVertical, label: 'Reorder', danger: false },
-            { key: 'remove', Icon: Trash2, label: 'Remove', danger: true },
-          ].map(({ key, Icon, label, danger }) => {
+          {(isPhoto
+            ? [
+                { key: 'caption', Icon: Type, label: 'Caption', danger: false },
+                { key: 'addclips', Icon: PlusCircle, label: 'Add Clips', danger: false },
+                { key: 'reorder', Icon: GripVertical, label: 'Reorder', danger: false },
+                { key: 'remove', Icon: Trash2, label: 'Remove', danger: true },
+              ]
+            : [
+                { key: 'mute', Icon: activeClip?.muted ? VolumeX : Volume2, label: activeClip?.muted ? 'Unmute' : 'Mute', danger: false },
+                { key: 'caption', Icon: Type, label: 'Caption', danger: false },
+                { key: 'addclips', Icon: PlusCircle, label: 'Add Clips', danger: false },
+                { key: 'reorder', Icon: GripVertical, label: 'Reorder', danger: false },
+                { key: 'remove', Icon: Trash2, label: 'Remove', danger: true },
+              ]
+          ).map(({ key, Icon, label, danger }) => {
             const active = activeTool === key || (key === 'reorder' && reorderMode)
             const isMuted = key === 'mute' && activeClip?.muted
             return (
@@ -1259,6 +1306,38 @@ export default function WorkspaceScreen() {
             )
           })}
         </div>
+        {/* Duration stepper — photos only */}
+        {isPhoto && (
+          <div className="flex items-center justify-between px-5 py-2.5 border-b border-walnut-light flex-shrink-0">
+            <span className="text-[10px] font-bold tracking-[0.14em] uppercase" style={{ color: '#7A3B1E' }}>Display Duration</span>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  const newDur = Math.max(1, (activeClip.duration || 5) - 1)
+                  saveClipChanges(activeClipId, { duration: newDur, trim_out: newDur })
+                }}
+                className="w-8 h-8 rounded-full flex items-center justify-center border active:opacity-70"
+                style={{ background: '#3D2410', borderColor: '#4A2E18' }}
+              >
+                <span className="text-wheat/70 font-bold text-lg leading-none select-none">−</span>
+              </button>
+              <span className="font-display font-semibold text-[18px] text-wheat tabular-nums w-10 text-center">
+                {activeClip.duration || 5}s
+              </span>
+              <button
+                onClick={() => {
+                  const newDur = Math.min(30, (activeClip.duration || 5) + 1)
+                  saveClipChanges(activeClipId, { duration: newDur, trim_out: newDur })
+                }}
+                className="w-8 h-8 rounded-full flex items-center justify-center border active:opacity-70"
+                style={{ background: '#3D2410', borderColor: '#4A2E18' }}
+              >
+                <span className="text-amber font-bold text-lg leading-none select-none">+</span>
+              </button>
+            </div>
+          </div>
+        )}
+        </>
       )}
 
       {/* ── Horizontal clip strip ── */}
@@ -1298,7 +1377,10 @@ export default function WorkspaceScreen() {
                       {hasTrim && <Scissors size={10} style={{ color: active ? '#F2A24A' : '#7A3B1E' }} />}
                       {clip.caption_text && <Type size={10} style={{ color: '#E8855A' }} />}
                       {clip.muted && <VolumeX size={10} style={{ color: '#7A3B1E' }} />}
-                      {!hasTrim && !clip.caption_text && !clip.muted && (
+                      {clip.media_type === 'photo' && (
+                        <Image size={10} style={{ color: active ? '#F2A24A' : '#7A3B1E' }} />
+                      )}
+                      {clip.media_type !== 'photo' && !hasTrim && !clip.caption_text && !clip.muted && (
                         <div className="w-1.5 h-1.5 rounded-full" style={{ background: active ? '#F2A24A' : '#4A2E18' }} />
                       )}
                     </div>

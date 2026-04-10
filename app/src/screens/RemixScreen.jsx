@@ -168,7 +168,7 @@ export default function FilmFestScreen() {
   const [comingSoon, setComingSoon] = useState(false)
   const cancelledRef = useRef(false)
 
-  // Fetch available years from user's scrapbooks
+  // Fetch available years + prewarm blob cache in parallel on mount
   useEffect(() => {
     async function fetchYears() {
       const { data } = await supabase
@@ -178,7 +178,23 @@ export default function FilmFestScreen() {
       const years = [...new Set((data || []).map(s => s.year).filter(Boolean))].sort((a, b) => b - a)
       setAvailableYears(years.length > 0 ? years : [new Date().getFullYear()])
     }
+
+    async function prewarm() {
+      const { data: books } = await supabase
+        .from('scrapbooks')
+        .select('clips(video_url, thumbnail_url)')
+        .eq('user_id', session.user.id)
+      const allClips = (books || []).flatMap(sb => sb.clips || []).filter(c => c.video_url)
+      if (allClips.length === 0) return
+      const shuffled = [...allClips].sort(() => Math.random() - 0.5)
+      shuffled.slice(0, 5).forEach(c => {
+        preloadClip(c.video_url)
+        if (c.thumbnail_url) { const img = new Image(); img.src = c.thumbnail_url }
+      })
+    }
+
     fetchYears()
+    prewarm()
   }, [session])
 
   function toggleYear(y) {

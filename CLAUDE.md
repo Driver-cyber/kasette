@@ -48,7 +48,7 @@ expense of mobile experience.
 | Frontend | React + Vite | Component-based, fast dev loop |
 | Styling | Tailwind CSS v4 | Mobile-first utility classes, `@theme` brand tokens |
 | Auth | Supabase Auth | Multi-account, stays logged in |
-| Storage | Supabase Storage | Videos, covers, poster thumbnails in `cassette-media` bucket |
+| Storage | Cloudflare R2 | Videos, covers, poster thumbnails in `cassette-media` bucket. Migrated from Supabase Storage 2026-04-09. Public URL: `pub-bab6003c5bee4548b6a48fc2eca4583a.r2.dev`. Upload code (IntakeScreen, HomeScreen) still uses Supabase Storage — Checkpoint 4 pending. |
 | Database | Supabase Postgres (Pro) | Scrapbook and clip metadata, RLS user_id-scoped |
 | Deployment | Cloudflare Pages | CD from main branch via GitHub |
 | State | React Context | No Redux until complexity demands it |
@@ -225,11 +225,21 @@ A library filter workspace. Accessible from the shuffle icon on HomeScreen.
 - **Month filter:** multi-select dropdown; empty = All Months. Always shows all 12 months.
 - **Watch:** fetches scrapbooks filtered by selected years/months, flattens clips, preloads first 3, navigates to DiscoveryScreen with `{ clips, isRemix: true, screenTitle: 'Film Fest' }`. Min 2s loading screen with cassette reels.
 - **Download:** coming soon modal stub.
-- **Surprise Me** pill (top-right): coming soon modal stub — future random/remix feature.
+- **Surprise Me** pill (top-right): **LIVE as of 2026-04-09.** Fires `handleSurpriseMe()` — fetches all own clips (+ optionally shared clips per `profiles.surprise_me_include_shared`), shuffles, picks 10–15, preloads, navigates to DiscoveryScreen with `screenTitle: 'Surprise Me'`. Loading screen shows "Rolling the dice…". Phase `'loading-surprise'` vs `'loading'`.
+- **Blob prewarm on mount:** `prewarm()` fires on open alongside year fetch — preloads 5 random clip blobs + thumbnails silently so Surprise Me launches faster.
 - **Cancel button** (X, top-right on loading screen): sets `cancelledRef`, returns to studio.
 - `MultiSelectDropdown` component defined locally — checkbox-style list, "All X" option clears selection.
+- `CLIP_SELECT` constant at top of file — shared by both Watch and Surprise Me queries.
 
-DiscoveryScreen: `isRemix: true` → skips own fetch, shows `screenTitle` pill in header (dynamic from route state), back → `/remix`, top-right → Disc3 icon back.
+**DiscoveryScreen remix mode (updated 2026-04-09):**
+- `isRemix: true` → skips own fetch, shows `screenTitle` pill in header center
+- **Back arrow (top-left):** navigates to `/remix`
+- **Disc3 icon (top-right):** opens bottom sheet with current clip's scrapbook year + name. "Go to this scrapbook" (amber) navigates to scrapbook detail with warning "Heading there will exit [screenTitle]." "Stay in [screenTitle]" closes sheet.
+- **Bottom info area:** hidden in remix mode. Scrapbook name + Watch → only shown in normal library Discovery.
+
+**SettingsScreen — Surprise Me section:**
+- Toggle: "Include shared clips" — reads/writes `profiles.surprise_me_include_shared`
+- iOS toggle pattern: 44×26px track, 20×20px wheat knob, `translateX(3px)` off / `translateX(21px)` on. OFF = `#4A2E18` track, ON = amber track. Always wheat knob. **Use fixed px dimensions on track/knob, not Tailwind w-/h- classes, to prevent knob overflow.**
 
 ### 8. Share Screen (`/scrapbook/:id/share`)
 Manage per-scrapbook sharing. Add family members by email. Remove self from shared scrapbooks. Auto-share defaults live in SettingsScreen.
@@ -258,8 +268,8 @@ Scrapbook {
 Clip {
   id
   scrapbook_id
-  video_url         // Supabase Storage URL (FastStart remuxed)
-  thumbnail_url     // Supabase Storage URL for first-frame JPEG poster
+  video_url         // R2 URL — video (FastStart remuxed) OR photo image URL
+  thumbnail_url     // R2 URL — first-frame JPEG poster for videos; same as video_url for photos
   order             // integer, reorderable — unique constraint per scrapbook_id
   trim_in           // seconds, metadata only (no re-encoding)
   trim_out          // seconds, metadata only
@@ -269,6 +279,7 @@ Clip {
   caption_size      // font size
   duration          // seconds, set on upload
   recorded_at       // from video metadata if available
+  media_type        // 'video' (default) | 'photo' — photos use video_url for the image, thumbnail_url = video_url, duration = display seconds
   // NOTE: NO `muted` column — mute is client-side only state
 }
 
@@ -282,9 +293,10 @@ ScrapbookShare {
 }
 
 Profile {
-  user_id           // FK → auth.users
-  username          // UNIQUE, used for login + sharing
-  display_name      // shown in Shared tab "from {display_name}"
+  user_id                       // FK → auth.users
+  username                      // UNIQUE, used for login + sharing
+  display_name                  // shown in Shared tab "from {display_name}"
+  surprise_me_include_shared    // boolean default false — include shared clips in Surprise Me
   created_at
 }
 ```

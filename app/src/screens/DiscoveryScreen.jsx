@@ -29,6 +29,7 @@ export default function DiscoveryScreen() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loading, setLoading] = useState(true)
   const [videoLoading, setVideoLoading] = useState(true)
+  const [scrapbookSheet, setScrapbookSheet] = useState(false)
   // Drag/swipe state
   const [dragOffset, setDragOffset] = useState(0)
   const [dragTransitioning, setDragTransitioning] = useState(false)
@@ -501,7 +502,7 @@ export default function DiscoveryScreen() {
         </div>
 
         <button
-          onClick={isRemix ? () => navigate('/remix') : reshuffle}
+          onClick={isRemix ? () => setScrapbookSheet(true) : reshuffle}
           className="w-9 h-9 flex items-center justify-center rounded-full active:opacity-70 pointer-events-auto"
           style={{ background: isRemix ? 'rgba(242,162,74,0.2)' : 'rgba(0,0,0,0.45)', backdropFilter: 'blur(10px)' }}
         >
@@ -536,29 +537,67 @@ export default function DiscoveryScreen() {
         </div>
       )}
 
-      {/* ── Bottom info ── */}
-      <div
-        className="absolute bottom-0 left-0 right-0 px-6 pt-10 pointer-events-none"
-        style={{
-          background: 'linear-gradient(0deg, rgba(26,15,8,0.92) 0%, rgba(26,15,8,0.5) 60%, transparent 100%)',
-          paddingBottom: 'max(2rem, env(safe-area-inset-bottom))',
-        }}
-      >
-        <p className="text-rust text-[9px] font-bold tracking-[0.2em] uppercase mb-1">
-          {isRemix ? `The Remix · ${currentClip.scrapbook.year}` : `From your library · ${currentClip.scrapbook.year}`}
-        </p>
-        <div className="flex items-end justify-between">
-          <p className="font-display font-semibold text-[22px] text-wheat leading-tight">
-            {currentClip.scrapbook.name}
+      {/* ── Bottom info (library mode only) ── */}
+      {!isRemix && (
+        <div
+          className="absolute bottom-0 left-0 right-0 px-6 pt-10 pointer-events-none"
+          style={{
+            background: 'linear-gradient(0deg, rgba(26,15,8,0.92) 0%, rgba(26,15,8,0.5) 60%, transparent 100%)',
+            paddingBottom: 'max(2rem, env(safe-area-inset-bottom))',
+          }}
+        >
+          <p className="text-rust text-[9px] font-bold tracking-[0.2em] uppercase mb-1">
+            {`From your library · ${currentClip.scrapbook.year}`}
           </p>
-          <button
-            className="pointer-events-auto flex items-center gap-1.5 mb-0.5 ml-4 flex-shrink-0 text-amber/70 font-sans font-semibold text-[12px] active:opacity-60"
-            onClick={() => navigate(`/scrapbook/${currentClip.scrapbook.id}`)}
-          >
-            Watch →
-          </button>
+          <div className="flex items-end justify-between">
+            <p className="font-display font-semibold text-[22px] text-wheat leading-tight">
+              {currentClip.scrapbook.name}
+            </p>
+            <button
+              className="pointer-events-auto flex items-center gap-1.5 mb-0.5 ml-4 flex-shrink-0 text-amber/70 font-sans font-semibold text-[12px] active:opacity-60"
+              onClick={() => navigate(`/scrapbook/${currentClip.scrapbook.id}`)}
+            >
+              Watch →
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* ── Scrapbook info sheet (remix mode) ── */}
+      {isRemix && scrapbookSheet && currentClip && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setScrapbookSheet(false)} />
+          <div
+            className="absolute bottom-0 left-0 right-0 z-50 rounded-t-3xl border-t border-walnut-light px-5 pb-10 pt-1"
+            style={{ background: '#3D2410' }}
+          >
+            <div className="w-10 h-1 rounded-full bg-walnut-light mx-auto mt-3 mb-5" />
+            <p className="text-rust text-[10px] font-bold tracking-[0.18em] uppercase mb-1.5">
+              {currentClip.scrapbook.year}
+            </p>
+            <p className="font-display font-semibold text-[22px] text-wheat leading-tight mb-3">
+              {currentClip.scrapbook.name}
+            </p>
+            <p className="text-wheat/40 font-sans text-[13px] leading-relaxed mb-6">
+              Heading there will exit {screenTitle}.
+            </p>
+            <button
+              onClick={() => navigate(`/scrapbook/${currentClip.scrapbook.id}`)}
+              className="w-full py-3.5 rounded-2xl font-sans font-bold text-[15px] mb-2 active:opacity-80"
+              style={{ background: '#F2A24A', color: '#2C1A0E' }}
+            >
+              Go to this scrapbook
+            </button>
+            <button
+              onClick={() => setScrapbookSheet(false)}
+              className="w-full py-3 text-center font-sans font-semibold text-[15px] active:opacity-70"
+              style={{ color: '#7A3B1E' }}
+            >
+              Stay in {screenTitle}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }

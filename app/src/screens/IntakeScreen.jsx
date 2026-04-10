@@ -16,6 +16,15 @@ function dataURLtoBlob(dataURL) {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+function getPhotoMeta(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = (e) => resolve({ duration: 5, thumbnail: e.target.result, mediaType: 'photo' })
+    reader.onerror = () => resolve({ duration: 5, thumbnail: null, mediaType: 'photo' })
+    reader.readAsDataURL(file)
+  })
+}
+
 function getVideoMeta(file) {
   return new Promise((resolve) => {
     const video = document.createElement('video')
@@ -272,12 +281,15 @@ export default function IntakeScreen() {
       thumbnail: null,
       selected: true,
       date: new Date(file.lastModified),
+      mediaType: file.type.startsWith('image/') ? 'photo' : 'video',
     }))
     setItems(seeded)
 
     // Extract metadata in parallel (update each as it resolves)
     seeded.forEach(async (item) => {
-      const meta = await getVideoMeta(item.file)
+      const meta = item.mediaType === 'photo'
+        ? await getPhotoMeta(item.file)
+        : await getVideoMeta(item.file)
       setItems(prev => prev.map(p =>
         p.id === item.id ? { ...p, ...meta } : p
       ))
@@ -325,14 +337,18 @@ export default function IntakeScreen() {
     await acquireWakeLock()
 
     try {
-      // 1. Remux all clips with faststart
+      // 1. Remux video clips with faststart (photos skip remux)
       setUploadPhase('remuxing')
       const remuxedItems = []
       for (let i = 0; i < selectedItems.length; i++) {
         if (cancelledRef.current) { releaseWakeLock(); return }
         setUploadProgress({ current: i + 1, total: selectedItems.length })
-        const remuxedFile = await remuxWithFaststart(selectedItems[i].file)
-        remuxedItems.push({ ...selectedItems[i], file: remuxedFile })
+        if (selectedItems[i].mediaType === 'photo') {
+          remuxedItems.push(selectedItems[i])
+        } else {
+          const remuxedFile = await remuxWithFaststart(selectedItems[i].file)
+          remuxedItems.push({ ...selectedItems[i], file: remuxedFile })
+        }
       }
 
       // 2. Create scrapbook record
@@ -383,8 +399,9 @@ export default function IntakeScreen() {
         if (cancelledRef.current) { releaseWakeLock(); return }
         setUploadProgress({ current: i + 1, total: remuxedItems.length })
         const item = remuxedItems[i]
+        const isPhotoItem = item.mediaType === 'photo'
         const clipId = crypto.randomUUID()
-        const ext = item.file.name.split('.').pop()?.toLowerCase() || 'mp4'
+        const ext = item.file.name.split('.').pop()?.toLowerCase() || (isPhotoItem ? 'jpg' : 'mp4')
         const storagePath = `${session.user.id}/${sb.id}/${clipId}.${ext}`
 
         const { error: uploadErr } = await supabase.storage
@@ -396,9 +413,9 @@ export default function IntakeScreen() {
           .from('cassette-media')
           .getPublicUrl(storagePath)
 
-        // Upload thumbnail if available
-        let thumbnailUrl = null
-        if (item.thumbnail) {
+        // Photos use their own URL as thumbnail; videos upload a separate thumb
+        let thumbnailUrl = isPhotoItem ? publicUrl : null
+        if (!isPhotoItem && item.thumbnail) {
           const thumbBlob = dataURLtoBlob(item.thumbnail)
           const thumbPath = `${session.user.id}/${sb.id}/${clipId}_thumb.jpg`
           const { error: thumbErr } = await supabase.storage
@@ -412,6 +429,7 @@ export default function IntakeScreen() {
           }
         }
 
+        const clipDuration = isPhotoItem ? (item.duration || 5) : (item.duration || null)
         const { error: clipErr } = await supabase
           .from('clips')
           .insert({
@@ -421,10 +439,11 @@ export default function IntakeScreen() {
             video_url: publicUrl,
             thumbnail_url: thumbnailUrl,
             order: i,
-            duration: item.duration || null,
+            duration: clipDuration,
             trim_in: 0,
-            trim_out: item.duration || null,
+            trim_out: clipDuration,
             recorded_at: item.date.toISOString(),
+            media_type: item.mediaType || 'video',
           })
         if (clipErr) throw clipErr
       }
@@ -447,14 +466,18 @@ export default function IntakeScreen() {
     await acquireWakeLock()
 
     try {
-      // 1. Remux all clips with faststart
+      // 1. Remux video clips with faststart (photos skip remux)
       setUploadPhase('remuxing')
       const remuxedItems = []
       for (let i = 0; i < selectedItems.length; i++) {
         if (cancelledRef.current) { releaseWakeLock(); return }
         setUploadProgress({ current: i + 1, total: selectedItems.length })
-        const remuxedFile = await remuxWithFaststart(selectedItems[i].file)
-        remuxedItems.push({ ...selectedItems[i], file: remuxedFile })
+        if (selectedItems[i].mediaType === 'photo') {
+          remuxedItems.push(selectedItems[i])
+        } else {
+          const remuxedFile = await remuxWithFaststart(selectedItems[i].file)
+          remuxedItems.push({ ...selectedItems[i], file: remuxedFile })
+        }
       }
 
       // 2. Get current max order in the scrapbook
@@ -473,8 +496,9 @@ export default function IntakeScreen() {
         if (cancelledRef.current) { releaseWakeLock(); return }
         setUploadProgress({ current: i + 1, total: remuxedItems.length })
         const item = remuxedItems[i]
+        const isPhotoItem = item.mediaType === 'photo'
         const clipId = crypto.randomUUID()
-        const ext = item.file.name.split('.').pop()?.toLowerCase() || 'mp4'
+        const ext = item.file.name.split('.').pop()?.toLowerCase() || (isPhotoItem ? 'jpg' : 'mp4')
         const storagePath = `${session.user.id}/${addToId}/${clipId}.${ext}`
 
         const { error: uploadErr } = await supabase.storage
@@ -486,8 +510,8 @@ export default function IntakeScreen() {
           .from('cassette-media')
           .getPublicUrl(storagePath)
 
-        let thumbnailUrl = null
-        if (item.thumbnail) {
+        let thumbnailUrl = isPhotoItem ? publicUrl : null
+        if (!isPhotoItem && item.thumbnail) {
           const thumbBlob = dataURLtoBlob(item.thumbnail)
           const thumbPath = `${session.user.id}/${addToId}/${clipId}_thumb.jpg`
           const { error: thumbErr } = await supabase.storage
@@ -501,6 +525,7 @@ export default function IntakeScreen() {
           }
         }
 
+        const clipDuration = isPhotoItem ? (item.duration || 5) : (item.duration || null)
         const { error: clipErr } = await supabase
           .from('clips')
           .insert({
@@ -510,10 +535,11 @@ export default function IntakeScreen() {
             video_url: publicUrl,
             thumbnail_url: thumbnailUrl,
             order: orderOffset + i,
-            duration: item.duration || null,
+            duration: clipDuration,
             trim_in: 0,
-            trim_out: item.duration || null,
+            trim_out: clipDuration,
             recorded_at: item.date.toISOString(),
+            media_type: item.mediaType || 'video',
           })
         if (clipErr) throw clipErr
       }
@@ -618,7 +644,7 @@ export default function IntakeScreen() {
           ref={fileInputRef}
           type="file"
           multiple
-          accept="video/*"
+          accept="video/*,image/*"
           className="hidden"
           onChange={handleFilePick}
         />
@@ -652,7 +678,7 @@ export default function IntakeScreen() {
       <div className="px-5 pb-4 flex-shrink-0">
         <div className="flex justify-between items-center mb-2">
           <span className="text-rust text-[11px] font-medium tracking-wide">
-            {items.length} video{items.length !== 1 ? 's' : ''} imported
+            {items.length} {items.length === 1 ? 'item' : 'items'} imported
           </span>
           <span className="text-amber text-[11px] font-semibold">
             {selectedItems.length} selected

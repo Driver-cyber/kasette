@@ -252,14 +252,24 @@ export default function SettingsScreen() {
             </div>
             <button
               onClick={toggleSurpriseMe}
-              className="flex-shrink-0 w-12 h-7 rounded-full transition-colors duration-200 relative active:opacity-80"
-              style={{ background: surpriseMeIncludeShared ? '#F2A24A' : '#2C1A0E', border: surpriseMeIncludeShared ? 'none' : '1.5px solid #4A2E18' }}
+              className="flex-shrink-0 relative active:opacity-80"
+              style={{
+                width: 44,
+                height: 26,
+                borderRadius: 13,
+                background: surpriseMeIncludeShared ? '#F2A24A' : '#4A2E18',
+                transition: 'background 0.2s',
+              }}
             >
               <span
-                className="absolute top-0.5 w-6 h-6 rounded-full transition-transform duration-200"
+                className="absolute rounded-full"
                 style={{
-                  background: surpriseMeIncludeShared ? '#2C1A0E' : '#4A2E18',
-                  transform: surpriseMeIncludeShared ? 'translateX(22px)' : 'translateX(2px)',
+                  top: 3,
+                  width: 20,
+                  height: 20,
+                  background: '#F5DEB3',
+                  transition: 'transform 0.2s',
+                  transform: surpriseMeIncludeShared ? 'translateX(21px)' : 'translateX(3px)',
                 }}
               />
             </button>

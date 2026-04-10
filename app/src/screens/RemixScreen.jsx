@@ -5,6 +5,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { preloadClip, preloadClips } from '../lib/blobCache'
 
+const CLIP_SELECT = 'id, video_url, thumbnail_url, duration, trim_in, trim_out, cut_in, cut_out, caption_text, caption_x, caption_y, caption_size'
+
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -197,7 +199,7 @@ export default function FilmFestScreen() {
     try {
       let query = supabase
         .from('scrapbooks')
-        .select('id, name, year, month, created_at, clips(id, video_url, thumbnail_url, duration, trim_in, trim_out, cut_in, cut_out, caption_text, caption_x, caption_y, caption_size)')
+        .select(`id, name, year, month, created_at, clips(${CLIP_SELECT})`)
         .eq('user_id', session.user.id)
 
       if (selectedYears.length > 0) query = query.in('year', selectedYears)
@@ -244,8 +246,73 @@ export default function FilmFestScreen() {
     }
   }
 
+  async function handleSurpriseMe() {
+    cancelledRef.current = false
+    setPhase('loading-surprise')
+    setErrorMsg(null)
+
+    try {
+      // Read setting + own clips in parallel
+      const [{ data: profile }, { data: ownBooks }] = await Promise.all([
+        supabase.from('profiles').select('surprise_me_include_shared').eq('user_id', session.user.id).single(),
+        supabase.from('scrapbooks').select(`id, name, year, created_at, clips(${CLIP_SELECT})`).eq('user_id', session.user.id),
+      ])
+
+      const includeShared = profile?.surprise_me_include_shared ?? false
+
+      const pool = []
+
+      for (const sb of ownBooks || []) {
+        for (const clip of sb.clips || []) {
+          if (clip.video_url) pool.push({ ...clip, scrapbook: { id: sb.id, name: sb.name, year: sb.year ?? new Date(sb.created_at).getFullYear() } })
+        }
+      }
+
+      if (includeShared) {
+        const { data: sharedRows } = await supabase
+          .from('scrapbook_shares')
+          .select(`scrapbooks(id, name, year, created_at, clips(${CLIP_SELECT}))`)
+          .eq('shared_with_id', session.user.id)
+
+        for (const row of sharedRows || []) {
+          const sb = row.scrapbooks
+          if (!sb) continue
+          for (const clip of sb.clips || []) {
+            if (clip.video_url) pool.push({ ...clip, scrapbook: { id: sb.id, name: sb.name, year: sb.year ?? new Date(sb.created_at).getFullYear() } })
+          }
+        }
+      }
+
+      if (pool.length === 0) {
+        setPhase('studio')
+        setErrorMsg('No clips found. Add some videos to get started.')
+        return
+      }
+
+      // Shuffle and pick 10–15
+      const shuffled = [...pool].sort(() => Math.random() - 0.5)
+      const pickCount = Math.min(pool.length, Math.floor(Math.random() * 6) + 10)
+      const selected = shuffled.slice(0, pickCount)
+
+      // Preload thumbnails
+      selected.forEach(c => { if (c.thumbnail_url) { const img = new Image(); img.src = c.thumbnail_url } })
+
+      const minDelay = new Promise(r => setTimeout(r, 2000))
+      const firstReady = preloadClips(selected, Math.min(3, selected.length))
+      selected.slice(3).forEach(c => preloadClip(c.video_url))
+      await Promise.all([minDelay, firstReady])
+
+      if (cancelledRef.current) return
+      navigate('/discover', { state: { clips: selected, isRemix: true, screenTitle: 'Surprise Me' } })
+    } catch {
+      setPhase('studio')
+      setErrorMsg('Something went wrong. Try again.')
+    }
+  }
+
   // ── Loading screen ──────────────────────────────────────────────────────────
-  if (phase === 'loading') {
+  if (phase === 'loading' || phase === 'loading-surprise') {
+    const isSurprise = phase === 'loading-surprise'
     return (
       <div
         className="relative flex flex-col items-center justify-center bg-walnut gap-10 px-8 text-center"
@@ -264,10 +331,10 @@ export default function FilmFestScreen() {
         </div>
         <div>
           <p className="font-display italic text-amber text-4xl tracking-tight mb-2">
-            Preparing your film…
+            {isSurprise ? 'Rolling the dice…' : 'Preparing your film…'}
           </p>
           <p className="text-rust text-sm leading-relaxed">
-            Loading clips for your Film Fest
+            {isSurprise ? 'Picking a mix just for you' : 'Loading clips for your Film Fest'}
           </p>
         </div>
       </div>
@@ -290,7 +357,7 @@ export default function FilmFestScreen() {
           Library
         </button>
         <button
-          onClick={() => setComingSoon(true)}
+          onClick={handleSurpriseMe}
           className="flex items-center gap-1.5 border rounded-full px-3.5 py-1.5 active:opacity-70"
           style={{ borderColor: 'rgba(242,162,74,0.35)', background: 'rgba(242,162,74,0.06)' }}
         >

@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react'
-import { ArrowLeft, Check, Image, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ArrowLeft, Check, Image, ChevronDown, X } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -15,6 +15,15 @@ function dataURLtoBlob(dataURL) {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+function getPhotoMeta(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = (e) => resolve({ duration: 5, thumbnail: e.target.result, mediaType: 'photo' })
+    reader.onerror = () => resolve({ duration: 5, thumbnail: null, mediaType: 'photo' })
+    reader.readAsDataURL(file)
+  })
+}
 
 function getVideoMeta(file) {
   return new Promise((resolve) => {
@@ -99,6 +108,65 @@ function formatSummaryRange(items) {
   return `${min.toLocaleDateString('en-US', { ...opts, year: 'numeric' })}–${max.toLocaleDateString('en-US', { ...opts, year: 'numeric' })}`
 }
 
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+function Reel({ reverse = false }) {
+  return (
+    <div
+      className="animate-spin"
+      style={{ animationDuration: reverse ? '1.7s' : '2.1s', animationDirection: reverse ? 'reverse' : 'normal' }}
+    >
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <circle cx="24" cy="24" r="20" stroke="#F2A24A" strokeWidth="2.5" fill="none" />
+        <circle cx="24" cy="24" r="7" stroke="#F2A24A" strokeWidth="1.5" fill="none" />
+        <circle cx="24" cy="24" r="2.5" fill="#F2A24A" />
+        <line x1="24" y1="4" x2="24" y2="17" stroke="#F2A24A" strokeWidth="2" strokeLinecap="round" />
+        <line x1="41.3" y1="34" x2="30.1" y2="27.5" stroke="#F2A24A" strokeWidth="2" strokeLinecap="round" />
+        <line x1="6.7" y1="34" x2="17.9" y2="27.5" stroke="#F2A24A" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    </div>
+  )
+}
+
+function PickerDropdown({ value, options, onChange, mb = true }) {
+  const [open, setOpen] = useState(false)
+  const selectedLabel = options.find(o => o.value === value)?.label ?? '···'
+  return (
+    <div className={`relative ${mb ? 'mb-5' : ''}`}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between rounded-xl px-4 py-3 border border-walnut-light active:opacity-80"
+        style={{ background: '#2C1A0E' }}
+      >
+        <span className="font-display font-bold text-[18px] text-wheat">{selectedLabel}</span>
+        <ChevronDown size={18} strokeWidth={1.75} className="text-amber" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
+          <div
+            className="absolute left-0 right-0 top-full mt-1 rounded-xl border border-walnut-light z-30 overflow-y-auto"
+            style={{ background: '#2C1A0E', maxHeight: 210 }}
+          >
+            {options.map(opt => (
+              <button
+                key={String(opt.value)}
+                onClick={() => { onChange(opt.value); setOpen(false) }}
+                className="w-full px-4 py-3 text-left border-b active:opacity-70"
+                style={{ borderColor: '#3D2410', background: opt.value === value ? 'rgba(242,162,74,0.10)' : 'transparent' }}
+              >
+                <span className="font-display font-semibold text-[16px]" style={{ color: opt.value === value ? '#F2A24A' : '#F5DEB3' }}>
+                  {opt.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export default function IntakeScreen() {
@@ -116,11 +184,34 @@ export default function IntakeScreen() {
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 })
   const [error, setError] = useState(null)
   const [year, setYear] = useState(new Date().getFullYear())
+  const [month, setMonth] = useState(new Date().getMonth() + 1)
   const [coverFile, setCoverFile] = useState(null)
   const [coverPreview, setCoverPreview] = useState(null)
   const nameInputRef = useRef(null)
   const coverInputRef = useRef(null)
   const wakeLockRef = useRef(null)
+  const cancelledRef = useRef(false)
+
+  // Smooth progress bar
+  const smoothPctRef = useRef(0)
+  const [displayPct, setDisplayPct] = useState(0)
+  const uploadPhaseRef = useRef(uploadPhase)
+  const uploadProgressRef = useRef(uploadProgress)
+  useEffect(() => { uploadPhaseRef.current = uploadPhase }, [uploadPhase])
+  useEffect(() => { uploadProgressRef.current = uploadProgress }, [uploadProgress])
+  useEffect(() => {
+    if (!uploading) { smoothPctRef.current = 0; setDisplayPct(0); return }
+    const id = setInterval(() => {
+      const prog = uploadProgressRef.current
+      const phase = uploadPhaseRef.current
+      const target = phase === 'remuxing'
+        ? (prog.current / Math.max(prog.total, 1)) * 40
+        : 40 + (prog.current / Math.max(prog.total, 1)) * 55
+      smoothPctRef.current += (target - smoothPctRef.current) * 0.05
+      setDisplayPct(smoothPctRef.current)
+    }, 80)
+    return () => clearInterval(id)
+  }, [uploading])
 
   // ── Wake lock helpers ────────────────────────────────────────────────────
   async function acquireWakeLock() {
@@ -173,6 +264,7 @@ export default function IntakeScreen() {
       const dates = sel.map(i => i.date.getTime())
       const earliest = dates.length > 0 ? new Date(Math.min(...dates)) : new Date()
       setYear(earliest.getFullYear())
+      setMonth(earliest.getMonth() + 1)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
@@ -189,12 +281,15 @@ export default function IntakeScreen() {
       thumbnail: null,
       selected: true,
       date: new Date(file.lastModified),
+      mediaType: file.type.startsWith('image/') ? 'photo' : 'video',
     }))
     setItems(seeded)
 
     // Extract metadata in parallel (update each as it resolves)
     seeded.forEach(async (item) => {
-      const meta = await getVideoMeta(item.file)
+      const meta = item.mediaType === 'photo'
+        ? await getPhotoMeta(item.file)
+        : await getVideoMeta(item.file)
       setItems(prev => prev.map(p =>
         p.id === item.id ? { ...p, ...meta } : p
       ))
@@ -227,20 +322,33 @@ export default function IntakeScreen() {
     setCoverPreview(null)
   }
 
+  function handleCancel() {
+    cancelledRef.current = true
+    releaseWakeLock()
+    setUploading(false)
+    navigate(addToId ? `/scrapbook/${addToId}/edit` : '/')
+  }
+
   async function handleCreate() {
     if (!name.trim() || !selectedItems.length || uploading) return
+    cancelledRef.current = false
     setUploading(true)
     setError(null)
     await acquireWakeLock()
 
     try {
-      // 1. Remux all clips with faststart
+      // 1. Remux video clips with faststart (photos skip remux)
       setUploadPhase('remuxing')
       const remuxedItems = []
       for (let i = 0; i < selectedItems.length; i++) {
+        if (cancelledRef.current) { releaseWakeLock(); return }
         setUploadProgress({ current: i + 1, total: selectedItems.length })
-        const remuxedFile = await remuxWithFaststart(selectedItems[i].file)
-        remuxedItems.push({ ...selectedItems[i], file: remuxedFile })
+        if (selectedItems[i].mediaType === 'photo') {
+          remuxedItems.push(selectedItems[i])
+        } else {
+          const remuxedFile = await remuxWithFaststart(selectedItems[i].file)
+          remuxedItems.push({ ...selectedItems[i], file: remuxedFile })
+        }
       }
 
       // 2. Create scrapbook record
@@ -248,7 +356,7 @@ export default function IntakeScreen() {
       setUploadProgress({ current: 0, total: remuxedItems.length })
       const { data: sb, error: sbErr } = await supabase
         .from('scrapbooks')
-        .insert({ name: name.trim(), user_id: session.user.id, year })
+        .insert({ name: name.trim(), user_id: session.user.id, year, month })
         .select()
         .single()
       if (sbErr) throw sbErr
@@ -288,10 +396,12 @@ export default function IntakeScreen() {
 
       // 4. Upload each clip + thumbnail
       for (let i = 0; i < remuxedItems.length; i++) {
+        if (cancelledRef.current) { releaseWakeLock(); return }
         setUploadProgress({ current: i + 1, total: remuxedItems.length })
         const item = remuxedItems[i]
+        const isPhotoItem = item.mediaType === 'photo'
         const clipId = crypto.randomUUID()
-        const ext = item.file.name.split('.').pop()?.toLowerCase() || 'mp4'
+        const ext = item.file.name.split('.').pop()?.toLowerCase() || (isPhotoItem ? 'jpg' : 'mp4')
         const storagePath = `${session.user.id}/${sb.id}/${clipId}.${ext}`
 
         const { error: uploadErr } = await supabase.storage
@@ -303,9 +413,9 @@ export default function IntakeScreen() {
           .from('cassette-media')
           .getPublicUrl(storagePath)
 
-        // Upload thumbnail if available
-        let thumbnailUrl = null
-        if (item.thumbnail) {
+        // Photos use their own URL as thumbnail; videos upload a separate thumb
+        let thumbnailUrl = isPhotoItem ? publicUrl : null
+        if (!isPhotoItem && item.thumbnail) {
           const thumbBlob = dataURLtoBlob(item.thumbnail)
           const thumbPath = `${session.user.id}/${sb.id}/${clipId}_thumb.jpg`
           const { error: thumbErr } = await supabase.storage
@@ -319,6 +429,7 @@ export default function IntakeScreen() {
           }
         }
 
+        const clipDuration = isPhotoItem ? (item.duration || 5) : (item.duration || null)
         const { error: clipErr } = await supabase
           .from('clips')
           .insert({
@@ -328,10 +439,11 @@ export default function IntakeScreen() {
             video_url: publicUrl,
             thumbnail_url: thumbnailUrl,
             order: i,
-            duration: item.duration || null,
+            duration: clipDuration,
             trim_in: 0,
-            trim_out: item.duration || null,
+            trim_out: clipDuration,
             recorded_at: item.date.toISOString(),
+            media_type: item.mediaType || 'video',
           })
         if (clipErr) throw clipErr
       }
@@ -348,18 +460,24 @@ export default function IntakeScreen() {
 
   async function handleAddClips() {
     if (!selectedItems.length || uploading) return
+    cancelledRef.current = false
     setUploading(true)
     setError(null)
     await acquireWakeLock()
 
     try {
-      // 1. Remux all clips with faststart
+      // 1. Remux video clips with faststart (photos skip remux)
       setUploadPhase('remuxing')
       const remuxedItems = []
       for (let i = 0; i < selectedItems.length; i++) {
+        if (cancelledRef.current) { releaseWakeLock(); return }
         setUploadProgress({ current: i + 1, total: selectedItems.length })
-        const remuxedFile = await remuxWithFaststart(selectedItems[i].file)
-        remuxedItems.push({ ...selectedItems[i], file: remuxedFile })
+        if (selectedItems[i].mediaType === 'photo') {
+          remuxedItems.push(selectedItems[i])
+        } else {
+          const remuxedFile = await remuxWithFaststart(selectedItems[i].file)
+          remuxedItems.push({ ...selectedItems[i], file: remuxedFile })
+        }
       }
 
       // 2. Get current max order in the scrapbook
@@ -375,10 +493,12 @@ export default function IntakeScreen() {
 
       // 3. Upload each new clip + thumbnail
       for (let i = 0; i < remuxedItems.length; i++) {
+        if (cancelledRef.current) { releaseWakeLock(); return }
         setUploadProgress({ current: i + 1, total: remuxedItems.length })
         const item = remuxedItems[i]
+        const isPhotoItem = item.mediaType === 'photo'
         const clipId = crypto.randomUUID()
-        const ext = item.file.name.split('.').pop()?.toLowerCase() || 'mp4'
+        const ext = item.file.name.split('.').pop()?.toLowerCase() || (isPhotoItem ? 'jpg' : 'mp4')
         const storagePath = `${session.user.id}/${addToId}/${clipId}.${ext}`
 
         const { error: uploadErr } = await supabase.storage
@@ -390,8 +510,8 @@ export default function IntakeScreen() {
           .from('cassette-media')
           .getPublicUrl(storagePath)
 
-        let thumbnailUrl = null
-        if (item.thumbnail) {
+        let thumbnailUrl = isPhotoItem ? publicUrl : null
+        if (!isPhotoItem && item.thumbnail) {
           const thumbBlob = dataURLtoBlob(item.thumbnail)
           const thumbPath = `${session.user.id}/${addToId}/${clipId}_thumb.jpg`
           const { error: thumbErr } = await supabase.storage
@@ -405,6 +525,7 @@ export default function IntakeScreen() {
           }
         }
 
+        const clipDuration = isPhotoItem ? (item.duration || 5) : (item.duration || null)
         const { error: clipErr } = await supabase
           .from('clips')
           .insert({
@@ -414,10 +535,11 @@ export default function IntakeScreen() {
             video_url: publicUrl,
             thumbnail_url: thumbnailUrl,
             order: orderOffset + i,
-            duration: item.duration || null,
+            duration: clipDuration,
             trim_in: 0,
-            trim_out: item.duration || null,
+            trim_out: clipDuration,
             recorded_at: item.date.toISOString(),
+            media_type: item.mediaType || 'video',
           })
         if (clipErr) throw clipErr
       }
@@ -439,25 +561,40 @@ export default function IntakeScreen() {
   // ── Uploading overlay ───────────────────────────────────────────────────
   if (uploading) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-walnut gap-6 px-8 text-center">
-        <div className="w-12 h-12 rounded-full border-2 border-amber border-t-transparent animate-spin" />
+      <div className="relative flex flex-col items-center justify-center bg-walnut gap-10 px-8 text-center" style={{ height: '100dvh' }}>
+        <button
+          onClick={handleCancel}
+          className="absolute top-14 right-5 w-10 h-10 flex items-center justify-center rounded-full active:opacity-60"
+          style={{ background: 'rgba(74,46,24,0.6)' }}
+        >
+          <X size={20} strokeWidth={2} className="text-wheat/60" />
+        </button>
+        <div className="flex items-center gap-10">
+          <Reel />
+          <Reel reverse />
+        </div>
         <div>
-          <p className="font-display font-semibold text-xl text-wheat mb-1">
-            {uploadPhase === 'remuxing' ? 'Optimizing your clips…' : addToId ? 'Adding clips…' : 'Creating your scrapbook…'}
+          <p className="font-display italic text-amber text-3xl tracking-tight mb-2">
+            {uploadPhase === 'remuxing' ? 'Getting ready…' : addToId ? 'Adding clips…' : 'Saving memories…'}
           </p>
-          <p className="text-rust text-sm">
+          <p className="text-rust text-sm leading-relaxed">
             {uploadPhase === 'remuxing'
-              ? `Clip ${uploadProgress.current} of ${uploadProgress.total}`
+              ? `Optimizing clip ${uploadProgress.current} of ${uploadProgress.total}`
               : `Uploading clip ${uploadProgress.current} of ${uploadProgress.total}`
             }
           </p>
         </div>
-        {/* Mini progress bar */}
-        <div className="w-full max-w-xs h-1 bg-walnut-light rounded-full overflow-hidden">
-          <div
-            className="h-full bg-amber rounded-full transition-all duration-500"
-            style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
-          />
+        <div className="w-full max-w-xs">
+          <div className="h-1 bg-walnut-light rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${displayPct}%`,
+                background: 'linear-gradient(90deg, #F2A24A, #E8855A)',
+                transition: 'width 0.08s linear',
+              }}
+            />
+          </div>
         </div>
         <p className="text-rust/50 text-[11px]">Keep this screen open until it's done</p>
       </div>
@@ -507,7 +644,7 @@ export default function IntakeScreen() {
           ref={fileInputRef}
           type="file"
           multiple
-          accept="video/*"
+          accept="video/*,image/*"
           className="hidden"
           onChange={handleFilePick}
         />
@@ -541,7 +678,7 @@ export default function IntakeScreen() {
       <div className="px-5 pb-4 flex-shrink-0">
         <div className="flex justify-between items-center mb-2">
           <span className="text-rust text-[11px] font-medium tracking-wide">
-            {items.length} video{items.length !== 1 ? 's' : ''} imported
+            {items.length} {items.length === 1 ? 'item' : 'items'} imported
           </span>
           <span className="text-amber text-[11px] font-semibold">
             {selectedItems.length} selected
@@ -705,26 +842,24 @@ export default function IntakeScreen() {
             <p className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase mb-2">
               Year
             </p>
-            <div
-              className="flex items-center justify-between rounded-xl px-2 py-1 mb-5 border border-walnut-light"
-              style={{ background: '#2C1A0E' }}
-            >
-              <button
-                onClick={() => setYear(y => y - 1)}
-                className="w-11 h-11 flex items-center justify-center active:opacity-60"
-              >
-                <ChevronLeft size={20} strokeWidth={1.75} className="text-amber" />
-              </button>
-              <span className="font-display font-bold text-[22px] text-wheat tabular-nums">
-                {year}
-              </span>
-              <button
-                onClick={() => setYear(y => y + 1)}
-                className="w-11 h-11 flex items-center justify-center active:opacity-60"
-              >
-                <ChevronRight size={20} strokeWidth={1.75} className="text-amber" />
-              </button>
-            </div>
+            <PickerDropdown
+              value={year}
+              options={Array.from({ length: new Date().getFullYear() - 2014 }, (_, i) => {
+                const y = new Date().getFullYear() - i
+                return { value: y, label: String(y) }
+              })}
+              onChange={setYear}
+            />
+
+            {/* Month picker */}
+            <p className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase mb-2">
+              Month
+            </p>
+            <PickerDropdown
+              value={month}
+              options={MONTH_NAMES.map((name, i) => ({ value: i + 1, label: name }))}
+              onChange={setMonth}
+            />
 
             {/* Cover picker */}
             <button

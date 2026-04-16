@@ -1,19 +1,18 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Check, X, Shuffle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { preloadClip, preloadClips } from '../lib/blobCache'
 
-function shuffleArray(arr) {
-  const a = [...arr]
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[a[i], a[j]] = [a[j], a[i]]
-  }
-  return a
-}
+const CLIP_SELECT = 'id, video_url, thumbnail_url, duration, trim_in, trim_out, cut_in, cut_out, caption_text, caption_x, caption_y, caption_size'
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+
+// ── Cassette reel animation ─────────────────────────────────────────────────
 function Reel({ reverse = false }) {
   return (
     <div
@@ -32,28 +31,200 @@ function Reel({ reverse = false }) {
   )
 }
 
-export default function RemixScreen() {
+// ── Multi-select dropdown ───────────────────────────────────────────────────
+function MultiSelectDropdown({ allLabel, options, selected, onToggle, onClearAll }) {
+  const [open, setOpen] = useState(false)
+
+  let displayLabel
+  if (selected.length === 0) {
+    displayLabel = allLabel
+  } else if (selected.length <= 3) {
+    displayLabel = selected
+      .map(v => options.find(o => o.value === v)?.label)
+      .filter(Boolean)
+      .join(', ')
+  } else {
+    displayLabel = `${selected.length} selected`
+  }
+
+  const isAll = selected.length === 0
+
+  return (
+    <div className="relative mb-3">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between rounded-xl px-4 py-3.5 border active:opacity-80"
+        style={{ background: '#3D2410', borderColor: open ? 'rgba(242,162,74,0.4)' : '#4A2E18' }}
+      >
+        <span className="font-display font-semibold text-[17px] text-wheat">{displayLabel}</span>
+        <ChevronDown
+          size={18}
+          strokeWidth={1.75}
+          className="text-amber flex-shrink-0"
+          style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}
+        />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
+          <div
+            className="absolute left-0 right-0 top-full mt-1 rounded-xl border border-walnut-light z-30 overflow-y-auto"
+            style={{ background: '#2C1A0E', maxHeight: 240 }}
+          >
+            {/* All / clear option */}
+            <button
+              onClick={() => { onClearAll(); setOpen(false) }}
+              className="w-full flex items-center gap-3 px-4 py-3 border-b active:opacity-70"
+              style={{ borderColor: '#3D2410', background: isAll ? 'rgba(242,162,74,0.10)' : 'transparent' }}
+            >
+              <div
+                className="flex-shrink-0 w-5 h-5 rounded flex items-center justify-center"
+                style={{
+                  background: isAll ? '#F2A24A' : 'transparent',
+                  border: isAll ? '1.5px solid #F2A24A' : '1.5px solid #4A2E18',
+                }}
+              >
+                {isAll && <Check size={11} strokeWidth={2.5} className="text-walnut" />}
+              </div>
+              <span
+                className="font-display font-semibold text-[15px]"
+                style={{ color: isAll ? '#F2A24A' : '#F5DEB3' }}
+              >
+                {allLabel}
+              </span>
+            </button>
+
+            {options.map(opt => {
+              const isSel = selected.includes(opt.value)
+              return (
+                <button
+                  key={String(opt.value)}
+                  onClick={() => onToggle(opt.value)}
+                  className="w-full flex items-center gap-3 px-4 py-3 border-b active:opacity-70"
+                  style={{ borderColor: '#3D2410', background: isSel ? 'rgba(242,162,74,0.08)' : 'transparent' }}
+                >
+                  <div
+                    className="flex-shrink-0 w-5 h-5 rounded flex items-center justify-center"
+                    style={{
+                      background: isSel ? '#F2A24A' : 'transparent',
+                      border: isSel ? '1.5px solid #F2A24A' : '1.5px solid #4A2E18',
+                    }}
+                  >
+                    {isSel && <Check size={11} strokeWidth={2.5} className="text-walnut" />}
+                  </div>
+                  <span
+                    className="font-display font-semibold text-[15px]"
+                    style={{ color: isSel ? '#F2A24A' : '#F5DEB3' }}
+                  >
+                    {opt.label}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Coming soon modal ───────────────────────────────────────────────────────
+function ComingSoonModal({ onClose }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: 'rgba(26,15,8,0.88)' }}
+      onClick={onClose}
+    >
+      <div
+        className="mx-8 rounded-2xl border border-walnut-light px-8 py-10 text-center"
+        style={{ background: '#3D2410' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <p className="font-display italic text-amber text-3xl tracking-tight mb-3">Coming soon</p>
+        <p className="text-rust text-sm leading-relaxed mb-6">This feature is on its way.</p>
+        <button
+          onClick={onClose}
+          className="px-8 py-3 rounded-xl font-sans font-bold text-[14px] text-walnut active:opacity-80"
+          style={{ background: '#F2A24A' }}
+        >
+          Got it
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Main screen ─────────────────────────────────────────────────────────────
+export default function FilmFestScreen() {
   const navigate = useNavigate()
   const { session } = useAuth()
-  const [phase, setPhase] = useState('studio') // 'studio' | 'loading'
-  const [clipCount, setClipCount] = useState(8)
-  const [includeShared, setIncludeShared] = useState(false)
-  const [errorMsg, setErrorMsg] = useState(null)
 
-  async function handleMakeRemix() {
+  const [availableYears, setAvailableYears] = useState([])
+  const [selectedYears, setSelectedYears] = useState([])   // empty = all
+  const [selectedMonths, setSelectedMonths] = useState([]) // empty = all
+  const [phase, setPhase] = useState('studio')             // 'studio' | 'loading'
+  const [errorMsg, setErrorMsg] = useState(null)
+  const [comingSoon, setComingSoon] = useState(false)
+  const cancelledRef = useRef(false)
+
+  // Fetch available years + prewarm blob cache in parallel on mount
+  useEffect(() => {
+    async function fetchYears() {
+      const { data } = await supabase
+        .from('scrapbooks')
+        .select('year')
+        .eq('user_id', session.user.id)
+      const years = [...new Set((data || []).map(s => s.year).filter(Boolean))].sort((a, b) => b - a)
+      setAvailableYears(years.length > 0 ? years : [new Date().getFullYear()])
+    }
+
+    async function prewarm() {
+      const { data: books } = await supabase
+        .from('scrapbooks')
+        .select('clips(video_url, thumbnail_url)')
+        .eq('user_id', session.user.id)
+      const allClips = (books || []).flatMap(sb => sb.clips || []).filter(c => c.video_url)
+      if (allClips.length === 0) return
+      const shuffled = [...allClips].sort(() => Math.random() - 0.5)
+      shuffled.slice(0, 5).forEach(c => {
+        preloadClip(c.video_url)
+        if (c.thumbnail_url) { const img = new Image(); img.src = c.thumbnail_url }
+      })
+    }
+
+    fetchYears()
+    prewarm()
+  }, [session])
+
+  function toggleYear(y) {
+    setErrorMsg(null)
+    setSelectedYears(prev => prev.includes(y) ? prev.filter(x => x !== y) : [...prev, y])
+  }
+
+  function toggleMonth(m) {
+    setErrorMsg(null)
+    setSelectedMonths(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m])
+  }
+
+  async function handleWatch() {
+    cancelledRef.current = false
     setPhase('loading')
     setErrorMsg(null)
 
     try {
-      const pool = []
-
-      // Own scrapbooks + clips
-      const { data: ownSbs } = await supabase
+      let query = supabase
         .from('scrapbooks')
-        .select('id, name, year, created_at, clips(id, video_url, thumbnail_url, duration, trim_in, trim_out, cut_in, cut_out, caption_text, caption_x, caption_y, caption_size)')
+        .select(`id, name, year, month, created_at, clips(${CLIP_SELECT})`)
         .eq('user_id', session.user.id)
 
-      for (const sb of ownSbs || []) {
+      if (selectedYears.length > 0) query = query.in('year', selectedYears)
+      if (selectedMonths.length > 0) query = query.in('month', selectedMonths)
+
+      const { data: scrapbooks } = await query
+
+      const pool = []
+      for (const sb of scrapbooks || []) {
         for (const clip of sb.clips || []) {
           if (clip.video_url) {
             pool.push({
@@ -68,55 +239,87 @@ export default function RemixScreen() {
         }
       }
 
-      // Shared scrapbooks + clips (if toggle on)
+      if (pool.length === 0) {
+        setPhase('studio')
+        setErrorMsg('No clips found for those filters. Try a broader selection.')
+        return
+      }
+
+      // Preload thumbnail images
+      pool.forEach(c => { if (c.thumbnail_url) { const img = new Image(); img.src = c.thumbnail_url } })
+
+      // Min 2s delay + first 3 clips ready
+      const minDelay = new Promise(r => setTimeout(r, 2000))
+      const firstReady = preloadClips(pool, Math.min(3, pool.length))
+      pool.slice(3).forEach(c => preloadClip(c.video_url))
+      await Promise.all([minDelay, firstReady])
+
+      if (cancelledRef.current) return
+      navigate('/discover', { state: { clips: pool, isRemix: true, screenTitle: 'Film Fest' } })
+    } catch {
+      setPhase('studio')
+      setErrorMsg('Something went wrong. Try again.')
+    }
+  }
+
+  async function handleSurpriseMe() {
+    cancelledRef.current = false
+    setPhase('loading-surprise')
+    setErrorMsg(null)
+
+    try {
+      // Read setting + own clips in parallel
+      const [{ data: profile }, { data: ownBooks }] = await Promise.all([
+        supabase.from('profiles').select('surprise_me_include_shared').eq('user_id', session.user.id).single(),
+        supabase.from('scrapbooks').select(`id, name, year, created_at, clips(${CLIP_SELECT})`).eq('user_id', session.user.id),
+      ])
+
+      const includeShared = profile?.surprise_me_include_shared ?? false
+
+      const pool = []
+
+      for (const sb of ownBooks || []) {
+        for (const clip of sb.clips || []) {
+          if (clip.video_url) pool.push({ ...clip, scrapbook: { id: sb.id, name: sb.name, year: sb.year ?? new Date(sb.created_at).getFullYear() } })
+        }
+      }
+
       if (includeShared) {
         const { data: sharedRows } = await supabase
           .from('scrapbook_shares')
-          .select('scrapbook_id')
+          .select(`scrapbooks(id, name, year, created_at, clips(${CLIP_SELECT}))`)
           .eq('shared_with_id', session.user.id)
 
-        if (sharedRows?.length) {
-          const { data: sharedSbs } = await supabase
-            .from('scrapbooks')
-            .select('id, name, year, created_at, clips(id, video_url, thumbnail_url, duration, trim_in, trim_out, cut_in, cut_out, caption_text, caption_x, caption_y, caption_size)')
-            .in('id', sharedRows.map(r => r.scrapbook_id))
-
-          for (const sb of sharedSbs || []) {
-            for (const clip of sb.clips || []) {
-              if (clip.video_url) {
-                pool.push({
-                  ...clip,
-                  scrapbook: {
-                    id: sb.id,
-                    name: sb.name,
-                    year: sb.year ?? new Date(sb.created_at).getFullYear(),
-                  },
-                })
-              }
-            }
+        for (const row of sharedRows || []) {
+          const sb = row.scrapbooks
+          if (!sb) continue
+          for (const clip of sb.clips || []) {
+            if (clip.video_url) pool.push({ ...clip, scrapbook: { id: sb.id, name: sb.name, year: sb.year ?? new Date(sb.created_at).getFullYear() } })
           }
         }
       }
 
       if (pool.length === 0) {
         setPhase('studio')
-        setErrorMsg('No clips found. Add some videos to a scrapbook first.')
+        setErrorMsg('No clips found. Add some videos to get started.')
         return
       }
 
-      // Shuffle and pick N
-      const selected = shuffleArray(pool).slice(0, Math.min(clipCount, pool.length))
+      // Shuffle and pick 10–15
+      const shuffled = [...pool].sort(() => Math.random() - 0.5)
+      const pickCount = Math.min(pool.length, Math.floor(Math.random() * 6) + 10)
+      const selected = shuffled.slice(0, pickCount)
 
-      // Preload thumbnail images so swipe transitions show immediately
+      // Preload thumbnails
       selected.forEach(c => { if (c.thumbnail_url) { const img = new Image(); img.src = c.thumbnail_url } })
 
-      // Minimum 4s loading + first 3 clip blobs ready before navigating
-      const minDelay = new Promise(r => setTimeout(r, 4000))
-      const firstReady = preloadClips(selected, 3)
-      selected.slice(3).forEach(c => preloadClip(c.video_url)) // fire and forget rest
+      const minDelay = new Promise(r => setTimeout(r, 2000))
+      const firstReady = preloadClips(selected, Math.min(3, selected.length))
+      selected.slice(3).forEach(c => preloadClip(c.video_url))
       await Promise.all([minDelay, firstReady])
 
-      navigate('/discover', { state: { clips: selected, isRemix: true } })
+      if (cancelledRef.current) return
+      navigate('/discover', { state: { clips: selected, isRemix: true, screenTitle: 'Surprise Me' } })
     } catch {
       setPhase('studio')
       setErrorMsg('Something went wrong. Try again.')
@@ -124,34 +327,44 @@ export default function RemixScreen() {
   }
 
   // ── Loading screen ──────────────────────────────────────────────────────────
-  if (phase === 'loading') {
+  if (phase === 'loading' || phase === 'loading-surprise') {
+    const isSurprise = phase === 'loading-surprise'
     return (
       <div
-        className="flex flex-col items-center justify-center bg-walnut gap-10 px-8 text-center"
+        className="relative flex flex-col items-center justify-center bg-walnut gap-10 px-8 text-center"
         style={{ height: '100dvh' }}
       >
+        <button
+          onClick={() => { cancelledRef.current = true; setPhase('studio') }}
+          className="absolute top-14 right-5 w-10 h-10 flex items-center justify-center rounded-full active:opacity-60"
+          style={{ background: 'rgba(74,46,24,0.6)' }}
+        >
+          <X size={20} strokeWidth={2} className="text-wheat/60" />
+        </button>
         <div className="flex items-center gap-10">
           <Reel />
           <Reel reverse />
         </div>
         <div>
           <p className="font-display italic text-amber text-4xl tracking-tight mb-2">
-            Making it groovy
+            {isSurprise ? 'Rolling the dice…' : 'Preparing your film…'}
           </p>
           <p className="text-rust text-sm leading-relaxed">
-            Pulling your best moments together
+            {isSurprise ? 'Picking a mix just for you' : 'Loading clips for your Film Fest'}
           </p>
         </div>
       </div>
     )
   }
 
-  // ── Studio screen ───────────────────────────────────────────────────────────
+  // ── Studio / filter screen ──────────────────────────────────────────────────
   return (
     <div className="flex flex-col bg-walnut" style={{ height: '100dvh' }}>
 
+      {comingSoon && <ComingSoonModal onClose={() => setComingSoon(false)} />}
+
       {/* Nav */}
-      <header className="flex items-center px-5 pt-14 pb-2 flex-shrink-0">
+      <header className="flex items-center justify-between px-5 pt-14 pb-2 flex-shrink-0">
         <button
           onClick={() => navigate('/')}
           className="flex items-center gap-1.5 text-wheat/45 font-sans text-[15px] font-semibold active:opacity-60"
@@ -159,98 +372,72 @@ export default function RemixScreen() {
           <ArrowLeft size={18} strokeWidth={2} />
           Library
         </button>
+        <button
+          onClick={handleSurpriseMe}
+          className="flex items-center gap-1.5 border rounded-full px-3.5 py-1.5 active:opacity-70"
+          style={{ borderColor: 'rgba(242,162,74,0.35)', background: 'rgba(242,162,74,0.06)' }}
+        >
+          <Shuffle size={13} strokeWidth={1.75} className="text-amber" />
+          <span className="font-sans font-semibold text-[13px] text-amber">Surprise Me</span>
+        </button>
       </header>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col items-center justify-center px-8 gap-10 pb-8">
+      <div className="flex-1 flex flex-col px-6 pt-10 pb-4 overflow-y-auto">
 
-        {/* Title */}
-        <div className="text-center">
-          <p className="font-display italic text-amber text-5xl tracking-tight mb-2">The Remix</p>
-          <p className="text-rust/80 text-sm">A random cut from your library</p>
-        </div>
-
-        {/* Clip count stepper */}
-        <div className="w-full max-w-xs">
-          <p className="text-rust text-[10px] font-bold tracking-[0.18em] uppercase text-center mb-5">
-            How many clips?
-          </p>
-          <div className="flex items-center justify-center gap-6">
-            <button
-              onClick={() => setClipCount(c => Math.max(6, c - 1))}
-              disabled={clipCount <= 6}
-              className="w-12 h-12 rounded-full flex items-center justify-center border text-[22px] font-bold active:opacity-70 transition-opacity"
-              style={{
-                borderColor: clipCount <= 6 ? '#3D2410' : '#4A2E18',
-                color: clipCount <= 6 ? '#4A2E18' : '#F2A24A',
-                background: 'rgba(242,162,74,0.06)',
-              }}
-            >
-              –
-            </button>
-            <span className="font-display text-[72px] text-wheat tabular-nums w-20 text-center leading-none">
-              {clipCount}
-            </span>
-            <button
-              onClick={() => setClipCount(c => Math.min(12, c + 1))}
-              disabled={clipCount >= 12}
-              className="w-12 h-12 rounded-full flex items-center justify-center border text-[22px] font-bold active:opacity-70 transition-opacity"
-              style={{
-                borderColor: clipCount >= 12 ? '#3D2410' : '#4A2E18',
-                color: clipCount >= 12 ? '#4A2E18' : '#F2A24A',
-                background: 'rgba(242,162,74,0.06)',
-              }}
-            >
-              +
-            </button>
-          </div>
-          <div className="flex justify-between mt-2.5 px-1">
-            <span className="text-walnut-light text-[9px] font-bold tracking-wider uppercase">6 min</span>
-            <span className="text-walnut-light text-[9px] font-bold tracking-wider uppercase">12 max</span>
-          </div>
-        </div>
-
-        {/* Include shared toggle */}
-        <div className="w-full max-w-xs">
-          <div
-            className="flex items-center justify-between px-4 py-4 rounded-2xl border"
-            style={{ background: '#3D2410', borderColor: includeShared ? 'rgba(242,162,74,0.25)' : '#4A2E18' }}
+        {/* Title block */}
+        <div className="mb-10">
+          <p
+            className="font-display italic text-amber"
+            style={{ fontSize: 52, lineHeight: 1.05, letterSpacing: '-0.02em' }}
           >
-            <div>
-              <p className="text-wheat text-[14px] font-semibold mb-0.5">Include shared clips</p>
-              <p className="text-rust text-[11px] leading-snug">Pull from scrapbooks shared with you</p>
-            </div>
-            <button
-              onClick={() => setIncludeShared(v => !v)}
-              className="relative flex-shrink-0 ml-4 active:scale-95 transition-transform"
-              style={{ width: 44, height: 26 }}
-            >
-              <div
-                className="absolute inset-0 rounded-full transition-colors duration-200"
-                style={{ background: includeShared ? '#F2A24A' : '#2C1A0E', border: `1px solid ${includeShared ? '#F2A24A' : '#4A2E18'}` }}
-              />
-              <div
-                className="absolute top-[4px] rounded-full bg-white shadow transition-all duration-200"
-                style={{ width: 18, height: 18, left: includeShared ? 22 : 4 }}
-              />
-            </button>
-          </div>
+            Film Fest
+          </p>
+          <p className="text-rust/80 text-sm mt-2">Watch clips across your whole library</p>
         </div>
 
-        {/* Error message */}
-        {errorMsg && (
-          <p className="text-sienna text-sm text-center max-w-xs leading-relaxed">{errorMsg}</p>
-        )}
+        {/* Filter section */}
+        <p className="text-rust text-[10px] font-bold tracking-[0.18em] uppercase mb-4">
+          Filter your film
+        </p>
 
-        {/* CTA */}
+        <MultiSelectDropdown
+          allLabel="All Years"
+          options={availableYears.map(y => ({ value: y, label: String(y) }))}
+          selected={selectedYears}
+          onToggle={toggleYear}
+          onClearAll={() => { setSelectedYears([]); setErrorMsg(null) }}
+        />
+
+        <MultiSelectDropdown
+          allLabel="All Months"
+          options={MONTH_NAMES.map((name, i) => ({ value: i + 1, label: name }))}
+          selected={selectedMonths}
+          onToggle={toggleMonth}
+          onClearAll={() => { setSelectedMonths([]); setErrorMsg(null) }}
+        />
+
+        {errorMsg && (
+          <p className="text-sienna text-sm leading-relaxed mt-3">{errorMsg}</p>
+        )}
+      </div>
+
+      {/* Bottom action bar */}
+      <div className="flex-shrink-0 flex gap-3 px-5 pb-10 pt-3">
         <button
-          onClick={handleMakeRemix}
-          className="w-full max-w-xs py-4 rounded-2xl font-sans font-bold text-[16px] text-walnut active:opacity-80"
+          onClick={handleWatch}
+          className="flex-1 py-4 rounded-2xl font-sans font-bold text-[16px] text-walnut active:opacity-80"
           style={{ background: '#F2A24A' }}
         >
-          Make My Remix
+          Watch
         </button>
-
+        <button
+          onClick={() => setComingSoon(true)}
+          className="flex-1 py-4 rounded-2xl font-sans font-bold text-[16px] border active:opacity-80"
+          style={{ borderColor: '#4A2E18', color: '#F5DEB3' }}
+        >
+          Download
+        </button>
       </div>
     </div>
   )

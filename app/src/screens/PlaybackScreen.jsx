@@ -47,6 +47,14 @@ export default function PlaybackScreen() {
   const wasPlayingBeforeHold = useRef(false)
   const holdOccurredRef = useRef(false)
 
+  // Reset touch state refs on unmount so they don't bleed into the next mount
+  useEffect(() => {
+    return () => {
+      scrubActiveRef.current = false
+      if (holdTimerRef.current) clearTimeout(holdTimerRef.current)
+    }
+  }, [])
+
   // Horizontal swipe state
   const [dragOffset, setDragOffset] = useState(0)
   const [dragTransitioning, setDragTransitioning] = useState(false)
@@ -80,22 +88,23 @@ export default function PlaybackScreen() {
   const prevClip = currentIndex > 0 ? clips[currentIndex - 1] : null
   const isOwner = session?.user?.id === scrapbook?.user_id
 
-  // Preload next video — use blob if cached, otherwise URL hint
+  // Preload next video — use blob if cached, otherwise URL hint (skip photos)
   useEffect(() => {
     const nextVideo = nextVideoRef.current
-    if (nextVideo && nextClip) {
+    if (nextVideo && nextClip && nextClip.media_type !== 'photo') {
+      nextVideo.onerror = () => { nextVideo.src = nextClip.video_url; nextVideo.load() }
       nextVideo.src = getBlob(nextClip.video_url)
       nextVideo.currentTime = nextClip.trim_in || 0
       nextVideo.load()
-      // Also kick off blob fetch in background so it's ready when needed
       preloadClip(nextClip.video_url)
     }
   }, [nextClip])
 
-  // Preload previous video
+  // Preload previous video (skip photos)
   useEffect(() => {
     const prevVideo = prevVideoRef.current
-    if (prevVideo && prevClip) {
+    if (prevVideo && prevClip && prevClip.media_type !== 'photo') {
+      prevVideo.onerror = () => { prevVideo.src = prevClip.video_url; prevVideo.load() }
       prevVideo.src = getBlob(prevClip.video_url)
       prevVideo.currentTime = prevClip.trim_in || 0
       prevVideo.load()
@@ -103,22 +112,43 @@ export default function PlaybackScreen() {
     }
   }, [prevClip])
 
-  // Load + play when clip changes — use blob URL if available for instant start
+  // Load + play when clip changes — skip for photo clips
   useEffect(() => {
-    const video = videoRef.current
-    if (!video || !currentClip) return
+    if (!currentClip) return
     setProgress(0)
     setDragOffset(0)
     dragOffsetRef.current = 0
     setDragTransitioning(false)
+    if (currentClip.media_type === 'photo') return
+    const video = videoRef.current
+    if (!video) return
     const blobUrl = getBlob(currentClip.video_url)
-    // Only show loading overlay if we don't have a cached blob
     setVideoLoading(!blobUrl.startsWith('blob:'))
     video.src = blobUrl
     video.currentTime = currentClip.trim_in || 0
     video.load()
     video.play().catch(() => {})
   }, [currentClip])
+
+  // Photo auto-advance timer
+  useEffect(() => {
+    if (!currentClip || currentClip.media_type !== 'photo') return
+    const duration = (currentClip.duration || 5) * 1000
+    const timer = setTimeout(() => goToClip(currentIndex + 1), duration)
+    return () => clearTimeout(timer)
+  }, [currentClip?.id])
+
+  // Photo progress interval
+  useEffect(() => {
+    if (!currentClip || currentClip.media_type !== 'photo') return
+    setIsPlaying(true)
+    const dur = currentClip.duration || 5
+    const startTime = Date.now()
+    const interval = setInterval(() => {
+      setProgress(Math.min((Date.now() - startTime) / 1000 / dur, 1))
+    }, 100)
+    return () => { clearInterval(interval); setIsPlaying(false) }
+  }, [currentClip?.id])
 
   function goToClip(index) {
     if (index < 0 || index >= clips.length) return
@@ -238,8 +268,8 @@ export default function PlaybackScreen() {
 
     const touch = e.touches[0]
 
-    // Bottom 25% of screen → scrub mode
-    if (touch.clientY > window.innerHeight * 0.75 && !e.target.closest('button')) {
+    // Bottom 25% of screen → scrub mode (videos only)
+    if (touch.clientY > window.innerHeight * 0.75 && !e.target.closest('button') && currentClip?.media_type !== 'photo') {
       scrubActiveRef.current = true
       setIsScrubbing(true)
       const video = videoRef.current
@@ -280,7 +310,7 @@ export default function PlaybackScreen() {
     const dx = dragStartX.current - e.touches[0].clientX
     const dy = Math.abs(dragStartY.current - e.touches[0].clientY)
 
-    if (Math.abs(dx) > 5 || dy > 5) {
+    if (Math.abs(dx) > 15 || dy > 15) {
       if (holdTimerRef.current) {
         clearTimeout(holdTimerRef.current)
         holdTimerRef.current = null
@@ -411,17 +441,21 @@ export default function PlaybackScreen() {
         }}
         onTransitionEnd={() => setDragTransitioning(false)}
       >
-        {/* Previous video */}
+        {/* Previous clip */}
         {prevClip ? (
           <div className="relative w-screen h-screen flex-shrink-0">
-            <video
-              ref={prevVideoRef}
-              className="absolute inset-0 w-full h-full object-cover"
-              playsInline
-              preload="auto"
-              muted
-              poster={prevClip?.thumbnail_url || undefined}
-            />
+            {prevClip.media_type === 'photo' ? (
+              <img src={getBlob(prevClip.video_url)} alt="" className="absolute inset-0 w-full h-full object-cover" />
+            ) : (
+              <video
+                ref={prevVideoRef}
+                className="absolute inset-0 w-full h-full object-cover"
+                playsInline
+                preload="auto"
+                muted
+                poster={prevClip?.thumbnail_url || undefined}
+              />
+            )}
             <div className="absolute inset-x-0 top-0 h-44 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%)' }} />
             <div className="absolute inset-x-0 bottom-0 h-56 pointer-events-none" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)' }} />
             {prevClip?.caption_text && (
@@ -434,22 +468,26 @@ export default function PlaybackScreen() {
           <div className="relative w-screen h-screen flex-shrink-0 bg-deep" />
         )}
 
-        {/* Current video */}
+        {/* Current clip */}
         <div className="relative w-screen h-screen flex-shrink-0">
-          <video
-            ref={videoRef}
-            className="absolute inset-0 w-full h-full object-cover"
-            onTimeUpdate={handleTimeUpdate}
-            onEnded={() => goToClip(currentIndex + 1)}
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-            onPlaying={() => setVideoLoading(false)}
-            onCanPlay={() => setVideoLoading(false)}
-            playsInline
-            preload="auto"
-            poster={currentClip?.thumbnail_url || undefined}
-          />
-          {videoLoading && (
+          {currentClip?.media_type === 'photo' ? (
+            <img src={getBlob(currentClip.video_url)} alt="" className="absolute inset-0 w-full h-full object-cover" />
+          ) : (
+            <video
+              ref={videoRef}
+              className="absolute inset-0 w-full h-full object-cover"
+              onTimeUpdate={handleTimeUpdate}
+              onEnded={() => goToClip(currentIndex + 1)}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              onPlaying={() => setVideoLoading(false)}
+              onCanPlay={() => setVideoLoading(false)}
+              playsInline
+              preload="auto"
+              poster={currentClip?.thumbnail_url || undefined}
+            />
+          )}
+          {videoLoading && currentClip?.media_type !== 'photo' && (
             <div className="absolute inset-0 pointer-events-none">
               {currentClip?.thumbnail_url
                 ? <img src={currentClip.thumbnail_url} className="w-full h-full object-cover" />
@@ -478,17 +516,21 @@ export default function PlaybackScreen() {
           )}
         </div>
 
-        {/* Next video */}
+        {/* Next clip */}
         {nextClip ? (
           <div className="relative w-screen h-screen flex-shrink-0">
-            <video
-              ref={nextVideoRef}
-              className="absolute inset-0 w-full h-full object-cover"
-              playsInline
-              preload="auto"
-              muted
-              poster={nextClip?.thumbnail_url || undefined}
-            />
+            {nextClip.media_type === 'photo' ? (
+              <img src={getBlob(nextClip.video_url)} alt="" className="absolute inset-0 w-full h-full object-cover" />
+            ) : (
+              <video
+                ref={nextVideoRef}
+                className="absolute inset-0 w-full h-full object-cover"
+                playsInline
+                preload="auto"
+                muted
+                poster={nextClip?.thumbnail_url || undefined}
+              />
+            )}
             <div className="absolute inset-x-0 top-0 h-44 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%)' }} />
             <div className="absolute inset-x-0 bottom-0 h-56 pointer-events-none" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)' }} />
             {nextClip?.caption_text && (
@@ -544,6 +586,7 @@ export default function PlaybackScreen() {
               {currentIndex + 1} / {clips.length}
             </p>
           </div>
+          {currentClip?.media_type !== 'photo' && (
           <button
             onClick={togglePlayPause}
             className="w-11 h-11 rounded-full flex items-center justify-center border border-white/15 active:opacity-70"
@@ -554,6 +597,7 @@ export default function PlaybackScreen() {
               : <Play size={14} fill="rgba(245,222,179,0.7)" strokeWidth={0} className="ml-0.5" />
             }
           </button>
+          )}
         </div>
       )}
 

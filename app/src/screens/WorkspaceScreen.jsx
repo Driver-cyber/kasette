@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Play, Pause, Type, Trash2, Check, GripVertical, Volume2, VolumeX, PlusCircle, ChevronLeft, ChevronRight, Scissors, Wrench, Undo2 } from 'lucide-react'
+import { ArrowLeft, Play, Pause, Type, Trash2, Check, GripVertical, Volume2, VolumeX, PlusCircle, ChevronLeft, ChevronRight, Scissors, Wrench, Undo2, Image } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { getBlob, preloadClip, preloadRest } from '../lib/blobCache'
@@ -64,7 +64,11 @@ export default function WorkspaceScreen() {
   const [toolsExpanded, setToolsExpanded] = useState(false) // Tools row collapsed by default
   const [trimMode, setTrimMode] = useState(null) // null | 'trim' | 'split'
   const [undoable, setUndoable] = useState(null) // last undoable action
-  const [splitPct, setSplitPct] = useState(50)  // split marker position as % of full duration
+  const [savedFlash, setSavedFlash] = useState(false)
+  const savedFlashTimer = useRef(null)
+  const [splitPct, setSplitPct] = useState(50)   // active (draggable) split bar position as % of full duration
+  const [splitPct1, setSplitPct1] = useState(null) // locked first bar after "Set Split 1"
+  const [splitStep, setSplitStep] = useState(1)    // 1 | 2 | 3
 
   // Preview swipe navigation
   const previewSwipeStart = useRef(null)
@@ -75,6 +79,9 @@ export default function WorkspaceScreen() {
   const clipsRef = useRef(clips)
   useEffect(() => { clipsRef.current = clips }, [clips])
 
+  // Clean up any in-flight drag listeners if the component unmounts mid-drag
+  useEffect(() => () => { activeDragCleanup.current?.() }, [])
+
   // Auto-scroll horizontal strip to active card
   useEffect(() => {
     if (!clipStripRef.current || !activeClipId) return
@@ -82,8 +89,15 @@ export default function WorkspaceScreen() {
     if (card) card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
   }, [activeClipId])
 
-  // Clear undo when switching clips
-  useEffect(() => { setUndoable(null) }, [activeClipId])
+  // Clear undo when switching clips; reset video-only state when switching to a photo
+  useEffect(() => {
+    setUndoable(null)
+    const clip = clips.find(c => c.id === activeClipId)
+    if (clip?.media_type === 'photo') {
+      setTrimMode(null)
+      setActiveTool(null)
+    }
+  }, [activeClipId])
 
   // Ghost drag card state
   const [ghostClip, setGhostClip] = useState(null)
@@ -97,6 +111,7 @@ export default function WorkspaceScreen() {
   const longPressData = useRef(null) // { index, rowEl, startY, clientY }
   const wasReorderDrag = useRef(false) // blocks onClick from selecting after a drag
   const isDraggingActive = useRef(false) // track if currently in drag mode
+  const activeDragCleanup = useRef(null) // stores listener cleanup fn for unmount safety
 
   // ── Fetch ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -136,13 +151,16 @@ export default function WorkspaceScreen() {
 
   // Load video when active clip changes — use blob URL if cached for instant start
   useEffect(() => {
+    if (!activeClip) return
+    setIsPlaying(false)
+    setPlayheadPct(0)
+    if (activeClip.media_type === 'photo') return
     const video = videoRef.current
-    if (!video || !activeClip) return
+    if (!video) return
     video.src = getBlob(activeClip.video_url)
     video.currentTime = activeClip.trim_in || 0
     video.muted = activeClip.muted || false
     video.load()
-    setIsPlaying(false)
     setPlayheadPct((activeClip.trim_in || 0) / (activeClip.duration || 1) * 100)
     // Preload adjacent clips in background
     const idx = clips.findIndex(c => c.id === activeClipId)
@@ -172,8 +190,20 @@ export default function WorkspaceScreen() {
   }
 
   async function saveClipChanges(clipId, changes) {
+    const prevClip = clips.find(c => c.id === clipId)
     updateClipLocal(clipId, changes)
-    await supabase.from('clips').update(changes).eq('id', clipId)
+    const { error } = await supabase.from('clips').update(changes).eq('id', clipId)
+    if (error) {
+      // Revert local state to what it was before the optimistic update
+      if (prevClip) {
+        const revert = Object.fromEntries(Object.keys(changes).map(k => [k, prevClip[k] ?? null]))
+        updateClipLocal(clipId, revert)
+      }
+      return
+    }
+    clearTimeout(savedFlashTimer.current)
+    setSavedFlash(true)
+    savedFlashTimer.current = setTimeout(() => setSavedFlash(false), 2500)
   }
 
   // ── Video controls ─────────────────────────────────────────────────────
@@ -264,6 +294,7 @@ export default function WorkspaceScreen() {
       document.removeEventListener('touchend', onEnd)
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onEnd)
+      activeDragCleanup.current = null
 
       setTimeout(() => setTrimHandlesActive(false), 2000)
 
@@ -280,15 +311,25 @@ export default function WorkspaceScreen() {
     document.addEventListener('touchend', onEnd)
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onEnd)
+    activeDragCleanup.current = () => {
+      document.removeEventListener('touchmove', onMove)
+      document.removeEventListener('touchend', onEnd)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onEnd)
+    }
   }
 
-  // ── Split mode: sync marker to midpoint when activated ──────────────────
+  // ── Split mode: reset to step 1 and position bar at ~30% when activated ──
   useEffect(() => {
     if (trimMode === 'split' && activeClip) {
-      const mid = ((trimIn + trimOut) / 2)
-      const pct = duration > 0 ? (mid / duration) * 100 : 50
+      const start = trimIn
+      const end = trimOut ?? duration
+      const bar1Time = start + (end - start) * 0.30
+      const pct = duration > 0 ? (bar1Time / duration) * 100 : 30
+      setSplitStep(1)
+      setSplitPct1(null)
       setSplitPct(pct)
-      if (videoRef.current) videoRef.current.currentTime = mid
+      if (videoRef.current) videoRef.current.currentTime = bar1Time
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trimMode])
@@ -318,21 +359,44 @@ export default function WorkspaceScreen() {
       document.removeEventListener('touchend', onEnd)
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onEnd)
+      activeDragCleanup.current = null
     }
 
     document.addEventListener('touchmove', onMove, { passive: false })
     document.addEventListener('touchend', onEnd)
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onEnd)
+    activeDragCleanup.current = () => {
+      document.removeEventListener('touchmove', onMove)
+      document.removeEventListener('touchend', onEnd)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onEnd)
+    }
   }
 
-  // ── Confirm split point: sets cut_in + cut_out on current clip, opens trim mode ──
-  async function confirmSplitPoint() {
+  // ── Multi-step split: Set Split 1 → Set Split 2 → Confirm & Cut ──────────
+  async function advanceSplitStep() {
     if (!activeClip || !duration) return
-    const splitTime = (splitPct / 100) * duration
-    setUndoable({ type: 'clip', clipId: activeClip.id, prev: { cut_in: activeClip.cut_in ?? null, cut_out: activeClip.cut_out ?? null } })
-    await saveClipChanges(activeClip.id, { cut_in: splitTime, cut_out: splitTime })
-    setTrimMode('trim')
+    if (splitStep === 1) {
+      // Lock bar 1, spawn bar 2 at +30% or 75% cap
+      setSplitPct1(splitPct)
+      const bar2Pct = Math.min(splitPct + 30, 90)
+      setSplitPct(bar2Pct)
+      if (videoRef.current) videoRef.current.currentTime = (bar2Pct / 100) * duration
+      setSplitStep(2)
+    } else if (splitStep === 2) {
+      // Just advance to confirm state — user can still drag bar 2
+      setSplitStep(3)
+    } else if (splitStep === 3) {
+      // Commit — sort so cut_in < cut_out regardless of bar order
+      const p1 = Math.min(splitPct1, splitPct)
+      const p2 = Math.max(splitPct1, splitPct)
+      const cutInTime = (p1 / 100) * duration
+      const cutOutTime = (p2 / 100) * duration
+      setUndoable({ type: 'clip', clipId: activeClip.id, prev: { cut_in: activeClip.cut_in ?? null, cut_out: activeClip.cut_out ?? null } })
+      await saveClipChanges(activeClip.id, { cut_in: cutInTime, cut_out: cutOutTime })
+      setTrimMode(null)
+    }
   }
 
   // ── Mini timeline scrub ─────────────────────────────────────────────────
@@ -361,11 +425,18 @@ export default function WorkspaceScreen() {
       document.removeEventListener('touchend', onEnd)
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onEnd)
+      activeDragCleanup.current = null
     }
     document.addEventListener('touchmove', onMove, { passive: false })
     document.addEventListener('touchend', onEnd)
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onEnd)
+    activeDragCleanup.current = () => {
+      document.removeEventListener('touchmove', onMove)
+      document.removeEventListener('touchend', onEnd)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onEnd)
+    }
   }
 
   // ── Remove split ────────────────────────────────────────────────────────
@@ -422,6 +493,7 @@ export default function WorkspaceScreen() {
       document.removeEventListener('touchend', onEnd)
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onEnd)
+      activeDragCleanup.current = null
       setCaptionPosDraft({ x: currentX, y: currentY })
       await supabase.from('clips').update({ caption_x: currentX, caption_y: currentY }).eq('id', activeClip.id)
     }
@@ -430,20 +502,24 @@ export default function WorkspaceScreen() {
     document.addEventListener('touchend', onEnd)
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onEnd)
+    activeDragCleanup.current = () => {
+      document.removeEventListener('touchmove', onMove)
+      document.removeEventListener('touchend', onEnd)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onEnd)
+    }
   }
 
   // ── Mute toggle ────────────────────────────────────────────────────────
-  async function toggleMute() {
+  // NOTE: muted is client-side only — no DB column. Never pass to saveClipChanges.
+  function toggleMute() {
     if (!activeClip) return
     const newMuted = !activeClip.muted
-    setUndoable({ type: 'clip', clipId: activeClip.id, prev: { muted: activeClip.muted || false } })
-    await saveClipChanges(activeClip.id, { muted: newMuted })
-    
-    // Update video element
+    // Set video element immediately
     const video = videoRef.current
-    if (video) {
-      video.muted = newMuted
-    }
+    if (video) video.muted = newMuted
+    setUndoable({ type: 'clip', clipId: activeClip.id, prev: { muted: activeClip.muted || false } })
+    updateClipLocal(activeClip.id, { muted: newMuted })
   }
 
   // ── Caption save ───────────────────────────────────────────────────────
@@ -596,6 +672,7 @@ export default function WorkspaceScreen() {
     async function onEnd() {
       document.removeEventListener('touchmove', onMove)
       document.removeEventListener('touchend', onEnd)
+      activeDragCleanup.current = null
       dragState.current = null
       setDragFromIndex(null)
       setGhostClip(null)
@@ -608,6 +685,10 @@ export default function WorkspaceScreen() {
 
     document.addEventListener('touchmove', onMove, { passive: false })
     document.addEventListener('touchend', onEnd)
+    activeDragCleanup.current = () => {
+      document.removeEventListener('touchmove', onMove)
+      document.removeEventListener('touchend', onEnd)
+    }
   }
 
   // ── Mouse drag to reorder (desktop) — mousedown on drag handle ─────────
@@ -648,6 +729,7 @@ export default function WorkspaceScreen() {
     async function onEnd() {
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onEnd)
+      activeDragCleanup.current = null
       dragState.current = null
       setDragFromIndex(null)
       setGhostClip(null)
@@ -660,6 +742,10 @@ export default function WorkspaceScreen() {
 
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onEnd)
+    activeDragCleanup.current = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onEnd)
+    }
   }
 
   // ── Tool toggle ────────────────────────────────────────────────────────
@@ -673,6 +759,7 @@ export default function WorkspaceScreen() {
   }
 
   // ── Derived values ─────────────────────────────────────────────────────
+  const isPhoto = activeClip?.media_type === 'photo'
   const trimIn = activeClip?.trim_in ?? 0
   const trimOut = activeClip?.trim_out ?? activeClip?.duration ?? 0
   const duration = activeClip?.duration ?? 0
@@ -702,16 +789,19 @@ export default function WorkspaceScreen() {
       {/* ── Nav ── */}
       <header className="flex items-center justify-between px-5 pt-12 pb-2 flex-shrink-0">
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate(`/scrapbook/${id}`)}
           className="flex items-center gap-1.5 text-wheat/45 font-sans text-[15px] font-semibold active:opacity-60"
         >
           <ArrowLeft size={18} strokeWidth={2} />
-          Library
+          Back
         </button>
         <h1 className="font-display font-semibold text-[18px] text-wheat truncate mx-3 max-w-[160px]">
           {scrapbook?.name}
         </h1>
         <div className="flex items-center gap-2">
+          {savedFlash && (
+            <span className="text-amber/70 font-sans text-[12px] font-semibold">saved</span>
+          )}
           {undoable && (
             <button
               onClick={handleUndo}
@@ -722,11 +812,11 @@ export default function WorkspaceScreen() {
             </button>
           )}
           <button
-            onClick={() => navigate(`/scrapbook/${id}`)}
+            onClick={() => navigate(`/scrapbook/${id}/watch`)}
             className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-[13px] rounded-full px-5 py-2 active:opacity-80"
           >
-            <Check size={13} strokeWidth={2.5} />
-            Save
+            <Play size={13} fill="currentColor" strokeWidth={0} />
+            Watch
           </button>
         </div>
       </header>
@@ -744,16 +834,24 @@ export default function WorkspaceScreen() {
           onTouchStart={isCaption ? undefined : handlePreviewTouchStart}
           onTouchEnd={isCaption ? undefined : handlePreviewTouchEnd}
         >
-        <video
-          ref={videoRef}
-          className="absolute inset-0 w-full h-full object-cover"
-          onTimeUpdate={handleTimeUpdate}
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-          playsInline
-          preload="auto"
-          poster={activeClip?.thumbnail_url || undefined}
-        />
+        {isPhoto ? (
+          <img
+            src={activeClip?.video_url}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : (
+          <video
+            ref={videoRef}
+            className="absolute inset-0 w-full h-full object-cover"
+            onTimeUpdate={handleTimeUpdate}
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+            playsInline
+            preload="auto"
+            poster={activeClip?.thumbnail_url || undefined}
+          />
+        )}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.5) 100%)' }}
@@ -797,7 +895,7 @@ export default function WorkspaceScreen() {
           )
         })()}
 
-        {!isCaption && (
+        {!isCaption && !isPhoto && (
           <button
             onClick={togglePlay}
             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center active:opacity-70"
@@ -848,31 +946,35 @@ export default function WorkspaceScreen() {
       {!reorderMode && !isCaption && (
         <div className="flex items-center justify-between px-4 py-2 border-b border-walnut-light flex-shrink-0">
           <div className="flex items-center gap-1">
-            <button
-              onClick={() => setTrimMode(m => m === 'trim' ? null : 'trim')}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg active:opacity-70 transition-all"
-              style={{
-                background: trimMode === 'trim' ? 'rgba(242,162,74,0.15)' : 'transparent',
-                border: trimMode === 'trim' ? '1px solid rgba(242,162,74,0.3)' : '1px solid transparent',
-              }}
-            >
-              <span className="text-[10px] font-bold tracking-[0.14em] uppercase"
-                style={{ color: trimMode === 'trim' ? '#F2A24A' : '#7A3B1E' }}>Trim</span>
-            </button>
-            <div className="w-px h-3 bg-walnut-light mx-0.5" />
-            <button
-              onClick={() => setTrimMode(m => m === 'split' ? null : 'split')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg active:opacity-70 transition-all"
-              style={{
-                background: trimMode === 'split' ? 'rgba(232,133,90,0.15)' : 'transparent',
-                border: trimMode === 'split' ? '1px solid rgba(232,133,90,0.3)' : '1px solid transparent',
-              }}
-            >
-              <Scissors size={10} style={{ color: trimMode === 'split' ? '#E8855A' : '#7A3B1E' }} />
-              <span className="text-[10px] font-bold tracking-[0.14em] uppercase"
-                style={{ color: trimMode === 'split' ? '#E8855A' : '#7A3B1E' }}>Split</span>
-            </button>
-            <div className="w-px h-3 bg-walnut-light mx-0.5" />
+            {!isPhoto && (
+              <>
+                <button
+                  onClick={() => setTrimMode(m => m === 'trim' ? null : 'trim')}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg active:opacity-70 transition-all"
+                  style={{
+                    background: trimMode === 'trim' ? 'rgba(242,162,74,0.15)' : 'transparent',
+                    border: trimMode === 'trim' ? '1px solid rgba(242,162,74,0.3)' : '1px solid transparent',
+                  }}
+                >
+                  <span className="text-[10px] font-bold tracking-[0.14em] uppercase"
+                    style={{ color: trimMode === 'trim' ? '#F2A24A' : '#7A3B1E' }}>Trim</span>
+                </button>
+                <div className="w-px h-3 bg-walnut-light mx-0.5" />
+                <button
+                  onClick={() => setTrimMode(m => m === 'split' ? null : 'split')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg active:opacity-70 transition-all"
+                  style={{
+                    background: trimMode === 'split' ? 'rgba(232,133,90,0.15)' : 'transparent',
+                    border: trimMode === 'split' ? '1px solid rgba(232,133,90,0.3)' : '1px solid transparent',
+                  }}
+                >
+                  <Scissors size={10} style={{ color: trimMode === 'split' ? '#E8855A' : '#7A3B1E' }} />
+                  <span className="text-[10px] font-bold tracking-[0.14em] uppercase"
+                    style={{ color: trimMode === 'split' ? '#E8855A' : '#7A3B1E' }}>Split</span>
+                </button>
+                <div className="w-px h-3 bg-walnut-light mx-0.5" />
+              </>
+            )}
             <button
               onClick={() => setToolsExpanded(e => !e)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg active:opacity-70 transition-all"
@@ -886,7 +988,7 @@ export default function WorkspaceScreen() {
                 style={{ color: toolsExpanded ? '#F2A24A' : '#7A3B1E' }}>Tools</span>
             </button>
           </div>
-          {activeClip && (
+          {activeClip && !isPhoto && (
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] font-bold" style={{ color: trimInPct > 0 ? '#F2A24A' : '#7A3B1E' }}>{fmt(trimIn)}</span>
               <span className="text-rust/50 text-[9px]">→</span>
@@ -895,12 +997,26 @@ export default function WorkspaceScreen() {
               <span className="text-wheat/35 text-[10px]">{fmt(keptDuration)} kept</span>
             </div>
           )}
+          {activeClip && isPhoto && (
+            <div className="flex items-center gap-1.5">
+              <Image size={9} style={{ color: '#7A3B1E' }} />
+              <span className="text-wheat/35 text-[10px]">Photo · {activeClip.duration || 5}s</span>
+            </div>
+          )}
         </div>
       )}
 
       {/* ── Mini clip timeline — visible when no trim/split mode ── */}
       {!reorderMode && !isCaption && !trimMode && activeClip && (
         <div className="px-4 pt-2.5 pb-2 border-b border-walnut-light flex-shrink-0">
+          {isPhoto ? (
+            /* Static full bar for photos — no scrub, just shows duration */
+            <div className="relative" style={{ height: 28 }}>
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-full overflow-hidden" style={{ height: 6, background: '#2C1A0E' }}>
+                <div className="absolute inset-0 rounded-full" style={{ background: 'rgba(242,162,74,0.45)' }} />
+              </div>
+            </div>
+          ) : (
           <div
             className="relative touch-none"
             style={{ height: 28 }}
@@ -951,6 +1067,7 @@ export default function WorkspaceScreen() {
               <div className="absolute top-0 bottom-0 w-[2px] rounded-full" style={{ left: `${trimOutPct}%`, background: '#F2A24A' }} />
             )}
           </div>
+          )}
         </div>
       )}
 
@@ -982,13 +1099,13 @@ export default function WorkspaceScreen() {
                   style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%` }} />
                 <div className="absolute top-0 bottom-0 w-px bg-white/60 pointer-events-none"
                   style={{ left: `${playheadPct}%` }} />
-                {/* Split excluded zone overlay — only when no cut exists yet */}
-                {trimMode === 'split' && cutIn == null && (
+                {/* Split excluded zone — step 2/3: shade between bar 1 and bar 2 */}
+                {trimMode === 'split' && cutIn == null && splitStep >= 2 && splitPct1 != null && (
                   <div className="absolute top-0 bottom-0 pointer-events-none"
                     style={{
-                      left: `${splitPct}%`,
-                      right: 0,
-                      background: 'rgba(232,133,90,0.15)',
+                      left: `${Math.min(splitPct1, splitPct)}%`,
+                      width: `${Math.abs(splitPct - splitPct1)}%`,
+                      background: 'rgba(232,133,90,0.22)',
                     }} />
                 )}
               </div>
@@ -1060,10 +1177,25 @@ export default function WorkspaceScreen() {
                 </>
               )}
 
-              {/* Split marker — only when no cut exists yet */}
-              {trimMode === 'split' && cutIn == null && (
+              {/* Split markers — only when no cut exists yet */}
+              {trimMode === 'split' && cutIn == null && (<>
+                {/* Bar 1 — locked after step 1, shown in steps 2/3 */}
+                {splitStep >= 2 && splitPct1 != null && (
+                  <div
+                    className="absolute top-0 bottom-0 pointer-events-none z-10"
+                    style={{ left: `${splitPct1}%`, width: 52, marginLeft: -26 }}
+                  >
+                    <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-[3px]"
+                      style={{ background: '#E8855A', opacity: 0.5 }} />
+                    <div className="absolute left-1/2 -translate-x-1/2 -top-4 px-1.5 py-0.5 rounded-full text-[9px] font-bold text-walnut whitespace-nowrap"
+                      style={{ background: '#E8855A', opacity: 0.6 }}>
+                      {fmt((splitPct1 / 100) * duration)}
+                    </div>
+                  </div>
+                )}
+                {/* Active bar — draggable, shown in all steps */}
                 <div
-                  className="absolute top-0 bottom-0 cursor-ew-resize touch-none z-10"
+                  className="absolute top-0 bottom-0 cursor-ew-resize touch-none z-20"
                   style={{ left: `${splitPct}%`, width: 52, marginLeft: -26 }}
                   onTouchStart={startSplitDrag}
                   onMouseDown={startSplitDrag}
@@ -1075,7 +1207,7 @@ export default function WorkspaceScreen() {
                     {fmt((splitPct / 100) * duration)}
                   </div>
                 </div>
-              )}
+              </>)}
             </div>
 
             <div className="flex justify-between text-rust text-[8px] font-semibold tracking-wide">
@@ -1096,16 +1228,27 @@ export default function WorkspaceScreen() {
                 style={{ background: 'rgba(232,133,90,0.1)', border: '1px solid rgba(232,133,90,0.3)', color: '#E8855A' }}
               >
                 <Scissors size={13} />
-                Remove split
+                Remove cut
+              </button>
+            ) : splitStep === 3 ? (
+              <button
+                onClick={advanceSplitStep}
+                className="mt-2.5 w-full py-2.5 rounded-xl font-sans font-bold text-[13px] active:opacity-80 flex items-center justify-center gap-2"
+                style={{ background: '#E8855A', color: '#2C1A0E' }}
+              >
+                <Scissors size={13} />
+                Confirm &amp; Cut
               </button>
             ) : (
               <button
-                onClick={confirmSplitPoint}
+                onClick={advanceSplitStep}
                 className="mt-2.5 w-full py-2.5 rounded-xl font-sans font-bold text-[13px] active:opacity-80 flex items-center justify-center gap-2"
                 style={{ background: 'rgba(232,133,90,0.15)', border: '1px solid rgba(232,133,90,0.3)', color: '#E8855A' }}
               >
                 <Scissors size={13} />
-                Set cut point · {fmt((splitPct / 100) * duration)}
+                {splitStep === 1
+                  ? `Set Split 1 · ${fmt((splitPct / 100) * duration)}`
+                  : `Set Split 2 · ${fmt((splitPct / 100) * duration)}`}
               </button>
             )
           )}
@@ -1114,14 +1257,23 @@ export default function WorkspaceScreen() {
 
       {/* ── Tool row ── */}
       {!isCaption && !reorderMode && toolsExpanded && (
+        <>
         <div className="flex items-center justify-around px-4 py-2 border-b border-walnut-light flex-shrink-0">
-          {[
-            { key: 'mute', Icon: activeClip?.muted ? VolumeX : Volume2, label: activeClip?.muted ? 'Unmute' : 'Mute', danger: false },
-            { key: 'caption', Icon: Type, label: 'Caption', danger: false },
-            { key: 'addclips', Icon: PlusCircle, label: 'Add Clips', danger: false },
-            { key: 'reorder', Icon: GripVertical, label: 'Reorder', danger: false },
-            { key: 'remove', Icon: Trash2, label: 'Remove', danger: true },
-          ].map(({ key, Icon, label, danger }) => {
+          {(isPhoto
+            ? [
+                { key: 'caption', Icon: Type, label: 'Caption', danger: false },
+                { key: 'addclips', Icon: PlusCircle, label: 'Add Clips', danger: false },
+                { key: 'reorder', Icon: GripVertical, label: 'Reorder', danger: false },
+                { key: 'remove', Icon: Trash2, label: 'Remove', danger: true },
+              ]
+            : [
+                { key: 'mute', Icon: activeClip?.muted ? VolumeX : Volume2, label: activeClip?.muted ? 'Unmute' : 'Mute', danger: false },
+                { key: 'caption', Icon: Type, label: 'Caption', danger: false },
+                { key: 'addclips', Icon: PlusCircle, label: 'Add Clips', danger: false },
+                { key: 'reorder', Icon: GripVertical, label: 'Reorder', danger: false },
+                { key: 'remove', Icon: Trash2, label: 'Remove', danger: true },
+              ]
+          ).map(({ key, Icon, label, danger }) => {
             const active = activeTool === key || (key === 'reorder' && reorderMode)
             const isMuted = key === 'mute' && activeClip?.muted
             return (
@@ -1154,6 +1306,38 @@ export default function WorkspaceScreen() {
             )
           })}
         </div>
+        {/* Duration stepper — photos only */}
+        {isPhoto && (
+          <div className="flex items-center justify-between px-5 py-2.5 border-b border-walnut-light flex-shrink-0">
+            <span className="text-[10px] font-bold tracking-[0.14em] uppercase" style={{ color: '#7A3B1E' }}>Display Duration</span>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  const newDur = Math.max(1, (activeClip.duration || 5) - 1)
+                  saveClipChanges(activeClipId, { duration: newDur, trim_out: newDur })
+                }}
+                className="w-8 h-8 rounded-full flex items-center justify-center border active:opacity-70"
+                style={{ background: '#3D2410', borderColor: '#4A2E18' }}
+              >
+                <span className="text-wheat/70 font-bold text-lg leading-none select-none">−</span>
+              </button>
+              <span className="font-display font-semibold text-[18px] text-wheat tabular-nums w-10 text-center">
+                {activeClip.duration || 5}s
+              </span>
+              <button
+                onClick={() => {
+                  const newDur = Math.min(30, (activeClip.duration || 5) + 1)
+                  saveClipChanges(activeClipId, { duration: newDur, trim_out: newDur })
+                }}
+                className="w-8 h-8 rounded-full flex items-center justify-center border active:opacity-70"
+                style={{ background: '#3D2410', borderColor: '#4A2E18' }}
+              >
+                <span className="text-amber font-bold text-lg leading-none select-none">+</span>
+              </button>
+            </div>
+          </div>
+        )}
+        </>
       )}
 
       {/* ── Horizontal clip strip ── */}
@@ -1193,7 +1377,10 @@ export default function WorkspaceScreen() {
                       {hasTrim && <Scissors size={10} style={{ color: active ? '#F2A24A' : '#7A3B1E' }} />}
                       {clip.caption_text && <Type size={10} style={{ color: '#E8855A' }} />}
                       {clip.muted && <VolumeX size={10} style={{ color: '#7A3B1E' }} />}
-                      {!hasTrim && !clip.caption_text && !clip.muted && (
+                      {clip.media_type === 'photo' && (
+                        <Image size={10} style={{ color: active ? '#F2A24A' : '#7A3B1E' }} />
+                      )}
+                      {clip.media_type !== 'photo' && !hasTrim && !clip.caption_text && !clip.muted && (
                         <div className="w-1.5 h-1.5 rounded-full" style={{ background: active ? '#F2A24A' : '#4A2E18' }} />
                       )}
                     </div>

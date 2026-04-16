@@ -1,0 +1,11 @@
+{
+  "name": "cassette-scripts",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@supabase/supabase-js": "^2.47.10",
+    "dotenv": "^16.0.0"
+  }
+}

@@ -25,7 +25,7 @@ Mobile-first always. Don't let perfect be the enemy of shipped.
 | Frontend | React + Vite | Fast dev loop, component model fits the screen architecture |
 | Styling | Tailwind CSS | Mobile-first utilities, speed over pixel perfection |
 | Auth | Supabase Auth | Single family account, persistent login |
-| Storage | Supabase Storage | Video files live in the cloud, accessible from any device |
+| Storage | Cloudflare R2 | Migrated from Supabase Storage 2026-04-09. Free egress, Cloudflare edge CDN, ready for large Film Fest exports. Upload code migration (Checkpoint 4) pending. |
 | Database | Supabase Postgres | Scrapbook/clip metadata |
 | Deployment | Cloudflare Pages | CD from main branch via GitHub |
 | State | React Context | No Redux until complexity demands it |
@@ -568,6 +568,132 @@ Three tappable mode toggles: `[TRIM] | [SPLIT] | [TOOLS]`
 
 ---
 
+### [2026-03-29] — RemixScreen → Film Fest Redesign
+
+**Renamed and redesigned** the Remix feature at `/remix` (`RemixScreen.jsx`) as a **Film Fest** library filter workspace.
+
+**What changed:**
+- Old: clip count stepper + shuffle + "Making it groovy" → random Discovery session
+- New: multi-select year/month filters → Watch loads all matching clips in order → navigates to DiscoveryScreen with `{ isRemix: true, screenTitle: 'Film Fest' }`
+
+**New layout:**
+- Header: Library back (left) + Surprise Me pill (right, amber outline)
+- Body: "Film Fest" italic Fraunces display title + "Filter your film" section with `MultiSelectDropdown` for years and months
+- Bottom bar: Watch (amber CTA, full-width half) + Download (outlined half)
+
+**Stubs (coming soon modal):**
+- **Download** button — future export feature
+- **Surprise Me** button — future random/remix feature (replaces old shuffle logic)
+
+**DiscoveryScreen update:** `screenTitle` added to route state — pill in header is now dynamic (`location.state?.screenTitle || 'The Remix'`). Film Fest sessions show "Film Fest" pill.
+
+**MultiSelectDropdown pattern:** Checkbox-style list with an "All X" option that clears selection. When nothing is selected, the button label says "All Years" / "All Months". Can be reused elsewhere.
+
+**Why:** The old Remix screen was a single-purpose shuffle tool. Film Fest turns `/remix` into a general-purpose viewing workspace — family can filter by time period and watch a curated slice of their library.
+
+---
+
+### [2026-03-29] — Cancel Button on Loading / Processing Screens
+
+**Pattern:** All loading/processing overlay screens now have an X button (top-right, `absolute top-14 right-5`) that lets the user bail out without waiting.
+
+**IntakeScreen upload overlay:**
+- `cancelledRef` (useRef) is set to `true` on cancel; checked at the start of each remux and upload loop iteration
+- `handleCancel()` sets the ref, releases the wake lock, hides the overlay (`setUploading(false)`), and navigates back (`/scrapbook/:id/edit` if adding to existing scrapbook, `/` otherwise)
+- Prevents orphaned loop iterations from firing navigate or state updates after cancellation
+
+**RemixScreen "Making it groovy" screen:**
+- Cancel button sets `cancelledRef.current = true` and `setPhase('studio')` — returns to the studio screen, no navigation
+- After the `await Promise.all([minDelay, firstReady])` resolves, a `cancelledRef` check prevents the `navigate('/discover')` from firing if user already cancelled
+
+**Why:** Joelle testing — she tapped "Create Scrapbook" accidentally with wrong clips selected. No way to stop it. Now she can.
+
+---
+
+### [2026-03-29] — UI Polish: No-Zoom, Upload Overlay, Year/Month Dropdowns
+
+**Disable zoom on all screens:** Added `maximum-scale=1.0, user-scalable=no` to the global viewport meta in `index.html`. Prevents double-tap zoom on RemixScreen and everywhere else.
+
+**Intake upload overlay redesigned:**
+- Replaced spinner with the cassette reel animation (same spinning SVG reels from RemixScreen)
+- Progress bar now lerps smoothly using a `setInterval` every 80ms: `smoothPct += (target - smoothPct) * 0.05`
+- Remuxing phase maps to 0–40%; uploading phase maps to 40–95%
+- Headline is italic Fraunces: "Getting ready…" / "Saving memories…" / "Adding clips…"
+- No more stall-then-jump — the bar moves constantly throughout the whole process
+
+**Year/month picker — `PickerDropdown` component:**
+- Replaced chevron steppers in both IntakeScreen (name sheet) and HomeScreen (Rename & Redate sheet) with a custom branded dropdown
+- Tap to open a scrollable list; selected option highlighted amber; tap outside to close
+- Year list: current year down to 2015 (newest first). Month list in rename sheet includes `···` (null) as first option.
+- Component defined locally in each file — not a shared util (used in only 2 places)
+
+---
+
+### [2026-03-29] — Workspace: Watch Button + Back Navigation + Saved Flash
+
+- **Watch button replaces Save in WorkspaceScreen nav header.** Tapping Watch navigates to `/scrapbook/:id/watch` (PlaybackScreen). Changes are always auto-saved via `saveClipChanges` so a separate Save action is redundant.
+- **Back button now navigates to `/scrapbook/:id` (ScrapbookDetailScreen)** instead of the home library. "Library" label changed to "Back".
+- **"saved" flash indicator:** A small amber `saved` text appears to the left of Watch for 2.5s after any `saveClipChanges` call, confirming auto-save fired. Implemented via `savedFlash` boolean state + `savedFlashTimer` ref.
+
+**Why:** Joelle testing — she didn't know changes were being saved automatically and was confused by the Save button re-navigating to the detail screen instead of playback.
+
+---
+
+### [2026-03-29] — Split Tool: 3-Step Trim-Middle-Out Redesign
+
+**Previous flow:** Single marker → "Set cut point" → switches to TRIM mode with 4 handles (2 outer trim + 2 inner cut). Confusing to test users.
+
+**New flow — self-contained 3 steps:**
+1. SPLIT activated → single draggable bar at ~30% position; button says **"Set Split 1 · {time}"**
+2. "Set Split 1" → bar 1 locks (faded sienna, pointer-events-none); bar 2 spawns ~30% further; excluded zone shaded between bars; button says **"Set Split 2 · {time}"**
+3. "Set Split 2" → button changes to filled amber **"Confirm & Cut"**
+4. "Confirm & Cut" → saves `cut_in`/`cut_out` (sorted so cut_in < cut_out) → exits split mode
+
+State: `splitStep` (1|2|3), `splitPct` (active bar %), `splitPct1` (locked bar 1 %). Both reset when SPLIT is toggled on. `advanceSplitStep()` handles all three steps — do not reintroduce old `confirmSplitPoint()`.
+
+If clip already has `cut_in`/`cut_out`, button shows **"Remove cut"** as before (no step flow).
+
+**Why:** Joelle testing showed the old mode-switch flow was confusing. New flow is linear and self-explanatory without leaving split mode.
+
+---
+
+### [2026-03-29] — Home Screen: Two-Tab Redesign with Year/Month Folders
+
+**Old layout:** Single flat list (or year-grouped list) of all scrapbooks.
+
+**New layout: Two tabs**
+
+**"Your Scrapbooks" tab:**
+- Two-level collapsible hierarchy: Year folder → Month subfolders
+- Collapsed year shows inline month preview: `2026  Jun · Mar · ···`
+- On first load: current year + most recent month auto-expanded; everything else collapsed
+- Scrapbooks without a `month` value fall into `···` bucket at the bottom of their year
+- Collapse state: `collapsedYears` (Set of year ints) + `collapsedMonths` (Set of "year-month" strings)
+- FAB (+) only visible on this tab
+
+**"Shared" tab:**
+- Amber dot notification on tab button when any share has `seen: false`
+- **Feed view** (default): flat list sorted by scrapbook year/month desc; each card shows "from {ownerName}"
+- **By Person view**: collapsible folder per owner; amber dot on folder if unseen items; all folders start open when switching to this view
+- Owner names fetched from `profiles` table via `owner_id`
+
+**Rename → Rename & Redate sheet:**
+- Name input + year stepper + month stepper
+- Month stepper wraps: going below January → `···` (null), above `···` → January
+- Allows retroactive assignment of old scrapbooks to a month folder
+
+**Data model addition:**
+```sql
+ALTER TABLE scrapbooks ADD COLUMN IF NOT EXISTS month INTEGER;
+```
+`scrapbooks.month INTEGER` — nullable, 1–12. `null` = ungrouped `···` bucket.
+
+IntakeScreen month picker: auto-sets from earliest clip date; user can adjust before creating.
+
+**Why:** Joelle testing — flat list was getting hard to navigate as library grew.
+
+---
+
 ### [2026-03-28] — Swipe Transition + Pause-on-Swipe Fixes
 
 **Thumbnail preloading:** `<img>` tags rendering during a swipe fire network requests and show blank until loaded. Fixed by eagerly preloading all thumbnail URLs via `new Image()` immediately when the clip list loads — both in DiscoveryScreen (`loadClips`) and in RemixScreen during the "Making it groovy" phase. Browser caches the images so they're instant by first swipe.
@@ -618,6 +744,24 @@ Mini timeline (no-tool mode) is now a draggable scrub bar. The white playhead is
 
 ---
 
+### [2026-03-28] — Workspace: Time Labels Moved to Crafting Drawer
+
+Trim timestamps (`trimIn → trimOut · kept`) were shown below the mini timeline scrub bar. Moved them into the crafting drawer header row — always visible alongside TRIM / SPLIT / TOOLS regardless of which mode is active. Colors: amber when trim is applied, muted rust when untrimmed. Removed the labels from below the scrub bar entirely.
+
+---
+
+### [2026-03-28] — PlaybackScreen: Reduced Blank Screen Between Clips
+
+**Problem:** Visible loading spinner + blank screen between clips, especially past clip 2-3 in a scrapbook.
+
+**Root causes fixed:**
+- `onWaiting` was triggering the loading overlay on any brief mid-clip stall — too aggressive. Removed.
+- `setVideoLoading(true)` was always set on clip change, even when the blob was already in cache. Now checks `blobUrl.startsWith('blob:')` — skips overlay if blob is ready.
+- `preloadRest(clips, 0)` was missing from PlaybackScreen. Only next/prev were being preloaded one at a time. Now fires on both cache-hit load and fresh fetch so all clips download concurrently in the background.
+- Added `onPlaying` to clear `videoLoading` (was only clearing on `onCanPlay`).
+
+---
+
 ### [2026-03-27] — The Remix ✅ Complete
 
 **New feature:** A random cut from the user's library (and optionally shared scrapbooks).
@@ -655,6 +799,10 @@ Mini timeline (no-tool mode) is now a draggable scrub bar. The white playhead is
 | Wake Lock API | Prevents upload failures from iPhone screen lock. ✅ |
 | The Remix | `/remix` studio + cassette loading + shuffled clip playback. ✅ |
 | Add clips to existing scrapbook | IntakeScreen `?addTo=` param. ✅ |
+| Workspace Watch/Back/Saved-flash | Watch navigates to playback. Back → detail screen. "saved" flash confirms auto-save. ✅ |
+| Split tool redesign (3-step middle cut) | Set Split 1 → Set Split 2 → Confirm & Cut. cut_in/cut_out saved. ✅ |
+| Home two-tab + year/month folders | Your Scrapbooks (collapsible year/month) + Shared (Feed + By Person). scrapbooks.month column. ✅ |
+| UI polish (zoom, upload, dropdowns) | No-zoom viewport, cassette reel upload overlay with smooth lerping progress, PickerDropdown for year/month. ✅ |
 
 ---
 
@@ -703,12 +851,52 @@ The FFmpeg virtual filesystem accumulates input files if an export fails mid-way
 **6. Tech stack table says React Router v6 — it's actually v7**
 Minor doc inconsistency in the `Active Tech Stack` table above.
 
+---
+
+### [2026-03-29] — Code Review: Bug Fixes Across 6 Files
+
+Full codebase review pass. All fixes in commit `fd68cfa`.
+
+**Critical fixes:**
+
+- **WorkspaceScreen — `activeDragCleanup` ref pattern:** All 6 drag handlers (`startTrimDrag`, `startSplitDrag`, `startMiniScrub`, `startCaptionDrag`, `startDragFromTouch`, `startDragFromMouse`) now store a cleanup fn in `activeDragCleanup = useRef(null)` immediately after adding `document` listeners. A single `useEffect(() => () => activeDragCleanup.current?.(), [])` fires on unmount. Each `onEnd` clears the ref. **All future drag features must follow this pattern.**
+
+- **WorkspaceScreen — `toggleMute` was writing to a non-existent DB column:** `muted` has no column in `clips`. The old code called `saveClipChanges(id, { muted })` which silently failed at Supabase. Fixed: `toggleMute` is sync, sets `video.muted` immediately, calls `updateClipLocal` only, never touches the DB. See also: performance_arch memory.
+
+- **PlaybackScreen — `scrubActiveRef` not cleared on unmount:** Navigating away mid-scrub left the ref `true`, blocking swipe navigation on next mount. Fixed: cleanup effect resets `scrubActiveRef` and clears `holdTimerRef` on unmount.
+
+**Other fixes:**
+
+- **WorkspaceScreen — `saveClipChanges`** now checks `{ error }` from Supabase, reverts local state on failure, skips false "saved" flash.
+- **PlaybackScreen + DiscoveryScreen** — all preload `<video>` refs now have `onerror` handlers that fall back to the direct URL on blob failure (no more silent black screen).
+- **DiscoveryScreen** — `location.state` added to `loadClips` useCallback deps so Film Fest re-navigations with a new clip set always reload.
+- **PlaybackScreen** — hold-to-pause cancel threshold increased 5px → 15px.
+- **SettingsScreen** — retroactive share `upsert` failure now rolls back the `sharing_defaults` insert.
+- **HomeScreen** — cover upload failure now reverts the optimistic data URL preview.
+- **dataCache** — `MAX_ENTRIES = 10` with oldest-entry eviction prevents unbounded Map growth.
+
+---
+
+### [2026-03-29] — Screen Inventory Doc + Stale Route Fixes
+
+**`cassette-screens.html` created** as a founding reference doc in the repo root. Shows all 11 screens with card descriptions (name, route, file, status, feature tags) plus a compact quick-reference table. Desktop alias created at `/Users/ordocfo/Desktop/cassette-screens.html`. Added to `CLAUDE.md` Maintenance Rules and `memory/feedback_docs.md` — keep updated whenever screens are added, renamed, rerouted, or removed.
+
+**CLAUDE.md stale routes corrected:**
+- Screen count: "9 Screens" → "11 Screens" (Login + Signup were missing from the count)
+- `/intake` → `/scrapbook/:id/intake`
+- `/scrapbook/:id/edit` → `/scrapbook/:id/workspace`
+- `/discover` → `/discovery`
+- `/login` added to route table (was missing)
+
+---
+
 ### Architecture Observations (good patterns to keep)
 
+- **`activeDragCleanup` ref pattern** — every drag handler that attaches to `document` must store its cleanup in `activeDragCleanup.current`. Do not add new drag features without this.
 - **Stale closure fix** (capture values before `setClips`) — correctly and consistently applied in trim, reorder, and caption drag interactions. Do not regress this.
 - **Document-level drag listeners** — correct approach. React's `onTouchMove` is passive; document-level lets you call `preventDefault()` to block scroll. Keep this pattern for all future drag features.
 - **FFmpeg singleton + custom `fetchToBlobURL`** — hard-won. Do not touch without good reason. The three-piece constraint (ESM files + custom fetch + COOP/COEP headers) must all stay in place.
-- **Optimistic UI** — used correctly in HomeScreen (delete), ShareScreen (remove share), WorkspaceScreen (clip removal). Good pattern for mobile latency.
+- **Optimistic UI with rollback** — HomeScreen cover change and WorkspaceScreen clip edits capture prev state before optimistic update and revert on error. All future optimistic updates must follow this pattern.
 - **RLS everywhere** — all tables scoped to `user_id`. Correct. Don't add any table without RLS.
 - **Lazy screen loading** — all screens are `React.lazy` + `Suspense`. Build stays lean.
 
@@ -733,3 +921,105 @@ Minor doc inconsistency in the `Active Tech Stack` table above.
 | **Haptic feedback** | Low | Low/Medium — `navigator.vibrate()` on key taps |
 | **Offline indicator banner** | Low | Medium — graceful network loss handling |
 | **"New clips" badge on shared scrapbooks** | High | High — v2 sharing enhancement |
+
+---
+
+### [2026-04-09] — Surprise Me Feature + Discovery Screen Cleanup
+
+**Surprise Me — LIVE**
+
+Replaced the "coming soon" stub on the Film Fest Surprise Me pill with a real random clip mode.
+
+**Data model change:**
+```sql
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS surprise_me_include_shared boolean DEFAULT false;
+```
+
+**RemixScreen changes:**
+- `CLIP_SELECT` constant at top of file — shared by `handleWatch` and `handleSurpriseMe` to avoid duplicate Supabase select strings
+- `prewarm()` fires on mount alongside year fetch: queries all own clip URLs (lightweight), shuffles, starts `preloadClip()` + thumbnail preload on 5 random clips. Warms blob cache before user taps Surprise Me.
+- `handleSurpriseMe()`: fetches `profiles.surprise_me_include_shared` + own clips in parallel. If setting on, also queries `scrapbook_shares` for shared clips. Shuffles full pool, picks 10–15 random clips (`Math.floor(Math.random() * 6) + 10`). Same preload + 2s min delay as Film Fest Watch. Navigates to DiscoveryScreen with `screenTitle: 'Surprise Me'`.
+- Loading screen: phase `'loading-surprise'` shows "Rolling the dice… / Picking a mix just for you" vs Film Fest's text.
+
+**SettingsScreen changes:**
+- New "Surprise Me" section with include-shared toggle
+- iOS toggle pattern: 44×26px track, 20×20px wheat knob, 3px padding on all sides. OFF = `#4A2E18` track, ON = `#F2A24A` (amber) track. Wheat (`#F5DEB3`) knob always. Fully contained knob — no overflow.
+- Optimistic toggle saves to `profiles.surprise_me_include_shared`.
+
+**DiscoveryScreen changes (remix mode only):**
+- Top-right Disc3 button: no longer navigates back to `/remix`. Now opens bottom sheet (`scrapbookSheet` state) with current clip's scrapbook name + year, "Go to this scrapbook" CTA (amber), and "Stay in [screenTitle]" cancel. Warning copy: "Heading there will exit [screenTitle]."
+- Bottom scrapbook info (name + Watch → link): hidden in `isRemix` mode. Normal library Discovery unchanged.
+- Sheet closes on backdrop tap.
+
+**Toggle visual pattern (canonical going forward):**
+```jsx
+// Track: fixed px dimensions, not Tailwind w-/h- classes (avoids knob overflow)
+// Knob: absolute, top: 3, width/height: 20, translateX(3px) off / translateX(21px) on
+// Wheat knob always — OFF dark track vs ON amber track = clear state distinction
+```
+
+---
+
+## [2026-04-09] Photo Support in Scrapbooks
+
+**Decision:** Scrapbooks now support photos alongside videos.
+
+**What was built:**
+
+**DB:**
+```sql
+ALTER TABLE clips ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'video';
+```
+
+**IntakeScreen:**
+- File picker now accepts `video/*,image/*`
+- Photos skip FFmpeg remux — uploaded directly
+- `getPhotoMeta()` extracts a data URL thumbnail from the image (no video element needed)
+- Photos get `thumbnail_url = video_url` (same file, no separate thumb upload)
+- Photo `duration` defaults to 5 seconds (user-configurable in Workspace)
+- `media_type: 'photo'` stored on clip row
+
+**WorkspaceScreen:**
+- Photo clips show a static `<img>` in the preview zone instead of `<video>`
+- Play/pause button hidden for photos
+- Trim and Split tabs hidden — only **Tools** shows in the drawer header
+- Header right side shows `Photo · Xs` instead of trim timestamps
+- Mini timeline shows a static full amber bar (no scrub handles)
+- Tools row: Mute removed (photos have no audio); Caption, Add Clips, Reorder, Remove remain
+- **Display Duration stepper** appears below the tools row for photo clips: −/+ buttons, 1–30s range, saves to `duration` + `trim_out` columns
+- Clip strip cards show a small `Image` icon badge for photo clips
+
+**PlaybackScreen:**
+- Photo clips render `<img>` in all three sliding slots (prev/current/next)
+- Auto-advance timer fires after `clip.duration` seconds (5s default)
+- Progress bar animates over the display duration via `setInterval`
+- Play/pause button hidden; scrub blocked for photos
+- Scrapbook name + clip counter still visible during photo display
+
+**Data model note:** For photo clips, `video_url` holds the image URL. `thumbnail_url` = same value. `duration` = display seconds (not media duration). `trim_in = 0`, `trim_out = duration`.
+
+---
+
+## [2026-04-09] R2 Storage Migration (Checkpoints 1–3)
+
+**Decision:** Migrate all media storage from Supabase Storage → Cloudflare R2.
+
+**Why:** Free egress (vs Supabase egress fees at scale), Cloudflare edge CDN for faster global delivery, and prerequisite for Film Fest export (server-side video concat needs direct R2 access from a Worker).
+
+**What was done:**
+- Created `cassette-media` R2 bucket with public access enabled
+- Wrote `kassette/scripts/migrate-to-r2.js` — downloads all files from Supabase Storage via service role key, uploads to R2 via S3-compatible API, generates `migration-mapping.json` + `migration-update.sql`
+- Migrated 69 files (39 videos, 27 thumbnails, 3 covers) — zero failures
+- Ran `migration-update.sql` in Supabase SQL editor — all `video_url`, `thumbnail_url`, `cover_image_url` columns now point to R2 URLs
+
+**R2 config:**
+- Bucket: `cassette-media`
+- Public URL: `https://pub-bab6003c5bee4548b6a48fc2eca4583a.r2.dev`
+- Account ID: `72f8fd10fc39dcf4ee7a608fecbbadfe`
+- Credentials stored in: `kassette/scripts/.env` (gitignored)
+
+**Checkpoint 4 — still pending (next session):**
+- Update upload code in IntakeScreen + HomeScreen to PUT to R2 instead of Supabase Storage
+- Update delete operations in WorkspaceScreen, HomeScreen, ScrapbookDetailScreen
+- Requires a Cloudflare Worker to generate presigned R2 upload URLs (can't expose secret key in frontend)
+- Until then: new uploads still go to Supabase Storage (app works, just splits new vs old files across two buckets)

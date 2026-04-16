@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cassette — Screen Inventory</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;1,300;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #2C1A0E;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    padding: 48px 32px 80px;
+    color: #F5DEB3;
+    min-height: 100vh;
+  }
+
+  .page-label {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #7A3B1E;
+    margin-bottom: 10px;
+  }
+
+  .page-heading {
+    font-family: 'Fraunces', serif;
+    font-size: 38px;
+    font-weight: 300;
+    color: #F5DEB3;
+    margin-bottom: 6px;
+  }
+
+  .page-sub {
+    font-size: 14px;
+    font-weight: 300;
+    color: #7A3B1E;
+    margin-bottom: 56px;
+  }
+
+  /* ── Screen Cards ─────────────────────────────── */
+  .screens-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+    margin-bottom: 56px;
+  }
+
+  .card {
+    background: #3D2410;
+    border: 1px solid #4A2E18;
+    border-radius: 12px;
+    padding: 22px 24px;
+    position: relative;
+    transition: border-color 0.15s;
+  }
+
+  .card:hover {
+    border-color: #F2A24A44;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .card-name {
+    font-family: 'Fraunces', serif;
+    font-size: 20px;
+    font-weight: 300;
+    color: #F5DEB3;
+    line-height: 1.2;
+  }
+
+  .badge {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 20px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 3px;
+  }
+
+  .badge-live {
+    background: #F2A24A22;
+    color: #F2A24A;
+    border: 1px solid #F2A24A44;
+  }
+
+  .badge-tbd {
+    background: #7A3B1E22;
+    color: #7A3B1E;
+    border: 1px solid #7A3B1E44;
+  }
+
+  .card-route {
+    font-family: 'Plus Jakarta Sans', monospace;
+    font-size: 12px;
+    font-weight: 400;
+    color: #7A3B1E;
+    margin-bottom: 12px;
+    letter-spacing: 0.02em;
+  }
+
+  .card-file {
+    font-size: 11px;
+    font-weight: 400;
+    color: #4A2E18;
+    margin-bottom: 12px;
+    font-family: monospace;
+    letter-spacing: 0.02em;
+  }
+
+  .card-desc {
+    font-size: 13.5px;
+    font-weight: 300;
+    color: #C8A87A;
+    line-height: 1.6;
+  }
+
+  .card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 14px;
+  }
+
+  .tag {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #2C1A0E;
+    color: #7A3B1E;
+    border: 1px solid #4A2E18;
+  }
+
+  /* ── Quick Reference Table ────────────────────── */
+  .section-label {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #7A3B1E;
+    margin-bottom: 16px;
+  }
+
+  .ref-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .ref-table th {
+    text-align: left;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #7A3B1E;
+    padding: 0 16px 10px 16px;
+    border-bottom: 1px solid #4A2E18;
+  }
+
+  .ref-table th:first-child { padding-left: 0; }
+
+  .ref-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #3D2410;
+    vertical-align: top;
+    color: #C8A87A;
+    font-weight: 300;
+  }
+
+  .ref-table td:first-child {
+    padding-left: 0;
+    color: #F5DEB3;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .ref-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  .ref-table code {
+    font-family: monospace;
+    font-size: 12px;
+    color: #F2A24A99;
+    background: #2C1A0E;
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  .dot-live {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #F2A24A;
+    margin-right: 6px;
+    vertical-align: middle;
+    position: relative;
+    top: -1px;
+  }
+
+  .dot-tbd {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #7A3B1E;
+    margin-right: 6px;
+    vertical-align: middle;
+    position: relative;
+    top: -1px;
+  }
+
+  @media (max-width: 700px) {
+    body { padding: 32px 16px 64px; }
+    .page-heading { font-size: 28px; }
+    .screens-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-label">Cassette — Project Reference</div>
+<h1 class="page-heading">Screen Inventory</h1>
+<p class="page-sub">All screens in the app — names, routes, and status at a glance</p>
+
+<!-- ── Card Grid ──────────────────────────────── -->
+<div class="screens-grid">
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-name">Home</div>
+      <span class="badge badge-live">Live</span>
+    </div>
+    <div class="card-route">/</div>
+    <div class="card-file">HomeScreen.jsx</div>
+    <div class="card-desc">Two-tab library: "Your Scrapbooks" (year → month folders) and "Shared" (feed + byPerson views). FAB to create new scrapbook.</div>
+    <div class="card-tags">
+      <span class="tag">protected</span>
+      <span class="tag">data cache</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-name">Login</div>
+      <span class="badge badge-live">Live</span>
+    </div>
+    <div class="card-route">/login</div>
+    <div class="card-file">LoginScreen.jsx</div>
+    <div class="card-desc">Email + password login via Supabase Auth. Redirects to Home on success.</div>
+    <div class="card-tags">
+      <span class="tag">public</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-name">Signup</div>
+      <span class="badge badge-live">Live</span>
+    </div>
+    <div class="card-route">/signup</div>
+    <div class="card-file">SignupScreen.jsx</div>
+    <div class="card-desc">New account creation. Email + password + confirm. Send this URL to new family members — no admin action needed.</div>
+    <div class="card-tags">
+      <span class="tag">public</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-name">Scrapbook Detail</div>
+      <span class="badge badge-live">Live</span>
+    </div>
+    <div class="card-route">/scrapbook/:id</div>
+    <div class="card-file">ScrapbookDetailScreen.jsx</div>
+    <div class="card-desc">Hub for a single scrapbook. Shows cover, title, clip count, duration. Three actions: Watch, Edit, Share. Populates dataCache for instant downstream navigation.</div>
+    <div class="card-tags">
+      <span class="tag">protected</span>
+      <span class="tag">hub</span>
+      <span class="tag">data cache</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-name">Intake</div>
+      <span class="badge badge-live">Live</span>
+    </div>
+    <div class="card-route">/scrapbook/:id/intake</div>
+    <div class="card-file">IntakeScreen.jsx</div>
+    <div class="card-desc">Upload and create flow. Pick clips from camera roll, name and date the scrapbook, then remux + upload. Cancel-safe async loop with cassette reel loading animation.</div>
+    <div class="card-tags">
+      <span class="tag">protected</span>
+      <span class="tag">cancelledRef</span>
+      <span class="tag">FFmpeg WASM</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-name">Workspace</div>
+      <span class="badge badge-live">Live</span>
+    </div>
+    <div class="card-route">/scrapbook/:id/workspace</div>
+    <div class="card-file">WorkspaceScreen.jsx</div>
+    <div class="card-desc">Full editing environment. Horizontal clip strip, crafting drawer (Trim / Split / Tools), mini timeline, caption overlay, reorder, single-level undo. Watch button → Playback.</div>
+    <div class="card-tags">
+      <span class="tag">protected</span>
+      <span class="tag">activeDragCleanup</span>
+      <span class="tag">blob cache</span>
+      <span class="tag">undo</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-name">Playback</div>
+      <span class="badge badge-live">Live</span>
+    </div>
+    <div class="card-route">/scrapbook/:id/watch</div>
+    <div class="card-file">PlaybackScreen.jsx</div>
+    <div class="card-desc">Full-screen sequential viewer. Swipe up/down between clips. Segmented progress bar, captions, hold-to-pause, bottom scrub bar. Three-dot menu: Edit, Details, Export.</div>
+    <div class="card-tags">
+      <span class="tag">protected</span>
+      <span class="tag">blob cache</span>
+      <span class="tag">hold-to-pause</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-name">Discovery</div>
+      <span class="badge badge-live">Live</span>
+    </div>
+    <div class="card-route">/discovery</div>
+    <div class="card-file">DiscoveryScreen.jsx</div>
+    <div class="card-desc">Shuffled feed of all clips across all scrapbooks. Vertical swipe = next clip, horizontal = next scrapbook. Also used as Film Fest output from RemixScreen (isRemix: true).</div>
+    <div class="card-tags">
+      <span class="tag">protected</span>
+      <span class="tag">blob cache</span>
+      <span class="tag">swipe</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-name">Film Fest (Remix)</div>
+      <span class="badge badge-live">Live</span>
+    </div>
+    <div class="card-route">/remix</div>
+    <div class="card-file">RemixScreen.jsx</div>
+    <div class="card-desc">Library filter workspace. Year + month multi-select → "Making it groovy" loading animation → Discovery. Surprise Me and Download are coming-soon stubs.</div>
+    <div class="card-tags">
+      <span class="tag">protected</span>
+      <span class="tag">cancelledRef</span>
+      <span class="tag">blob cache</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-name">Share</div>
+      <span class="badge badge-live">Live</span>
+    </div>
+    <div class="card-route">/scrapbook/:id/share</div>
+    <div class="card-file">ShareScreen.jsx</div>
+    <div class="card-desc">Per-scrapbook sharing. Add family members by email, remove recipients, remove self from shared scrapbooks. Auto-share defaults live in Settings.</div>
+    <div class="card-tags">
+      <span class="tag">protected</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-name">Settings</div>
+      <span class="badge badge-live">Live</span>
+    </div>
+    <div class="card-route">/settings</div>
+    <div class="card-file">SettingsScreen.jsx</div>
+    <div class="card-desc">Profile management, auto-share defaults (new scrapbooks shared automatically with selected contacts), account actions.</div>
+    <div class="card-tags">
+      <span class="tag">protected</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Quick Reference Table ──────────────────── -->
+<div class="section-label">Quick Reference</div>
+<table class="ref-table">
+  <thead>
+    <tr>
+      <th>Screen</th>
+      <th>Route</th>
+      <th>File</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Home</td>
+      <td><code>/</code></td>
+      <td><code>HomeScreen.jsx</code></td>
+      <td><span class="dot-live"></span>Live</td>
+    </tr>
+    <tr>
+      <td>Login</td>
+      <td><code>/login</code></td>
+      <td><code>LoginScreen.jsx</code></td>
+      <td><span class="dot-live"></span>Live</td>
+    </tr>
+    <tr>
+      <td>Signup</td>
+      <td><code>/signup</code></td>
+      <td><code>SignupScreen.jsx</code></td>
+      <td><span class="dot-live"></span>Live</td>
+    </tr>
+    <tr>
+      <td>Scrapbook Detail</td>
+      <td><code>/scrapbook/:id</code></td>
+      <td><code>ScrapbookDetailScreen.jsx</code></td>
+      <td><span class="dot-live"></span>Live</td>
+    </tr>
+    <tr>
+      <td>Intake</td>
+      <td><code>/scrapbook/:id/intake</code></td>
+      <td><code>IntakeScreen.jsx</code></td>
+      <td><span class="dot-live"></span>Live</td>
+    </tr>
+    <tr>
+      <td>Workspace</td>
+      <td><code>/scrapbook/:id/workspace</code></td>
+      <td><code>WorkspaceScreen.jsx</code></td>
+      <td><span class="dot-live"></span>Live</td>
+    </tr>
+    <tr>
+      <td>Playback</td>
+      <td><code>/scrapbook/:id/watch</code></td>
+      <td><code>PlaybackScreen.jsx</code></td>
+      <td><span class="dot-live"></span>Live</td>
+    </tr>
+    <tr>
+      <td>Discovery</td>
+      <td><code>/discovery</code></td>
+      <td><code>DiscoveryScreen.jsx</code></td>
+      <td><span class="dot-live"></span>Live</td>
+    </tr>
+    <tr>
+      <td>Film Fest (Remix)</td>
+      <td><code>/remix</code></td>
+      <td><code>RemixScreen.jsx</code></td>
+      <td><span class="dot-live"></span>Live</td>
+    </tr>
+    <tr>
+      <td>Share</td>
+      <td><code>/scrapbook/:id/share</code></td>
+      <td><code>ShareScreen.jsx</code></td>
+      <td><span class="dot-live"></span>Live</td>
+    </tr>
+    <tr>
+      <td>Settings</td>
+      <td><code>/settings</code></td>
+      <td><code>SettingsScreen.jsx</code></td>
+      <td><span class="dot-live"></span>Live</td>
+    </tr>
+  </tbody>
+</table>
+
+</body>
+</html>

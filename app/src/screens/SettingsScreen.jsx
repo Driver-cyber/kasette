@@ -10,6 +10,7 @@ export default function SettingsScreen() {
 
   const [defaults, setDefaults] = useState([])
   const [loading, setLoading] = useState(true)
+  const [surpriseMeIncludeShared, setSurpriseMeIncludeShared] = useState(false)
 
   // Add flow
   const [username, setUsername] = useState('')
@@ -39,7 +40,17 @@ export default function SettingsScreen() {
     setLoading(false)
   }
 
-  useEffect(() => { loadDefaults() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    loadDefaults()
+    supabase.from('profiles').select('surprise_me_include_shared').eq('user_id', session.user.id).single()
+      .then(({ data }) => { if (data) setSurpriseMeIncludeShared(data.surprise_me_include_shared ?? false) })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function toggleSurpriseMe() {
+    const next = !surpriseMeIncludeShared
+    setSurpriseMeIncludeShared(next)
+    await supabase.from('profiles').update({ surprise_me_include_shared: next }).eq('user_id', session.user.id)
+  }
 
   // ── Add flow ──────────────────────────────────────────────────────────────
 
@@ -89,7 +100,7 @@ export default function SettingsScreen() {
           .select('id')
           .eq('user_id', session.user.id)
         if (scrapbooks && scrapbooks.length > 0) {
-          await supabase.from('scrapbook_shares').upsert(
+          const { error: upsertErr } = await supabase.from('scrapbook_shares').upsert(
             scrapbooks.map(sb => ({
               scrapbook_id: sb.id,
               owner_id: session.user.id,
@@ -97,6 +108,17 @@ export default function SettingsScreen() {
             })),
             { onConflict: 'scrapbook_id,shared_with_id', ignoreDuplicates: true }
           )
+          if (upsertErr) {
+            // Roll back the sharing_defaults row we just inserted
+            await supabase.from('sharing_defaults')
+              .delete()
+              .eq('user_id', session.user.id)
+              .eq('recipient_id', pendingRecipient.id)
+            setAddStatus('error')
+            setPendingRecipient(null)
+            setConfirming(false)
+            return
+          }
         }
       }
 
@@ -212,6 +234,47 @@ export default function SettingsScreen() {
         <p className="text-rust font-sans text-[12px] leading-relaxed mb-8">
           To share a single scrapbook, use the ⋯ menu inside that scrapbook.
         </p>
+
+        {/* Surprise Me section */}
+        <p className="text-rust text-[10px] font-bold tracking-[0.18em] uppercase mb-2 mt-2">
+          Surprise Me
+        </p>
+        <div
+          className="rounded-2xl border border-walnut-light px-4 py-4 mb-1"
+          style={{ background: '#3D2410' }}
+        >
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1">
+              <p className="text-wheat font-sans font-semibold text-[14px] leading-snug">Include shared clips</p>
+              <p className="text-rust font-sans text-[12px] leading-relaxed mt-0.5">
+                Pick from clips shared with you too
+              </p>
+            </div>
+            <button
+              onClick={toggleSurpriseMe}
+              className="flex-shrink-0 relative active:opacity-80"
+              style={{
+                width: 44,
+                height: 26,
+                borderRadius: 13,
+                background: surpriseMeIncludeShared ? '#F2A24A' : '#4A2E18',
+                transition: 'background 0.2s',
+              }}
+            >
+              <span
+                className="absolute rounded-full"
+                style={{
+                  top: 3,
+                  width: 20,
+                  height: 20,
+                  background: '#F5DEB3',
+                  transition: 'transform 0.2s',
+                  transform: surpriseMeIncludeShared ? 'translateX(21px)' : 'translateX(3px)',
+                }}
+              />
+            </button>
+          </div>
+        </div>
 
         {/* Add section */}
         <p className="text-rust text-[10px] font-bold tracking-[0.18em] uppercase mb-3">

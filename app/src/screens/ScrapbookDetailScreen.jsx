@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Play, Edit3, Share2, Image, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { uploadToR2, deleteFromR2 } from '../lib/r2'
 import { useAuth } from '../context/AuthContext'
 import { preloadClips, preloadRest } from '../lib/blobCache'
 import { cacheScrapbook } from '../lib/dataCache'
@@ -129,27 +130,20 @@ export default function ScrapbookDetailScreen() {
     reader.onload = ev => setScrapbook(s => ({ ...s, cover_image_url: ev.target.result }))
     reader.readAsDataURL(file)
     const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-    const coverPath = `${session.user.id}/covers/${id}.${ext}`
-    const { error } = await supabase.storage
-      .from('cassette-media')
-      .upload(coverPath, file, { cacheControl: '0', upsert: true })
-    if (!error) {
-      const { data: { publicUrl } } = supabase.storage.from('cassette-media').getPublicUrl(coverPath)
+    const coverKey = `${session.user.id}/covers/${id}.${ext}`
+    try {
+      const publicUrl = await uploadToR2(coverKey, file)
       const bustUrl = `${publicUrl}?v=${Date.now()}`
       await supabase.from('scrapbooks').update({ cover_image_url: bustUrl }).eq('id', id)
       setScrapbook(s => ({ ...s, cover_image_url: bustUrl }))
-    }
+    } catch { /* non-blocking */ }
   }
 
   async function handleDelete() {
     if (deleting) return
     setDeleting(true)
-    const storagePaths = clips.map(c => {
-      const marker = 'cassette-media/'
-      const idx = c.video_url?.indexOf(marker)
-      return idx >= 0 ? c.video_url.slice(idx + marker.length) : null
-    }).filter(Boolean)
-    if (storagePaths.length) await supabase.storage.from('cassette-media').remove(storagePaths)
+    const videoUrls = clips.map(c => c.video_url).filter(Boolean)
+    if (videoUrls.length) await deleteFromR2(videoUrls)
     await supabase.from('clips').delete().eq('scrapbook_id', id)
     await supabase.from('scrapbooks').delete().eq('id', id)
     navigate('/', { replace: true })

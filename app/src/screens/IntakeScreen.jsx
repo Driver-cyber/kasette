@@ -2,6 +2,7 @@ import { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { ArrowLeft, Check, Image, ChevronDown, X } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { uploadToR2 } from '../lib/r2'
 import { useAuth } from '../context/AuthContext'
 import { remuxWithFaststart } from '../lib/remux'
 
@@ -382,16 +383,11 @@ export default function IntakeScreen() {
       // 4. Upload cover image if provided
       if (coverFile) {
         const ext = coverFile.name.split('.').pop()?.toLowerCase() || 'jpg'
-        const coverPath = `${session.user.id}/covers/${sb.id}.${ext}`
-        const { error: coverErr } = await supabase.storage
-          .from('cassette-media')
-          .upload(coverPath, coverFile, { cacheControl: '3600' })
-        if (!coverErr) {
-          const { data: { publicUrl } } = supabase.storage
-            .from('cassette-media')
-            .getPublicUrl(coverPath)
-          await supabase.from('scrapbooks').update({ cover_image_url: publicUrl }).eq('id', sb.id)
-        }
+        const coverKey = `${session.user.id}/covers/${sb.id}.${ext}`
+        try {
+          const coverUrl = await uploadToR2(coverKey, coverFile)
+          await supabase.from('scrapbooks').update({ cover_image_url: coverUrl }).eq('id', sb.id)
+        } catch { /* non-blocking — scrapbook still created */ }
       }
 
       // 4. Upload each clip + thumbnail
@@ -404,29 +400,16 @@ export default function IntakeScreen() {
         const ext = item.file.name.split('.').pop()?.toLowerCase() || (isPhotoItem ? 'jpg' : 'mp4')
         const storagePath = `${session.user.id}/${sb.id}/${clipId}.${ext}`
 
-        const { error: uploadErr } = await supabase.storage
-          .from('cassette-media')
-          .upload(storagePath, item.file, { cacheControl: '3600' })
-        if (uploadErr) throw uploadErr
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('cassette-media')
-          .getPublicUrl(storagePath)
+        const publicUrl = await uploadToR2(storagePath, item.file)
 
         // Photos use their own URL as thumbnail; videos upload a separate thumb
         let thumbnailUrl = isPhotoItem ? publicUrl : null
         if (!isPhotoItem && item.thumbnail) {
           const thumbBlob = dataURLtoBlob(item.thumbnail)
           const thumbPath = `${session.user.id}/${sb.id}/${clipId}_thumb.jpg`
-          const { error: thumbErr } = await supabase.storage
-            .from('cassette-media')
-            .upload(thumbPath, thumbBlob, { cacheControl: '3600', contentType: 'image/jpeg' })
-          if (!thumbErr) {
-            const { data: { publicUrl: tUrl } } = supabase.storage
-              .from('cassette-media')
-              .getPublicUrl(thumbPath)
-            thumbnailUrl = tUrl
-          }
+          try {
+            thumbnailUrl = await uploadToR2(thumbPath, thumbBlob, 'image/jpeg')
+          } catch { /* non-blocking — clip still usable without thumbnail */ }
         }
 
         const clipDuration = isPhotoItem ? (item.duration || 5) : (item.duration || null)
@@ -501,28 +484,15 @@ export default function IntakeScreen() {
         const ext = item.file.name.split('.').pop()?.toLowerCase() || (isPhotoItem ? 'jpg' : 'mp4')
         const storagePath = `${session.user.id}/${addToId}/${clipId}.${ext}`
 
-        const { error: uploadErr } = await supabase.storage
-          .from('cassette-media')
-          .upload(storagePath, item.file, { cacheControl: '3600' })
-        if (uploadErr) throw uploadErr
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('cassette-media')
-          .getPublicUrl(storagePath)
+        const publicUrl = await uploadToR2(storagePath, item.file)
 
         let thumbnailUrl = isPhotoItem ? publicUrl : null
         if (!isPhotoItem && item.thumbnail) {
           const thumbBlob = dataURLtoBlob(item.thumbnail)
           const thumbPath = `${session.user.id}/${addToId}/${clipId}_thumb.jpg`
-          const { error: thumbErr } = await supabase.storage
-            .from('cassette-media')
-            .upload(thumbPath, thumbBlob, { cacheControl: '3600', contentType: 'image/jpeg' })
-          if (!thumbErr) {
-            const { data: { publicUrl: tUrl } } = supabase.storage
-              .from('cassette-media')
-              .getPublicUrl(thumbPath)
-            thumbnailUrl = tUrl
-          }
+          try {
+            thumbnailUrl = await uploadToR2(thumbPath, thumbBlob, 'image/jpeg')
+          } catch { /* non-blocking */ }
         }
 
         const clipDuration = isPhotoItem ? (item.duration || 5) : (item.duration || null)

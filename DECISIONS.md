@@ -1019,9 +1019,12 @@ ALTER TABLE clips ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'vid
 - Credentials stored in: `kassette/scripts/.env` (gitignored)
 
 **Checkpoint 4 — COMPLETE (2026-04-15):**
-- Created `kassette/worker/` — Cloudflare Worker with `POST /presign` (AWS4-signed R2 PUT URL) and `DELETE /delete` (R2 bucket binding)
+- Created `kassette/worker/` — Cloudflare Worker deployed at `cassette-worker.cstewch.workers.dev`
+- Endpoints: `POST /upload?key=…` (streams file body → R2 bucket binding), `DELETE /delete?key=…` (R2 bucket binding)
 - Created `kassette/app/src/lib/r2.js` — `uploadToR2(key, file)` and `deleteFromR2(urls[])` helpers
 - Updated IntakeScreen, HomeScreen, ScrapbookDetailScreen to use `uploadToR2`
 - Updated WorkspaceScreen, HomeScreen, ScrapbookDetailScreen to use `deleteFromR2`
-- Auth: `X-Upload-Secret` shared secret between frontend and Worker
-- Worker deploy + secret setup still requires manual `wrangler` commands (see QUICK_REFERENCE.md)
+- Auth: `X-Upload-Secret` header — shared secret between frontend (`VITE_UPLOAD_SECRET`) and Worker (`UPLOAD_SECRET` secret)
+- Upload flow: Browser → Worker (streams body) → R2 bucket binding. No presigned URLs, no S3 CORS issues.
+- Worker secrets set via `wrangler secret put` (6 secrets: UPLOAD_SECRET, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_PUBLIC_URL)
+- App env vars in Cloudflare Pages + `.env.local`: `VITE_WORKER_URL`, `VITE_UPLOAD_SECRET`

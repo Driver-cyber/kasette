@@ -48,7 +48,7 @@ expense of mobile experience.
 | Frontend | React + Vite | Component-based, fast dev loop |
 | Styling | Tailwind CSS v4 | Mobile-first utility classes, `@theme` brand tokens |
 | Auth | Supabase Auth | Multi-account, stays logged in |
-| Storage | Cloudflare R2 | Videos, covers, poster thumbnails in `cassette-media` bucket. Migrated from Supabase Storage 2026-04-09. Public URL: `pub-bab6003c5bee4548b6a48fc2eca4583a.r2.dev`. Upload code (IntakeScreen, HomeScreen) still uses Supabase Storage — Checkpoint 4 pending. |
+| Storage | Cloudflare R2 | All uploads + deletes go through `lib/r2.js` → Cloudflare Worker (`kassette/worker/`) → R2 bucket binding. Public URL: `pub-bab6003c5bee4548b6a48fc2eca4583a.r2.dev`. Worker URL: `cassette-worker.cstewch.workers.dev`. Migration from Supabase Storage complete 2026-04-15. |
 | Database | Supabase Postgres (Pro) | Scrapbook and clip metadata, RLS user_id-scoped |
 | Deployment | Cloudflare Pages | CD from main branch via GitHub |
 | State | React Context | No Redux until complexity demands it |

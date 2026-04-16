@@ -25,7 +25,7 @@ Mobile-first always. Don't let perfect be the enemy of shipped.
 | Frontend | React + Vite | Fast dev loop, component model fits the screen architecture |
 | Styling | Tailwind CSS | Mobile-first utilities, speed over pixel perfection |
 | Auth | Supabase Auth | Single family account, persistent login |
-| Storage | Cloudflare R2 | Migrated from Supabase Storage 2026-04-09. Free egress, Cloudflare edge CDN, ready for large Film Fest exports. Upload code migration (Checkpoint 4) pending. |
+| Storage | Cloudflare R2 | All uploads + deletes go through R2 via `lib/r2.js` + Cloudflare Worker (`kassette/worker/`). Migrated from Supabase Storage 2026-04-09. Checkpoint 4 complete 2026-04-15. |
 | Database | Supabase Postgres | Scrapbook/clip metadata |
 | Deployment | Cloudflare Pages | CD from main branch via GitHub |
 | State | React Context | No Redux until complexity demands it |
@@ -1018,8 +1018,10 @@ ALTER TABLE clips ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'vid
 - Account ID: `72f8fd10fc39dcf4ee7a608fecbbadfe`
 - Credentials stored in: `kassette/scripts/.env` (gitignored)
 
-**Checkpoint 4 — still pending (next session):**
-- Update upload code in IntakeScreen + HomeScreen to PUT to R2 instead of Supabase Storage
-- Update delete operations in WorkspaceScreen, HomeScreen, ScrapbookDetailScreen
-- Requires a Cloudflare Worker to generate presigned R2 upload URLs (can't expose secret key in frontend)
-- Until then: new uploads still go to Supabase Storage (app works, just splits new vs old files across two buckets)
+**Checkpoint 4 — COMPLETE (2026-04-15):**
+- Created `kassette/worker/` — Cloudflare Worker with `POST /presign` (AWS4-signed R2 PUT URL) and `DELETE /delete` (R2 bucket binding)
+- Created `kassette/app/src/lib/r2.js` — `uploadToR2(key, file)` and `deleteFromR2(urls[])` helpers
+- Updated IntakeScreen, HomeScreen, ScrapbookDetailScreen to use `uploadToR2`
+- Updated WorkspaceScreen, HomeScreen, ScrapbookDetailScreen to use `deleteFromR2`
+- Auth: `X-Upload-Secret` shared secret between frontend and Worker
+- Worker deploy + secret setup still requires manual `wrangler` commands (see QUICK_REFERENCE.md)

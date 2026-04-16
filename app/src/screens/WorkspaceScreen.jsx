@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Play, Pause, Type, Trash2, Check, GripVertical, Volume2, VolumeX, PlusCircle, ChevronLeft, ChevronRight, Scissors, Wrench, Undo2, Image } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { deleteFromR2 } from '../lib/r2'
 import { useAuth } from '../context/AuthContext'
 import { getBlob, preloadClip, preloadRest } from '../lib/blobCache'
 import { getCached, cacheScrapbook } from '../lib/dataCache'
@@ -564,17 +565,11 @@ export default function WorkspaceScreen() {
     if (activeClipId === clipId) setActiveClipId(remaining[0]?.id ?? null)
     await supabase.from('clips').delete().eq('id', clipId)
     // Delete video + thumbnail from storage
-    const toDelete = []
-    if (clip?.video_url) {
-      const p = clip.video_url.split('/cassette-media/')[1]?.split('?')[0]
-      if (p) toDelete.push(decodeURIComponent(p))
-    }
-    if (clip?.thumbnail_url) {
-      const p = clip.thumbnail_url.split('/cassette-media/')[1]?.split('?')[0]
-      if (p) toDelete.push(decodeURIComponent(p))
-    }
     const storageShared = remaining.some(c => c.storage_path === clip?.storage_path)
-    if (toDelete.length && !storageShared) await supabase.storage.from('cassette-media').remove(toDelete)
+    if (!storageShared) {
+      const toDelete = [clip?.video_url, clip?.thumbnail_url].filter(Boolean)
+      if (toDelete.length) await deleteFromR2(toDelete)
+    }
     for (let i = 0; i < remaining.length; i++) {
       await supabase.from('clips').update({ order: i }).eq('id', remaining[i].id)
     }

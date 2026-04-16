@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Play, Search, X, MoreHorizontal, ChevronDown, Image, Shuffle, Pencil, Settings } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { uploadToR2, deleteFromR2 } from '../lib/r2'
 import { useAuth } from '../context/AuthContext'
 import { APP_VERSION } from '../version'
 
@@ -321,14 +322,15 @@ export default function HomeScreen() {
     }
     reader.readAsDataURL(file)
     const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-    const coverPath = `${session.user.id}/covers/${sbId}.${ext}`
-    const { error } = await supabase.storage.from('cassette-media').upload(coverPath, file, { cacheControl: '0', upsert: true })
-    if (error) {
+    const coverKey = `${session.user.id}/covers/${sbId}.${ext}`
+    let publicUrl
+    try {
+      publicUrl = await uploadToR2(coverKey, file)
+    } catch {
       // Revert optimistic update — upload failed
       setScrapbooks(prev => prev.map(sb => sb.id === sbId ? { ...sb, cover_image_url: prevCoverUrl } : sb))
       return
     }
-    const { data: { publicUrl } } = supabase.storage.from('cassette-media').getPublicUrl(coverPath)
     const bustUrl = `${publicUrl}?v=${Date.now()}`
     await supabase.from('scrapbooks').update({ cover_image_url: bustUrl }).eq('id', sbId)
     setScrapbooks(prev => prev.map(sb => sb.id === sbId ? { ...sb, cover_image_url: bustUrl } : sb))
@@ -340,8 +342,8 @@ export default function HomeScreen() {
     const target = scrapbooks.find(sb => sb.id === confirmDeleteId)
     setScrapbooks(prev => prev.filter(sb => sb.id !== confirmDeleteId))
     setConfirmDeleteId(null)
-    const storagePaths = (target?.clips ?? []).map(c => extractStoragePath(c.video_url)).filter(Boolean)
-    if (storagePaths.length > 0) await supabase.storage.from('cassette-media').remove(storagePaths)
+    const videoUrls = (target?.clips ?? []).map(c => c.video_url).filter(Boolean)
+    if (videoUrls.length > 0) await deleteFromR2(videoUrls)
     await supabase.from('clips').delete().eq('scrapbook_id', confirmDeleteId)
     await supabase.from('scrapbooks').delete().eq('id', confirmDeleteId)
     setDeleting(false)

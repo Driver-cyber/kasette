@@ -26,7 +26,9 @@ async function workerFetch(path, options = {}) {
 }
 
 /**
- * Upload a File/Blob to R2. Returns the public R2 URL.
+ * Upload a File/Blob to R2 via the Worker. Returns the public R2 URL.
+ * The Worker streams the body directly into R2 using its bucket binding,
+ * avoiding any CORS issues with R2's S3-compatible API.
  * @param {string} key  Storage key, e.g. `userId/scrapbookId/clipId.mp4`
  * @param {File|Blob} file
  * @param {string} [contentType]  Defaults to file.type
@@ -34,22 +36,13 @@ async function workerFetch(path, options = {}) {
 export async function uploadToR2(key, file, contentType) {
   const ct = contentType || file.type || 'application/octet-stream'
 
-  // 1. Get a presigned PUT URL from the Worker
-  const { uploadUrl } = await workerFetch('/presign', {
+  const { publicUrl } = await workerFetch(`/upload?key=${encodeURIComponent(key)}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key, contentType: ct }),
-  })
-
-  // 2. PUT the file directly to R2 (bypasses Worker — no bandwidth limit)
-  const putRes = await fetch(uploadUrl, {
-    method: 'PUT',
     headers: { 'Content-Type': ct },
     body: file,
   })
-  if (!putRes.ok) throw new Error(`R2 PUT failed: ${putRes.status}`)
 
-  return `${R2_PUBLIC_URL}/${key}`
+  return publicUrl
 }
 
 /**

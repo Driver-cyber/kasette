@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Play, Edit3, Share2, Image, Pencil, Trash2, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { uploadToR2, deleteFromR2 } from '../lib/r2'
+import { uploadToR2 } from '../lib/r2'
+import { safeDeleteClipFiles } from '../lib/mediaDelete'
 import { useAuth } from '../context/AuthContext'
 import { preloadClips, preloadRest } from '../lib/blobCache'
 import { cacheScrapbook } from '../lib/dataCache'
@@ -201,8 +202,7 @@ export default function ScrapbookDetailScreen() {
   async function handleDelete() {
     if (deleting) return
     setDeleting(true)
-    const videoUrls = clips.map(c => c.video_url).filter(Boolean)
-    if (videoUrls.length) await deleteFromR2(videoUrls)
+    await safeDeleteClipFiles(clips)
     await supabase.from('clips').delete().eq('scrapbook_id', id)
     await supabase.from('scrapbooks').delete().eq('id', id)
     navigate('/', { replace: true })

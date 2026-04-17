@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ChevronDown, Check, X, Shuffle } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Check, X, Shuffle, Bookmark } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { preloadClip, preloadClips } from '../lib/blobCache'
@@ -168,6 +168,14 @@ export default function FilmFestScreen() {
   const [comingSoon, setComingSoon] = useState(false)
   const [scrapbooksToSelect, setScrapbooksToSelect] = useState([])
   const [checkedIds, setCheckedIds] = useState(new Set())
+  const [savedConfigs, setSavedConfigs] = useState([])
+  const [showSavesSheet, setShowSavesSheet] = useState(false)
+  const [saveNameInput, setSaveNameInput] = useState('')
+  const [showSaveInput, setShowSaveInput] = useState(false)
+  const [showCombineSheet, setShowCombineSheet] = useState(false)
+  const [combineNameInput, setCombineNameInput] = useState('')
+  const [combineWorking, setCombineWorking] = useState(false)
+  const [combineError, setCombineError] = useState(null)
   const cancelledRef = useRef(false)
   const loadingSourceRef = useRef('studio') // tracks which phase to return to on cancel
 
@@ -196,8 +204,18 @@ export default function FilmFestScreen() {
       })
     }
 
+    async function fetchSavedConfigs() {
+      const { data } = await supabase
+        .from('film_fest_saves')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false })
+      setSavedConfigs(data || [])
+    }
+
     fetchYears()
     prewarm()
+    fetchSavedConfigs()
   }, [session])
 
   function toggleYear(y) {
@@ -208,6 +226,129 @@ export default function FilmFestScreen() {
   function toggleMonth(m) {
     setErrorMsg(null)
     setSelectedMonths(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m])
+  }
+
+  function handleLoadConfig(config) {
+    setSelectedYears(config.filter_config?.years || [])
+    setSelectedMonths(config.filter_config?.months || [])
+    setErrorMsg(null)
+    setShowSavesSheet(false)
+  }
+
+  async function handleSaveConfig() {
+    if (!saveNameInput.trim()) return
+    const { data } = await supabase
+      .from('film_fest_saves')
+      .insert({
+        user_id: session.user.id,
+        name: saveNameInput.trim(),
+        filter_config: { years: selectedYears, months: selectedMonths },
+      })
+      .select()
+      .single()
+    if (data) {
+      setSavedConfigs(prev => [data, ...prev])
+      setSaveNameInput('')
+      setShowSaveInput(false)
+    }
+  }
+
+  async function handleDeleteConfig(id) {
+    await supabase.from('film_fest_saves').delete().eq('id', id)
+    setSavedConfigs(prev => prev.filter(c => c.id !== id))
+  }
+
+  function openCombineSheet() {
+    const checkedBooks = scrapbooksToSelect.filter(sb => checkedIds.has(sb.id))
+    const years = [...new Set(checkedBooks.map(sb => sb.year).filter(Boolean))].sort((a, b) => a - b)
+    const suggested = years.length === 0
+      ? 'Mixtape'
+      : years.length === 1
+        ? `${years[0]} Mixtape`
+        : `${years[0]}–${years[years.length - 1]} Mixtape`
+    setCombineNameInput(suggested)
+    setCombineError(null)
+    setCombineWorking(false)
+    setShowCombineSheet(true)
+  }
+
+  async function handleCombine() {
+    if (!combineNameInput.trim() || combineWorking) return
+    setCombineWorking(true)
+    setCombineError(null)
+
+    try {
+      const checkedBooks = scrapbooksToSelect.filter(sb => checkedIds.has(sb.id))
+
+      // Derive year/month for new scrapbook
+      const years = [...new Set(checkedBooks.map(sb => sb.year).filter(Boolean))].sort((a, b) => a - b)
+      const months = [...new Set(checkedBooks.map(sb => sb.month).filter(Boolean))]
+      const newYear = years[0] ?? null
+      // Only carry month if all checked scrapbooks share the same single year and month
+      const newMonth = years.length === 1 && months.length === 1 ? months[0] : null
+      const coverUrl = checkedBooks.find(sb => sb.cover_image_url)?.cover_image_url ?? null
+
+      // Create new scrapbook
+      const { data: newScrapbook, error: sbError } = await supabase
+        .from('scrapbooks')
+        .insert({
+          user_id: session.user.id,
+          name: combineNameInput.trim(),
+          year: newYear,
+          month: newMonth,
+          cover_image_url: coverUrl,
+        })
+        .select()
+        .single()
+
+      if (sbError || !newScrapbook) throw new Error('Could not create scrapbook')
+
+      // Fetch all clips from checked scrapbooks with full metadata
+      const { data: sourceClips, error: clipFetchError } = await supabase
+        .from('clips')
+        .select('video_url, thumbnail_url, duration, trim_in, trim_out, cut_in, cut_out, caption_text, caption_x, caption_y, caption_size, recorded_at, media_type, order, scrapbook_id')
+        .in('scrapbook_id', checkedBooks.map(sb => sb.id))
+
+      if (clipFetchError) throw new Error('Could not load clips')
+
+      // Sort: preserve the user's chosen scrapbook order from the select screen, then clip order within each
+      const bookOrder = checkedBooks.map(sb => sb.id)
+      const sorted = [...(sourceClips || [])].sort((a, b) => {
+        const ai = bookOrder.indexOf(a.scrapbook_id)
+        const bi = bookOrder.indexOf(b.scrapbook_id)
+        if (ai !== bi) return ai - bi
+        return (a.order ?? 0) - (b.order ?? 0)
+      })
+
+      const clipsWithVideo = sorted.filter(c => c.video_url)
+      if (!clipsWithVideo.length) throw new Error('No clips found in selected scrapbooks')
+
+      const clipRows = clipsWithVideo.map((clip, i) => ({
+        scrapbook_id: newScrapbook.id,
+        video_url: clip.video_url,
+        thumbnail_url: clip.thumbnail_url,
+        duration: clip.duration,
+        trim_in: clip.trim_in,
+        trim_out: clip.trim_out,
+        cut_in: clip.cut_in,
+        cut_out: clip.cut_out,
+        caption_text: clip.caption_text,
+        caption_x: clip.caption_x,
+        caption_y: clip.caption_y,
+        caption_size: clip.caption_size,
+        recorded_at: clip.recorded_at,
+        media_type: clip.media_type,
+        order: i,
+      }))
+
+      const { error: insertError } = await supabase.from('clips').insert(clipRows)
+      if (insertError) throw new Error('Could not save clips')
+
+      navigate(`/scrapbook/${newScrapbook.id}`)
+    } catch (e) {
+      setCombineError(e.message || 'Something went wrong')
+      setCombineWorking(false)
+    }
   }
 
   // Watch button on studio — fetch matching scrapbooks and show select screen
@@ -371,9 +512,76 @@ export default function FilmFestScreen() {
   if (phase === 'select') {
     const allChecked = checkedIds.size === scrapbooksToSelect.length
     const noneChecked = checkedIds.size === 0
+    const checkedCount = checkedIds.size
+    const totalClipCount = scrapbooksToSelect.filter(sb => checkedIds.has(sb.id)).reduce((n, sb) => n + (sb.clips || []).filter(c => c.video_url).length, 0)
 
     return (
       <div className="flex flex-col bg-walnut" style={{ height: '100dvh' }}>
+
+        {/* Combine sheet */}
+        {showCombineSheet && (
+          <div className="fixed inset-0 z-40 flex flex-col justify-end">
+            <div
+              className="absolute inset-0"
+              style={{ background: 'rgba(26,15,8,0.8)' }}
+              onClick={() => !combineWorking && setShowCombineSheet(false)}
+            />
+            <div
+              className="relative flex flex-col rounded-t-3xl px-5 pt-6 pb-10"
+              style={{ background: '#2C1A0E' }}
+            >
+              {/* Sheet header */}
+              <div className="flex items-center justify-between mb-6 flex-shrink-0">
+                <p className="font-display font-semibold text-[19px] text-wheat">Save as New Scrapbook</p>
+                <button
+                  onClick={() => !combineWorking && setShowCombineSheet(false)}
+                  className="w-8 h-8 flex items-center justify-center active:opacity-60"
+                >
+                  <X size={18} strokeWidth={2} className="text-wheat/50" />
+                </button>
+              </div>
+
+              {/* Name input */}
+              <p className="text-rust text-[10px] font-bold tracking-[0.18em] uppercase mb-2">Name</p>
+              <input
+                type="text"
+                value={combineNameInput}
+                onChange={e => setCombineNameInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleCombine()}
+                placeholder="Give it a name…"
+                autoFocus
+                className="w-full rounded-xl px-4 py-3.5 font-display font-semibold text-[17px] text-wheat outline-none placeholder:text-rust mb-5"
+                style={{ background: '#3D2410', border: '1px solid rgba(242,162,74,0.35)' }}
+              />
+
+              {/* Summary */}
+              <div className="rounded-xl px-4 py-3.5 mb-2" style={{ background: '#3D2410' }}>
+                <p className="font-sans text-[14px] text-wheat/80 leading-relaxed">
+                  <span className="text-amber font-semibold">{totalClipCount} clip{totalClipCount !== 1 ? 's' : ''}</span>
+                  {' '}from{' '}
+                  <span className="text-amber font-semibold">{checkedCount} scrapbook{checkedCount !== 1 ? 's' : ''}</span>
+                </p>
+                <p className="font-sans text-[12px] text-rust mt-1 leading-relaxed">
+                  Clips are linked, not copied. Original scrapbooks are unchanged.
+                </p>
+              </div>
+
+              {combineError && (
+                <p className="text-sienna text-[13px] mb-3 leading-relaxed">{combineError}</p>
+              )}
+
+              {/* Create button */}
+              <button
+                onClick={handleCombine}
+                disabled={!combineNameInput.trim() || combineWorking}
+                className="w-full py-4 rounded-2xl font-sans font-bold text-[16px] text-walnut active:opacity-80 disabled:opacity-30 mt-3"
+                style={{ background: '#F2A24A' }}
+              >
+                {combineWorking ? 'Creating…' : 'Create Scrapbook'}
+              </button>
+            </div>
+          </div>
+        )}
         {/* Nav */}
         <header className="flex items-center justify-between px-5 pt-14 pb-4 flex-shrink-0">
           <button
@@ -467,15 +675,23 @@ export default function FilmFestScreen() {
           </div>
         </div>
 
-        {/* Watch button */}
-        <div className="flex-shrink-0 px-5 pb-10 pt-3">
+        {/* Action buttons */}
+        <div className="flex-shrink-0 flex gap-3 px-5 pb-10 pt-3">
           <button
             onClick={handleWatchSelected}
             disabled={noneChecked}
-            className="w-full py-4 rounded-2xl font-sans font-bold text-[16px] text-walnut active:opacity-80 disabled:opacity-30"
+            className="flex-1 py-4 rounded-2xl font-sans font-bold text-[16px] text-walnut active:opacity-80 disabled:opacity-30"
             style={{ background: '#F2A24A' }}
           >
-            Watch{checkedIds.size > 0 ? ` · ${checkedIds.size} scrapbook${checkedIds.size !== 1 ? 's' : ''}` : ''}
+            Watch{checkedIds.size > 0 ? ` · ${checkedIds.size}` : ''}
+          </button>
+          <button
+            onClick={openCombineSheet}
+            disabled={noneChecked}
+            className="flex-1 py-4 rounded-2xl font-sans font-bold text-[15px] border active:opacity-80 disabled:opacity-30"
+            style={{ borderColor: '#4A2E18', color: '#F5DEB3' }}
+          >
+            Save as Scrapbook
           </button>
         </div>
       </div>
@@ -488,6 +704,100 @@ export default function FilmFestScreen() {
 
       {comingSoon && <ComingSoonModal onClose={() => setComingSoon(false)} />}
 
+      {/* Saved filters sheet */}
+      {showSavesSheet && (
+        <div className="fixed inset-0 z-40 flex flex-col justify-end">
+          <div
+            className="absolute inset-0"
+            style={{ background: 'rgba(26,15,8,0.75)' }}
+            onClick={() => setShowSavesSheet(false)}
+          />
+          <div
+            className="relative flex flex-col rounded-t-3xl px-5 pt-6 pb-10"
+            style={{ background: '#2C1A0E', maxHeight: '75dvh' }}
+          >
+            {/* Sheet header */}
+            <div className="flex items-center justify-between mb-5 flex-shrink-0">
+              <p className="font-display font-semibold text-[19px] text-wheat">Saved Filters</p>
+              <button
+                onClick={() => setShowSavesSheet(false)}
+                className="w-8 h-8 flex items-center justify-center active:opacity-60"
+              >
+                <X size={18} strokeWidth={2} className="text-wheat/50" />
+              </button>
+            </div>
+
+            {/* Saves list */}
+            <div className="flex-1 overflow-y-auto space-y-2 mb-4">
+              {savedConfigs.length === 0 && !showSaveInput && (
+                <p className="text-rust text-sm text-center py-8 leading-relaxed">
+                  No saved filters yet.{'\n'}Set some filters and save them here.
+                </p>
+              )}
+              {savedConfigs.map(cfg => {
+                const { years = [], months = [] } = cfg.filter_config || {}
+                const yearLabel = years.length > 0 ? years.join(', ') : 'All Years'
+                const monthLabel = months.length > 0
+                  ? months.map(m => MONTH_NAMES[m - 1].slice(0, 3)).join(', ')
+                  : 'All Months'
+                return (
+                  <button
+                    key={cfg.id}
+                    onClick={() => handleLoadConfig(cfg)}
+                    className="w-full flex items-center gap-3 p-4 rounded-2xl text-left active:opacity-75"
+                    style={{ background: '#3D2410', border: '1px solid #4A2E18' }}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-display font-semibold text-[16px] text-wheat truncate">{cfg.name}</p>
+                      <p className="text-rust text-[12px] mt-0.5">{yearLabel} · {monthLabel}</p>
+                    </div>
+                    <button
+                      onClick={e => { e.stopPropagation(); handleDeleteConfig(cfg.id) }}
+                      className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full active:opacity-60"
+                      style={{ background: 'rgba(74,46,24,0.8)' }}
+                    >
+                      <X size={14} strokeWidth={2} className="text-wheat/50" />
+                    </button>
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Save input area */}
+            {showSaveInput ? (
+              <div className="flex-shrink-0 flex gap-2 items-center">
+                <input
+                  type="text"
+                  value={saveNameInput}
+                  onChange={e => setSaveNameInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSaveConfig()}
+                  placeholder="Name this filter…"
+                  autoFocus
+                  className="flex-1 rounded-xl px-4 py-3 font-sans text-[15px] text-wheat outline-none placeholder:text-rust"
+                  style={{ background: '#3D2410', border: '1px solid rgba(242,162,74,0.4)' }}
+                />
+                <button
+                  onClick={handleSaveConfig}
+                  disabled={!saveNameInput.trim()}
+                  className="flex-shrink-0 px-4 py-3 rounded-xl font-sans font-bold text-[14px] text-walnut active:opacity-80 disabled:opacity-30"
+                  style={{ background: '#F2A24A' }}
+                >
+                  Save
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowSaveInput(true)}
+                className="flex-shrink-0 w-full py-3.5 rounded-2xl font-sans font-semibold text-[15px] border active:opacity-75"
+                style={{ borderColor: 'rgba(242,162,74,0.3)', color: '#F2A24A', background: 'rgba(242,162,74,0.06)' }}
+              >
+                + Save current filters
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Nav */}
       <header className="flex items-center justify-between px-5 pt-14 pb-2 flex-shrink-0">
         <button
@@ -496,6 +806,17 @@ export default function FilmFestScreen() {
         >
           <ArrowLeft size={18} strokeWidth={2} />
           Library
+        </button>
+        <button
+          onClick={() => { setShowSaveInput(false); setShowSavesSheet(true) }}
+          className="w-10 h-10 flex items-center justify-center rounded-full active:opacity-60"
+        >
+          <Bookmark
+            size={20}
+            strokeWidth={1.75}
+            className={savedConfigs.length > 0 ? 'text-amber' : 'text-wheat/35'}
+            fill={savedConfigs.length > 0 ? 'rgba(242,162,74,0.25)' : 'none'}
+          />
         </button>
         <button
           onClick={handleSurpriseMe}

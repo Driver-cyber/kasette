@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Play, Search, X, MoreHorizontal, ChevronDown, Image, Shuffle, Pencil, Settings } from 'lucide-react'
+import { Plus, Play, Search, X, MoreHorizontal, ChevronDown, Image, Shuffle, Pencil, Settings, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { uploadToR2, deleteFromR2 } from '../lib/r2'
+import { uploadToR2 } from '../lib/r2'
+import { safeDeleteClipFiles } from '../lib/mediaDelete'
 import { useAuth } from '../context/AuthContext'
 import { APP_VERSION } from '../version'
 
@@ -188,6 +189,10 @@ export default function HomeScreen() {
   const [renameMonth, setRenameMonth] = useState(null) // 1–12 or null
   const [showVersion, setShowVersion] = useState(false)
   const [displayName, setDisplayName] = useState(null)
+  const [closedYears, setClosedYears] = useState({}) // { [year]: { id, cassette_scrapbook_id } }
+  const [yearToClose, setYearToClose] = useState(null) // year number being closed
+  const [closingYear, setClosingYear] = useState(false)
+  const [closeYearError, setCloseYearError] = useState(null)
 
   const greetings = ['Hello','Hey there','Good day','Top o\' the mornin\'','Welcome back','Howdy','G\'day','Greetings']
   const randomGreeting = useRef(greetings[Math.floor(Math.random() * greetings.length)]).current
@@ -200,6 +205,21 @@ export default function HomeScreen() {
     if (!session) return
     supabase.from('profiles').select('display_name').eq('user_id', session.user.id).single()
       .then(({ data }) => { if (data) setDisplayName(data.display_name) })
+  }, [session])
+
+  // ── Fetch closed years ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (!session) return
+    supabase
+      .from('closed_years')
+      .select('id, year, cassette_scrapbook_id')
+      .eq('user_id', session.user.id)
+      .then(({ data }) => {
+        if (!data) return
+        const map = {}
+        data.forEach(row => { map[row.year] = row })
+        setClosedYears(map)
+      })
   }, [session])
 
   // ── Fetch own scrapbooks ──────────────────────────────────────────────────
@@ -349,8 +369,7 @@ export default function HomeScreen() {
     const target = scrapbooks.find(sb => sb.id === confirmDeleteId)
     setScrapbooks(prev => prev.filter(sb => sb.id !== confirmDeleteId))
     setConfirmDeleteId(null)
-    const videoUrls = (target?.clips ?? []).map(c => c.video_url).filter(Boolean)
-    if (videoUrls.length > 0) await deleteFromR2(videoUrls)
+    await safeDeleteClipFiles(target?.clips ?? [])
     await supabase.from('clips').delete().eq('scrapbook_id', confirmDeleteId)
     await supabase.from('scrapbooks').delete().eq('id', confirmDeleteId)
     setDeleting(false)
@@ -369,6 +388,108 @@ export default function HomeScreen() {
     setScrapbooks(prev => prev.map(sb => sb.id === renameId ? { ...sb, ...updates } : sb))
     setRenameId(null)
     await supabase.from('scrapbooks').update(updates).eq('id', renameId)
+  }
+
+  // ── Close year / Annual Cassette ─────────────────────────────────────────
+  async function handleCloseYear(withCassette) {
+    if (closingYear || yearToClose === null) return
+    setClosingYear(true)
+    setCloseYearError(null)
+
+    try {
+      let cassetteId = null
+
+      if (withCassette) {
+        const yearBooks = scrapbooks.filter(
+          sb => (sb.year ?? new Date(sb.created_at).getFullYear()) === yearToClose
+        )
+        const coverUrl = yearBooks.find(sb => sb.cover_image_url)?.cover_image_url ?? null
+
+        // Create "YEAR Cassette" scrapbook
+        const { data: newSb, error: sbErr } = await supabase
+          .from('scrapbooks')
+          .insert({
+            user_id: session.user.id,
+            name: `${yearToClose} Cassette`,
+            year: yearToClose,
+            month: null,
+            cover_image_url: coverUrl,
+          })
+          .select()
+          .single()
+
+        if (sbErr || !newSb) throw new Error('Could not create the Annual Cassette')
+
+        // Fetch clips with full metadata
+        const { data: sourceClips, error: clipFetchErr } = await supabase
+          .from('clips')
+          .select('video_url, thumbnail_url, duration, trim_in, trim_out, cut_in, cut_out, caption_text, caption_x, caption_y, caption_size, recorded_at, media_type, order, scrapbook_id')
+          .in('scrapbook_id', yearBooks.map(sb => sb.id))
+
+        if (clipFetchErr) throw new Error('Could not load clips')
+
+        // Sort chronologically: Jan → Dec, ungrouped last, then clip order within each
+        const sortedBooks = [...yearBooks].sort((a, b) => {
+          const am = a.month ?? 0
+          const bm = b.month ?? 0
+          if (am === 0) return 1
+          if (bm === 0) return -1
+          return am - bm
+        })
+        const bookOrder = sortedBooks.map(sb => sb.id)
+        const sortedClips = [...(sourceClips || [])].sort((a, b) => {
+          const ai = bookOrder.indexOf(a.scrapbook_id)
+          const bi = bookOrder.indexOf(b.scrapbook_id)
+          if (ai !== bi) return ai - bi
+          return (a.order ?? 0) - (b.order ?? 0)
+        })
+
+        const clipRows = sortedClips.filter(c => c.video_url).map((clip, i) => ({
+          scrapbook_id: newSb.id,
+          video_url: clip.video_url,
+          thumbnail_url: clip.thumbnail_url,
+          duration: clip.duration,
+          trim_in: clip.trim_in,
+          trim_out: clip.trim_out,
+          cut_in: clip.cut_in,
+          cut_out: clip.cut_out,
+          caption_text: clip.caption_text,
+          caption_x: clip.caption_x,
+          caption_y: clip.caption_y,
+          caption_size: clip.caption_size,
+          recorded_at: clip.recorded_at,
+          media_type: clip.media_type,
+          order: i,
+        }))
+
+        if (clipRows.length > 0) {
+          const { error: insertErr } = await supabase.from('clips').insert(clipRows)
+          if (insertErr) throw new Error('Could not save clips')
+        }
+
+        cassetteId = newSb.id
+      }
+
+      // Record the closed year
+      const { data: closedRow, error: closeErr } = await supabase
+        .from('closed_years')
+        .insert({ user_id: session.user.id, year: yearToClose, cassette_scrapbook_id: cassetteId })
+        .select()
+        .single()
+
+      if (closeErr) throw new Error('Could not close year')
+
+      setClosedYears(prev => ({ ...prev, [yearToClose]: closedRow }))
+      setYearToClose(null)
+      setClosingYear(false)
+
+      if (withCassette && cassetteId) {
+        navigate(`/scrapbook/${cassetteId}`)
+      }
+    } catch (e) {
+      setCloseYearError(e.message || 'Something went wrong')
+      setClosingYear(false)
+    }
   }
 
   // ── Pull-to-refresh ───────────────────────────────────────────────────────
@@ -546,26 +667,55 @@ export default function HomeScreen() {
                     .filter(m => m > 0)
                     .map(m => MONTH_SHORT[m - 1])
                     .join(' · ') + (monthKeys.includes(0) ? (monthKeys.filter(m=>m>0).length > 0 ? ' · ···' : '···') : '')
+                  const isClosed = !!closedYears[year]
+                  const cassetteId = closedYears[year]?.cassette_scrapbook_id
 
                   return (
                     <div key={year} className="mb-2">
                       {/* Year header */}
-                      <button
-                        onClick={() => toggleYear(year)}
-                        className="flex items-center justify-between w-full py-2.5 active:opacity-70"
-                      >
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-between w-full py-2.5">
+                        {/* Left: collapse toggle + closed badge */}
+                        <button
+                          onClick={() => toggleYear(year)}
+                          className="flex items-center gap-2 flex-1 min-w-0 text-left active:opacity-70"
+                        >
                           <ChevronDown
                             size={14} strokeWidth={2.5}
                             className="text-rust transition-transform flex-shrink-0"
                             style={{ transform: isYearCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
                           />
                           <span className="text-rust font-sans font-bold text-[12px] tracking-[0.15em] uppercase">{year}</span>
-                        </div>
-                        {isYearCollapsed && monthPreview && (
-                          <span className="text-rust/45 text-[11px] font-sans truncate ml-4 text-right">{monthPreview}</span>
-                        )}
-                      </button>
+                          {isClosed && (
+                            <div
+                              className="flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center"
+                              style={{ background: '#F2A24A' }}
+                            >
+                              <Check size={9} strokeWidth={3} className="text-walnut" />
+                            </div>
+                          )}
+                        </button>
+                        {/* Right: cassette link / month preview / close trigger */}
+                        {isClosed && cassetteId ? (
+                          <button
+                            onClick={() => navigate(`/scrapbook/${cassetteId}`)}
+                            className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full ml-3 active:opacity-70"
+                            style={{ background: 'rgba(242,162,74,0.12)', border: '1px solid rgba(242,162,74,0.25)' }}
+                          >
+                            <span className="text-amber font-sans font-semibold text-[11px]">{year} Cassette</span>
+                          </button>
+                        ) : !isClosed && isYearCollapsed && monthPreview ? (
+                          <span className="text-rust/45 text-[11px] font-sans truncate ml-4 text-right flex-shrink-0 max-w-[50%]">{monthPreview}</span>
+                        ) : !isClosed ? (
+                          <button
+                            onClick={() => { setCloseYearError(null); setYearToClose(year) }}
+                            className="flex-shrink-0 ml-3 w-7 h-7 flex items-center justify-center rounded-full active:opacity-60"
+                            style={{ background: 'rgba(74,46,24,0.5)' }}
+                            title={`Close out ${year}`}
+                          >
+                            <Check size={12} strokeWidth={2} className="text-rust/50" />
+                          </button>
+                        ) : null}
+                      </div>
 
                       {/* Month headings + cards */}
                       {!isYearCollapsed && (
@@ -892,6 +1042,53 @@ export default function HomeScreen() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* ── Close Year sheet ── */}
+      {yearToClose !== null && (
+        <>
+          <div className="absolute inset-0 bg-black/60 z-30" onClick={() => !closingYear && setYearToClose(null)} />
+          <div className="absolute bottom-0 left-0 right-0 z-40 rounded-t-3xl border-t border-walnut-light px-5 pb-10 pt-1" style={{ background: '#2C1A0E' }}>
+            <div className="w-10 h-1 rounded-full bg-walnut-light mx-auto mt-3 mb-6" />
+            <p className="font-display font-semibold text-xl text-wheat mb-1">Close out {yearToClose}?</p>
+            {(() => {
+              const yearBooks = scrapbooks.filter(sb => (sb.year ?? new Date(sb.created_at).getFullYear()) === yearToClose)
+              const totalClips = yearBooks.reduce((n, sb) => n + (sb.clips || []).filter(c => c.video_url).length, 0)
+              return (
+                <p className="text-rust text-sm mb-8 leading-relaxed">
+                  {yearBooks.length} scrapbook{yearBooks.length !== 1 ? 's' : ''} · {totalClips} clip{totalClips !== 1 ? 's' : ''}
+                </p>
+              )
+            })()}
+
+            {closeYearError && (
+              <p className="text-sienna text-sm mb-4 leading-relaxed">{closeYearError}</p>
+            )}
+
+            <button
+              onClick={() => handleCloseYear(true)}
+              disabled={closingYear}
+              className="w-full py-4 rounded-2xl font-sans font-bold text-[16px] text-walnut active:opacity-80 disabled:opacity-40 mb-3"
+              style={{ background: '#F2A24A' }}
+            >
+              {closingYear ? 'Creating…' : `Create ${yearToClose} Cassette`}
+            </button>
+            <button
+              onClick={() => handleCloseYear(false)}
+              disabled={closingYear}
+              className="w-full py-4 rounded-2xl font-sans font-bold text-[15px] border active:opacity-80 disabled:opacity-40 mb-4"
+              style={{ borderColor: '#4A2E18', color: '#F5DEB3' }}
+            >
+              Just close the year
+            </button>
+            <button
+              onClick={() => !closingYear && setYearToClose(null)}
+              className="w-full py-3 text-center text-rust font-semibold text-[15px] active:opacity-70"
+            >
+              Cancel
+            </button>
+          </div>
+        </>
       )}
 
       {/* Hidden cover input */}

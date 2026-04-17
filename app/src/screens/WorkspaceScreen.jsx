@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Play, Pause, Type, Trash2, Check, GripVertical, Volume2, VolumeX, PlusCircle, ChevronLeft, ChevronRight, Scissors, Wrench, Undo2, Image } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { deleteFromR2 } from '../lib/r2'
+import { safeDeleteClipFiles } from '../lib/mediaDelete'
 import { useAuth } from '../context/AuthContext'
 import { getBlob, preloadClip, preloadRest } from '../lib/blobCache'
 import { getCached, cacheScrapbook } from '../lib/dataCache'
@@ -564,12 +564,8 @@ export default function WorkspaceScreen() {
     setClips(remaining)
     if (activeClipId === clipId) setActiveClipId(remaining[0]?.id ?? null)
     await supabase.from('clips').delete().eq('id', clipId)
-    // Delete video + thumbnail from storage
-    const storageShared = remaining.some(c => c.storage_path === clip?.storage_path)
-    if (!storageShared) {
-      const toDelete = [clip?.video_url, clip?.thumbnail_url].filter(Boolean)
-      if (toDelete.length) await deleteFromR2(toDelete)
-    }
+    // Only delete R2 files if no other clips (in any scrapbook) reference the same URLs
+    if (clip) await safeDeleteClipFiles([clip])
     for (let i = 0; i < remaining.length; i++) {
       await supabase.from('clips').update({ order: i }).eq('id', remaining[i].id)
     }

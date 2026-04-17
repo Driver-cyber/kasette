@@ -163,10 +163,13 @@ export default function FilmFestScreen() {
   const [availableYears, setAvailableYears] = useState([])
   const [selectedYears, setSelectedYears] = useState([])   // empty = all
   const [selectedMonths, setSelectedMonths] = useState([]) // empty = all
-  const [phase, setPhase] = useState('studio')             // 'studio' | 'loading'
+  const [phase, setPhase] = useState('studio')             // 'studio' | 'select' | 'loading' | 'loading-surprise'
   const [errorMsg, setErrorMsg] = useState(null)
   const [comingSoon, setComingSoon] = useState(false)
+  const [scrapbooksToSelect, setScrapbooksToSelect] = useState([])
+  const [checkedIds, setCheckedIds] = useState(new Set())
   const cancelledRef = useRef(false)
+  const loadingSourceRef = useRef('studio') // tracks which phase to return to on cancel
 
   // Fetch available years + prewarm blob cache in parallel on mount
   useEffect(() => {
@@ -207,48 +210,55 @@ export default function FilmFestScreen() {
     setSelectedMonths(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m])
   }
 
+  // Watch button on studio — fetch matching scrapbooks and show select screen
   async function handleWatch() {
-    cancelledRef.current = false
-    setPhase('loading')
     setErrorMsg(null)
 
+    let query = supabase
+      .from('scrapbooks')
+      .select(`id, name, year, month, cover_image_url, created_at, clips(${CLIP_SELECT})`)
+      .eq('user_id', session.user.id)
+      .order('year', { ascending: false })
+
+    if (selectedYears.length > 0) query = query.in('year', selectedYears)
+    if (selectedMonths.length > 0) query = query.in('month', selectedMonths)
+
+    const { data: books } = await query
+    const withClips = (books || []).filter(sb => (sb.clips || []).some(c => c.video_url))
+
+    if (withClips.length === 0) {
+      setErrorMsg('No clips found for those filters. Try a broader selection.')
+      return
+    }
+
+    setScrapbooksToSelect(withClips)
+    setCheckedIds(new Set(withClips.map(sb => sb.id)))
+    setPhase('select')
+  }
+
+  // Watch button on select screen — preload and navigate to Discovery
+  async function handleWatchSelected() {
+    cancelledRef.current = false
+    loadingSourceRef.current = 'select'
+    setPhase('loading')
+
     try {
-      let query = supabase
-        .from('scrapbooks')
-        .select(`id, name, year, month, created_at, clips(${CLIP_SELECT})`)
-        .eq('user_id', session.user.id)
-
-      if (selectedYears.length > 0) query = query.in('year', selectedYears)
-      if (selectedMonths.length > 0) query = query.in('month', selectedMonths)
-
-      const { data: scrapbooks } = await query
-
+      const selectedBooks = scrapbooksToSelect.filter(sb => checkedIds.has(sb.id))
       const pool = []
-      for (const sb of scrapbooks || []) {
+      for (const sb of selectedBooks) {
         for (const clip of sb.clips || []) {
           if (clip.video_url) {
             pool.push({
               ...clip,
-              scrapbook: {
-                id: sb.id,
-                name: sb.name,
-                year: sb.year ?? new Date(sb.created_at).getFullYear(),
-              },
+              scrapbook: { id: sb.id, name: sb.name, year: sb.year ?? new Date(sb.created_at).getFullYear() },
             })
           }
         }
       }
 
-      if (pool.length === 0) {
-        setPhase('studio')
-        setErrorMsg('No clips found for those filters. Try a broader selection.')
-        return
-      }
+      if (pool.length === 0) { setPhase('select'); return }
 
-      // Preload thumbnail images
       pool.forEach(c => { if (c.thumbnail_url) { const img = new Image(); img.src = c.thumbnail_url } })
-
-      // Min 2s delay + first 3 clips ready
       const minDelay = new Promise(r => setTimeout(r, 2000))
       const firstReady = preloadClips(pool, Math.min(3, pool.length))
       pool.slice(3).forEach(c => preloadClip(c.video_url))
@@ -257,13 +267,13 @@ export default function FilmFestScreen() {
       if (cancelledRef.current) return
       navigate('/discover', { state: { clips: pool, isRemix: true, screenTitle: 'Film Fest' } })
     } catch {
-      setPhase('studio')
-      setErrorMsg('Something went wrong. Try again.')
+      setPhase('select')
     }
   }
 
   async function handleSurpriseMe() {
     cancelledRef.current = false
+    loadingSourceRef.current = 'studio'
     setPhase('loading-surprise')
     setErrorMsg(null)
 
@@ -335,7 +345,7 @@ export default function FilmFestScreen() {
         style={{ height: '100dvh' }}
       >
         <button
-          onClick={() => { cancelledRef.current = true; setPhase('studio') }}
+          onClick={() => { cancelledRef.current = true; setPhase(loadingSourceRef.current) }}
           className="absolute top-14 right-5 w-10 h-10 flex items-center justify-center rounded-full active:opacity-60"
           style={{ background: 'rgba(74,46,24,0.6)' }}
         >
@@ -352,6 +362,121 @@ export default function FilmFestScreen() {
           <p className="text-rust text-sm leading-relaxed">
             {isSurprise ? 'Picking a mix just for you' : 'Loading clips for your Film Fest'}
           </p>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Select screen ────────────────────────────────────────────────────────────
+  if (phase === 'select') {
+    const allChecked = checkedIds.size === scrapbooksToSelect.length
+    const noneChecked = checkedIds.size === 0
+
+    return (
+      <div className="flex flex-col bg-walnut" style={{ height: '100dvh' }}>
+        {/* Nav */}
+        <header className="flex items-center justify-between px-5 pt-14 pb-4 flex-shrink-0">
+          <button
+            onClick={() => setPhase('studio')}
+            className="flex items-center gap-1.5 text-wheat/45 font-sans text-[15px] font-semibold active:opacity-60"
+          >
+            <ArrowLeft size={18} strokeWidth={2} />
+            Filters
+          </button>
+          <p className="font-display font-semibold text-[17px] text-wheat">Your Film Fest</p>
+          <button
+            onClick={() => setCheckedIds(allChecked ? new Set() : new Set(scrapbooksToSelect.map(sb => sb.id)))}
+            className="font-sans font-semibold text-[13px] text-amber active:opacity-70"
+          >
+            {allChecked ? 'Deselect all' : 'Select all'}
+          </button>
+        </header>
+
+        {/* Filter summary pills */}
+        {(selectedYears.length > 0 || selectedMonths.length > 0) && (
+          <div className="px-5 pb-3 flex-shrink-0 flex gap-2 flex-wrap">
+            {selectedYears.length > 0 && (
+              <div className="rounded-full px-3 py-1" style={{ background: 'rgba(242,162,74,0.12)', border: '1px solid rgba(242,162,74,0.25)' }}>
+                <span className="text-amber font-sans text-[12px] font-semibold">{selectedYears.join(', ')}</span>
+              </div>
+            )}
+            {selectedMonths.length > 0 && (
+              <div className="rounded-full px-3 py-1" style={{ background: 'rgba(242,162,74,0.12)', border: '1px solid rgba(242,162,74,0.25)' }}>
+                <span className="text-amber font-sans text-[12px] font-semibold">
+                  {selectedMonths.map(m => MONTH_NAMES[m - 1].slice(0, 3)).join(', ')}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Scrapbook list */}
+        <div className="flex-1 overflow-y-auto px-5 pb-4">
+          <div className="space-y-2">
+            {scrapbooksToSelect.map(sb => {
+              const isChecked = checkedIds.has(sb.id)
+              const clipCount = (sb.clips || []).length
+              const dateLabel = [
+                sb.year,
+                sb.month ? MONTH_NAMES[sb.month - 1] : null,
+              ].filter(Boolean).join(' · ')
+
+              return (
+                <button
+                  key={sb.id}
+                  onClick={() => setCheckedIds(prev => {
+                    const n = new Set(prev)
+                    n.has(sb.id) ? n.delete(sb.id) : n.add(sb.id)
+                    return n
+                  })}
+                  className="w-full flex items-center gap-3.5 p-3 rounded-2xl active:opacity-75"
+                  style={{
+                    background: isChecked ? 'rgba(242,162,74,0.08)' : '#3D2410',
+                    border: `1px solid ${isChecked ? 'rgba(242,162,74,0.3)' : '#4A2E18'}`,
+                  }}
+                >
+                  {/* Cover thumb */}
+                  <div className="w-[52px] h-[52px] rounded-xl overflow-hidden flex-shrink-0" style={{ background: '#2C1A0E' }}>
+                    {sb.cover_image_url
+                      ? <img src={sb.cover_image_url} alt="" className="w-full h-full object-cover" />
+                      : <div className="w-full h-full" style={{ background: 'linear-gradient(135deg, #4A2010 0%, #2C1A0E 100%)' }} />
+                    }
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="font-display font-semibold text-[16px] text-wheat truncate leading-snug">{sb.name}</p>
+                    <p className="text-rust text-[11px] mt-0.5">
+                      {dateLabel}{dateLabel ? ' · ' : ''}{clipCount} clip{clipCount !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+
+                  {/* Checkbox */}
+                  <div
+                    className="flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center"
+                    style={{
+                      background: isChecked ? '#F2A24A' : 'transparent',
+                      border: `1.5px solid ${isChecked ? '#F2A24A' : '#4A2E18'}`,
+                    }}
+                  >
+                    {isChecked && <Check size={13} strokeWidth={2.5} className="text-walnut" />}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Watch button */}
+        <div className="flex-shrink-0 px-5 pb-10 pt-3">
+          <button
+            onClick={handleWatchSelected}
+            disabled={noneChecked}
+            className="w-full py-4 rounded-2xl font-sans font-bold text-[16px] text-walnut active:opacity-80 disabled:opacity-30"
+            style={{ background: '#F2A24A' }}
+          >
+            Watch{checkedIds.size > 0 ? ` · ${checkedIds.size} scrapbook${checkedIds.size !== 1 ? 's' : ''}` : ''}
+          </button>
         </div>
       </div>
     )

@@ -109,7 +109,6 @@ function formatSummaryRange(items) {
   return `${min.toLocaleDateString('en-US', { ...opts, year: 'numeric' })}–${max.toLocaleDateString('en-US', { ...opts, year: 'numeric' })}`
 }
 
-const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
 function Reel({ reverse = false }) {
   return (
@@ -819,16 +818,6 @@ export default function IntakeScreen() {
                 return { value: y, label: String(y) }
               })}
               onChange={setYear}
-            />
-
-            {/* Month picker */}
-            <p className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase mb-2">
-              Month
-            </p>
-            <PickerDropdown
-              value={month}
-              options={MONTH_NAMES.map((name, i) => ({ value: i + 1, label: name }))}
-              onChange={setMonth}
             />
 
             {/* Cover picker */}

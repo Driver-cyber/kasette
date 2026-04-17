@@ -24,6 +24,24 @@ function hashId(id) {
   return Math.abs(h)
 }
 
+async function resizeCoverImage(file, maxWidth = 800) {
+  return new Promise((resolve) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+      URL.revokeObjectURL(url)
+      canvas.toBlob(blob => resolve(blob ?? file), 'image/jpeg', 0.85)
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
+    img.src = url
+  })
+}
+
 function formatCardDuration(seconds) {
   if (!seconds) return ''
   const total = Math.round(seconds)
@@ -155,8 +173,11 @@ export default function HomeScreen() {
   const [activeTab, setActiveTab] = useState('yours') // 'yours' | 'shared'
   const [sharedView, setSharedView] = useState('feed') // 'feed' | 'byPerson'
   const [collapsedYears, setCollapsedYears] = useState(new Set())
-  const [collapsedMonths, setCollapsedMonths] = useState(new Set())
   const [collapsedOwners, setCollapsedOwners] = useState(new Set())
+  const [refreshing, setRefreshing] = useState(false)
+  const [pullY, setPullY] = useState(0)
+  const mainRef = useRef(null)
+  const pullStartY = useRef(null)
   const [optionsId, setOptionsId] = useState(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [deleting, setDeleting] = useState(false)
@@ -220,24 +241,13 @@ export default function HomeScreen() {
       })
   }, [session])
 
-  // ── Default expansion: current year + most recent month auto-open ─────────
+  // ── Default expansion: current year auto-open ─────────────────────────────
   useEffect(() => {
     if (scrapbooks.length === 0 || initDone.current) return
     initDone.current = true
     const currentYear = new Date().getFullYear()
     const allYears = [...new Set(scrapbooks.map(sb => sb.year ?? new Date(sb.created_at).getFullYear()))]
     setCollapsedYears(new Set(allYears.filter(y => y !== currentYear)))
-    const currentYearBooks = scrapbooks.filter(sb =>
-      (sb.year ?? new Date(sb.created_at).getFullYear()) === currentYear
-    )
-    const months = currentYearBooks.map(sb => sb.month ?? 0).filter(m => m > 0)
-    const mostRecentMonth = months.length > 0 ? Math.max(...months) : 0
-    const allMonthKeys = new Set(scrapbooks.map(sb => {
-      const y = sb.year ?? new Date(sb.created_at).getFullYear()
-      return `${y}-${sb.month ?? 0}`
-    }))
-    const expandKey = mostRecentMonth > 0 ? `${currentYear}-${mostRecentMonth}` : null
-    setCollapsedMonths(new Set([...allMonthKeys].filter(k => k !== expandKey)))
   }, [scrapbooks])
 
   // ── Search focus ──────────────────────────────────────────────────────────
@@ -249,9 +259,6 @@ export default function HomeScreen() {
 
   function toggleYear(year) {
     setCollapsedYears(prev => { const n = new Set(prev); n.has(year) ? n.delete(year) : n.add(year); return n })
-  }
-  function toggleMonth(key) {
-    setCollapsedMonths(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
   }
   function toggleOwner(ownerId) {
     setCollapsedOwners(prev => { const n = new Set(prev); n.has(ownerId) ? n.delete(ownerId) : n.add(ownerId); return n })
@@ -321,11 +328,11 @@ export default function HomeScreen() {
       setScrapbooks(prev => prev.map(sb => sb.id === sbId ? { ...sb, cover_image_url: ev.target.result } : sb))
     }
     reader.readAsDataURL(file)
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-    const coverKey = `${session.user.id}/covers/${sbId}.${ext}`
+    const resized = await resizeCoverImage(file)
+    const coverKey = `${session.user.id}/covers/${sbId}.jpg`
     let publicUrl
     try {
-      publicUrl = await uploadToR2(coverKey, file)
+      publicUrl = await uploadToR2(coverKey, resized, 'image/jpeg')
     } catch {
       // Revert optimistic update — upload failed
       setScrapbooks(prev => prev.map(sb => sb.id === sbId ? { ...sb, cover_image_url: prevCoverUrl } : sb))
@@ -362,6 +369,43 @@ export default function HomeScreen() {
     setScrapbooks(prev => prev.map(sb => sb.id === renameId ? { ...sb, ...updates } : sb))
     setRenameId(null)
     await supabase.from('scrapbooks').update(updates).eq('id', renameId)
+  }
+
+  // ── Pull-to-refresh ───────────────────────────────────────────────────────
+  async function triggerRefresh() {
+    if (refreshing || !session) return
+    setRefreshing(true)
+    setPullY(0)
+    const { data, error } = await supabase
+      .from('scrapbooks')
+      .select('*, clips(id, video_url, duration, trim_in, trim_out, recorded_at)')
+      .eq('user_id', session.user.id)
+      .order('created_at', { ascending: false })
+    if (!error && data) setScrapbooks(data)
+    setRefreshing(false)
+  }
+
+  function handlePullStart(e) {
+    const el = mainRef.current
+    if (!el || el.scrollTop > 0) return
+    pullStartY.current = e.touches[0].clientY
+  }
+
+  function handlePullMove(e) {
+    if (pullStartY.current == null) return
+    const dy = e.touches[0].clientY - pullStartY.current
+    if (dy <= 0) { pullStartY.current = null; setPullY(0); return }
+    setPullY(Math.min(dy * 0.5, 68))
+  }
+
+  function handlePullEnd() {
+    if (pullStartY.current == null) return
+    pullStartY.current = null
+    if (pullY >= 52) {
+      triggerRefresh()
+    } else {
+      setPullY(0)
+    }
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -449,7 +493,26 @@ export default function HomeScreen() {
       </div>
 
       {/* Main scroll area */}
-      <main className="flex-1 overflow-y-auto pb-24">
+      <main
+        ref={mainRef}
+        className="flex-1 overflow-y-auto pb-24"
+        onTouchStart={handlePullStart}
+        onTouchMove={handlePullMove}
+        onTouchEnd={handlePullEnd}
+      >
+
+        {/* Pull-to-refresh indicator */}
+        {(pullY > 0 || refreshing) && (
+          <div
+            className="flex items-center justify-center overflow-hidden"
+            style={{ height: refreshing ? 44 : pullY, transition: pullY === 0 ? 'height 0.2s ease' : 'none' }}
+          >
+            <div
+              className={`w-6 h-6 rounded-full border-2 border-amber border-t-transparent ${refreshing ? 'animate-spin' : ''}`}
+              style={{ opacity: Math.min((refreshing ? 52 : pullY) / 52, 1) }}
+            />
+          </div>
+        )}
 
         {/* ── YOUR SCRAPBOOKS TAB ── */}
         {activeTab === 'yours' && (
@@ -504,44 +567,28 @@ export default function HomeScreen() {
                         )}
                       </button>
 
-                      {/* Month subfolders */}
+                      {/* Month headings + cards */}
                       {!isYearCollapsed && (
-                        <div className="space-y-1 ml-1">
+                        <div className="space-y-1">
                           {monthKeys.map((m) => {
-                            const monthKey = `${year}-${m}`
-                            const isMonthCollapsed = collapsedMonths.has(monthKey)
                             const monthScrapbooks = grouped[year][m]
                             const label = m === 0 ? '···' : MONTH_NAMES[m - 1]
-
                             return (
-                              <div key={monthKey} className="mb-1">
-                                {/* Month header */}
-                                <button
-                                  onClick={() => toggleMonth(monthKey)}
-                                  className="flex items-center gap-2 w-full py-2 pl-3 active:opacity-70"
-                                >
-                                  <ChevronDown
-                                    size={13} strokeWidth={2.5}
-                                    className="text-rust/60 transition-transform flex-shrink-0"
-                                    style={{ transform: isMonthCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
-                                  />
-                                  <span className="text-rust/70 font-sans font-semibold text-[11px] tracking-wider uppercase">{label}</span>
-                                  <span className="text-rust/35 font-sans text-[10px]">{monthScrapbooks.length}</span>
-                                </button>
-
-                                {/* Cards */}
-                                {!isMonthCollapsed && (
-                                  <div className="grid gap-4 pl-1 pb-2">
-                                    {monthScrapbooks.map((sb) => (
-                                      <ScrapbookCard
-                                        key={sb.id}
-                                        scrapbook={sb}
-                                        onClick={() => navigate(`/scrapbook/${sb.id}`)}
-                                        onOptionsPress={() => setOptionsId(sb.id)}
-                                      />
-                                    ))}
-                                  </div>
-                                )}
+                              <div key={`${year}-${m}`} className="mb-3">
+                                <div className="flex items-center gap-2 py-1.5 mb-2">
+                                  <span className="text-rust/55 font-sans font-semibold text-[10px] tracking-[0.15em] uppercase flex-shrink-0">{label}</span>
+                                  <div className="flex-1 h-px" style={{ background: '#3D2410' }} />
+                                </div>
+                                <div className="grid gap-4">
+                                  {monthScrapbooks.map((sb) => (
+                                    <ScrapbookCard
+                                      key={sb.id}
+                                      scrapbook={sb}
+                                      onClick={() => navigate(`/scrapbook/${sb.id}`)}
+                                      onOptionsPress={() => setOptionsId(sb.id)}
+                                    />
+                                  ))}
+                                </div>
                               </div>
                             )
                           })}

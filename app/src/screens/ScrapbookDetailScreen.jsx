@@ -1,12 +1,68 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Play, Edit3, Share2, Image, Pencil, Trash2 } from 'lucide-react'
+import { ArrowLeft, Play, Edit3, Share2, Image, Pencil, Trash2, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { uploadToR2, deleteFromR2 } from '../lib/r2'
 import { useAuth } from '../context/AuthContext'
 import { preloadClips, preloadRest } from '../lib/blobCache'
 import { cacheScrapbook } from '../lib/dataCache'
 import { exportScrapbook } from '../lib/export'
+
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+function PickerDropdown({ value, options, onChange }) {
+  const [open, setOpen] = useState(false)
+  const selectedLabel = options.find(o => o.value === value)?.label ?? '···'
+  return (
+    <div className="relative mb-4">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between rounded-xl px-4 py-3 border border-walnut-light active:opacity-80"
+        style={{ background: '#2C1A0E' }}
+      >
+        <span className="font-display font-bold text-[18px] text-wheat">{selectedLabel}</span>
+        <ChevronDown size={18} strokeWidth={1.75} className="text-amber" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 right-0 top-full mt-1 rounded-xl border border-walnut-light z-[70] overflow-y-auto" style={{ background: '#2C1A0E', maxHeight: 210 }}>
+            {options.map(opt => (
+              <button
+                key={String(opt.value)}
+                onClick={() => { onChange(opt.value); setOpen(false) }}
+                className="w-full px-4 py-3 text-left border-b active:opacity-70"
+                style={{ borderColor: '#3D2410', background: opt.value === value ? 'rgba(242,162,74,0.10)' : 'transparent' }}
+              >
+                <span className="font-display font-semibold text-[16px]" style={{ color: opt.value === value ? '#F2A24A' : '#F5DEB3' }}>
+                  {opt.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+async function resizeCoverImage(file, maxWidth = 800) {
+  return new Promise((resolve) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+      URL.revokeObjectURL(url)
+      canvas.toBlob(blob => resolve(blob ?? file), 'image/jpeg', 0.85)
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
+    img.src = url
+  })
+}
 
 const CARD_GRADIENTS = [
   'linear-gradient(135deg, #6B2D0E 0%, #3D1A0A 40%, #8B3A18 100%)',
@@ -68,6 +124,8 @@ export default function ScrapbookDetailScreen() {
   const [isLaunching, setIsLaunching] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [renameDraft, setRenameDraft] = useState('')
+  const [renameYear, setRenameYear] = useState(new Date().getFullYear())
+  const [renameMonth, setRenameMonth] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [exportState, setExportState] = useState(null) // null | {phase,current,total} | 'done' | {error}
@@ -117,9 +175,10 @@ export default function ScrapbookDetailScreen() {
   async function handleRename() {
     const name = renameDraft.trim()
     if (!name) return
-    setScrapbook(s => ({ ...s, name }))
+    const updates = { name, year: renameYear, month: renameMonth ?? null }
+    setScrapbook(s => ({ ...s, ...updates }))
     setRenaming(false)
-    await supabase.from('scrapbooks').update({ name }).eq('id', id)
+    await supabase.from('scrapbooks').update(updates).eq('id', id)
   }
 
   async function handleCoverChange(e) {
@@ -129,10 +188,10 @@ export default function ScrapbookDetailScreen() {
     const reader = new FileReader()
     reader.onload = ev => setScrapbook(s => ({ ...s, cover_image_url: ev.target.result }))
     reader.readAsDataURL(file)
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-    const coverKey = `${session.user.id}/covers/${id}.${ext}`
+    const resized = await resizeCoverImage(file)
+    const coverKey = `${session.user.id}/covers/${id}.jpg`
     try {
-      const publicUrl = await uploadToR2(coverKey, file)
+      const publicUrl = await uploadToR2(coverKey, resized, 'image/jpeg')
       const bustUrl = `${publicUrl}?v=${Date.now()}`
       await supabase.from('scrapbooks').update({ cover_image_url: bustUrl }).eq('id', id)
       setScrapbook(s => ({ ...s, cover_image_url: bustUrl }))
@@ -282,11 +341,11 @@ export default function ScrapbookDetailScreen() {
           <div className="rounded-2xl overflow-hidden border border-walnut-light mb-4" style={{ background: '#3D2410' }}>
             {/* Rename */}
             <button
-              onClick={() => { setRenameDraft(scrapbook?.name || ''); setRenaming(true) }}
+              onClick={() => { setRenameDraft(scrapbook?.name || ''); setRenameYear(scrapbook?.year ?? new Date().getFullYear()); setRenameMonth(scrapbook?.month ?? null); setRenaming(true) }}
               className="w-full flex items-center gap-3 px-4 py-3.5 active:opacity-75 border-b border-walnut-light"
             >
               <Pencil size={16} strokeWidth={1.75} className="text-rust" />
-              <span className="text-wheat/80 text-[14px] font-sans font-medium">Rename</span>
+              <span className="text-wheat/80 text-[14px] font-sans font-medium">Rename &amp; Redate</span>
             </button>
             {/* Change cover */}
             <button
@@ -382,14 +441,15 @@ export default function ScrapbookDetailScreen() {
         </div>
       )}
 
-      {/* ── Rename sheet ── */}
+      {/* ── Rename & Redate sheet ── */}
       {renaming && (
         <>
           <div className="absolute inset-0 bg-black/50 z-40" onClick={() => setRenaming(false)} />
           <div className="absolute bottom-0 left-0 right-0 z-50 rounded-t-3xl border-t border-walnut-light px-5 pb-10 pt-1"
             style={{ background: '#3D2410' }}>
             <div className="w-10 h-1 rounded-full bg-walnut-light mx-auto mt-3 mb-5" />
-            <p className="font-display font-semibold text-lg text-wheat mb-4 px-1">Rename Scrapbook</p>
+            <p className="font-display font-semibold text-lg text-wheat mb-5 px-1">Rename &amp; Redate</p>
+            <p className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase mb-2">Name</p>
             <input
               type="text"
               value={renameDraft}
@@ -397,8 +457,26 @@ export default function ScrapbookDetailScreen() {
               onKeyDown={e => e.key === 'Enter' && handleRename()}
               autoFocus
               maxLength={60}
-              className="w-full px-4 py-3.5 rounded-2xl text-wheat text-[15px] font-sans outline-none mb-3 caret-amber"
+              className="w-full px-4 py-3.5 rounded-2xl text-wheat text-[15px] font-sans outline-none mb-4 caret-amber"
               style={{ background: '#2C1A0E', border: '1px solid #4A2E18' }}
+            />
+            <p className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase mb-2">Year</p>
+            <PickerDropdown
+              value={renameYear}
+              options={Array.from({ length: new Date().getFullYear() - 2014 }, (_, i) => {
+                const y = new Date().getFullYear() - i
+                return { value: y, label: String(y) }
+              })}
+              onChange={setRenameYear}
+            />
+            <p className="text-rust text-[9px] font-bold tracking-[0.18em] uppercase mb-2">Month</p>
+            <PickerDropdown
+              value={renameMonth}
+              options={[
+                { value: null, label: '···' },
+                ...MONTH_NAMES.map((n, i) => ({ value: i + 1, label: n }))
+              ]}
+              onChange={setRenameMonth}
             />
             <button
               onClick={handleRename}

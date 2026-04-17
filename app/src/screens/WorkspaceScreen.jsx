@@ -807,11 +807,11 @@ export default function WorkspaceScreen() {
             </button>
           )}
           <button
-            onClick={() => navigate(`/scrapbook/${id}/watch`)}
+            onClick={() => navigate(`/scrapbook/${id}`)}
             className="flex items-center gap-1.5 bg-amber text-walnut font-sans font-bold text-[13px] rounded-full px-5 py-2 active:opacity-80"
           >
-            <Play size={13} fill="currentColor" strokeWidth={0} />
-            Watch
+            <Check size={13} strokeWidth={3} />
+            Save
           </button>
         </div>
       </header>

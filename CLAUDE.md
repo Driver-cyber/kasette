@@ -125,13 +125,14 @@ All UI must use the Cassette brand system. Never deviate without a plan approval
 Two-tab library view. Rebuilt 2026-03-29.
 
 **"Your Scrapbooks" tab:**
-- Two-level collapsible hierarchy: Year folder → Month subfolders (1–12, or `···` for ungrouped)
+- Two-level hierarchy: Year folder (collapsible) → Month headings (flat, not collapsible) → scrapbooks
+- Months appear as small rust uppercase headings with a thin divider line — not folders, not clickable
 - Collapsed year shows inline month name preview: `2026  Jun · Mar · ···`
-- On first load: current year + most recent month auto-expanded; all others collapsed. `initDone` ref prevents re-running default expansion.
-- Collapse state: `collapsedYears` (Set of year ints) + `collapsedMonths` (Set of `"year-month"` strings)
+- On first load: current year auto-expanded; all other years collapsed. `initDone` ref prevents re-running.
+- Collapse state: `collapsedYears` (Set of year ints) only — no `collapsedMonths`
 - Grouped data structure: `{ [year]: { [month]: scrapbook[] } }` — month `0` = ungrouped `···` bucket, sorted last
 - FAB (+ button) only visible on this tab
-- **Rename & Redate sheet:** Replaces old Rename — adds year stepper + month stepper so old scrapbooks can be retroactively assigned a month folder. Month cycles: left from 1 → null (···), right from 12 → null, right from null → 1.
+- Pull-to-refresh: touch handlers on `<main ref={mainRef}>` — pull down from top to re-fetch scrapbooks, amber spinner indicator slides in
 
 **"Shared" tab:**
 - Amber 2px dot on tab button when any share has `seen: false`
@@ -178,7 +179,7 @@ Hub screen when you tap a scrapbook from Home. Shows cover, title, clip count, d
 The editing environment. Fixed layout — everything visible at once.
 
 **Layout (top to bottom, fixed):**
-- **Nav bar:** Back (←) left → navigates to `/scrapbook/:id` (ScrapbookDetailScreen). Scrapbook title center. Undo + **Watch** right. Watch → navigates to `/scrapbook/:id/watch` (PlaybackScreen). A small amber `saved` text flashes for 2.5s after any auto-save fires from `saveClipChanges`.
+- **Nav bar:** Back (←) left → navigates to `/scrapbook/:id` (ScrapbookDetailScreen). Scrapbook title center. Undo (when available) + **Save** (amber pill) right. Save → navigates to `/scrapbook/:id`. A small amber `saved` text flashes for 2.5s after any auto-save fires from `saveClipChanges`. Changes are auto-saved throughout so Save is a navigation action only.
 - **Preview zone (flex-1):** Selected clip preview with poster thumbnail. `preload="auto"`.
 - **Mini timeline:** 6px slim progress bar above clip strip. Shows amber kept region, dark trimmed regions, white playhead. Expands to full trim/split filmstrip when TRIM or SPLIT tool is active.
 - **Crafting drawer (collapsible):** Header row: `[TRIM] | [SPLIT] | [TOOLS]` tabs. TOOLS is a toggle that shows/hides Caption, Reorder, Remove tool row. Trim timestamps shown in drawer header row only when TRIM active.

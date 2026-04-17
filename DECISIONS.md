@@ -1000,6 +1000,47 @@ ALTER TABLE clips ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'vid
 
 ---
 
+### [2026-04-16] — Session: UX Polish + Home Library Redesign + Film Fest Select
+
+**R2 confirmed working:** Test scrapbook created, clips uploaded, workspace used, export produced a working MP4. Full R2 migration verified end-to-end.
+
+**Workspace: Save replaces Watch**
+- Amber "▶ Watch" → "✓ Save". Navigates to `/scrapbook/:id` (detail screen) on tap.
+- Why: "Watch" implied playback was about to start, which was confusing after editing.
+
+**Cover image optimization**
+- `resizeCoverImage(file, maxWidth=800)` helper added to both `HomeScreen` and `ScrapbookDetailScreen`. Canvas-resizes all new cover uploads to max 800px wide, 85% JPEG, before uploading to R2. Always stored as `.jpg`.
+
+**Pull-to-refresh on Home**
+- Touch handlers on `<main ref={mainRef}>` scroll container. Pull down from top → amber spinner fades in → release past 52px threshold → re-fetches own scrapbooks. Springs back if released early.
+
+**Home library: months as flat headings**
+- Month folders (collapsible) removed entirely. Months are now flat rust uppercase headings with a thin divider line between them.
+- `collapsedMonths` state and `toggleMonth` function removed from HomeScreen.
+- Only years remain collapsible. `initDone` simplified to just collapse non-current years.
+
+**IntakeScreen: month picker removed**
+- Month PickerDropdown removed from the name sheet. Month still auto-sets silently from the earliest clip's `recorded_at` and is saved to the DB row.
+- User sets name + year only at intake. Month is editable later from the detail screen.
+
+**ScrapbookDetailScreen: Rename & Redate**
+- "Rename" button expanded to "Rename & Redate" — sheet now includes year + month PickerDropdowns alongside the name input.
+- `handleRename` saves `{ name, year, month }` together.
+
+**Film Fest: scrapbook select screen (phase `'select'`)**
+- "Watch" on Film Fest no longer goes straight to the loading screen. It fetches matching scrapbooks and shows a select list (new `'select'` phase in `RemixScreen`).
+- List shows all matching scrapbooks with cover thumb + name + date + clip count + amber checkbox, all pre-checked.
+- User unchecks any scrapbooks they don't want. "Watch · N scrapbooks" button at bottom launches.
+- "Filters" back button returns to the studio screen. Cancel from loading screen returns to select screen (not studio).
+- `loadingSourceRef` tracks which phase to cancel back to.
+
+**Combine-to-scrapbook decision: reference R2 files, don't copy**
+- When combining scrapbooks (Film Fest #3, Year Reel #4), new scrapbook clip rows will reference the same R2 `video_url`/`thumbnail_url` as the originals. No re-encoding, no file duplication.
+- Combined scrapbooks are viewing/export playlists — original scrapbooks remain intact and independent.
+- Delete guard needed: before calling `deleteFromR2` on a clip URL, check if any other clip row references it. If yes, skip the R2 delete. Implement when building combine feature.
+
+---
+
 ## [2026-04-09] R2 Storage Migration (Checkpoints 1–3)
 
 **Decision:** Migrate all media storage from Supabase Storage → Cloudflare R2.

@@ -14,7 +14,7 @@ to create and watch private video scrapbooks from her iPhone.**
 **Vibe:** Warm, cozy, nostalgic. Functional first, beautiful second. 
 Mobile-first always. Don't let perfect be the enemy of shipped.
 
-**Current phase:** Design complete. Ready to build.
+**Current phase:** Working v1 shipped and in active family use. All four Film Fest library features complete. Next major build: server-side Film Fest export (Cloudflare Worker + FFmpeg concat → downloadable MP4).
 
 ---
 
@@ -29,7 +29,7 @@ Mobile-first always. Don't let perfect be the enemy of shipped.
 | Database | Supabase Postgres | Scrapbook/clip metadata |
 | Deployment | Cloudflare Pages | CD from main branch via GitHub |
 | State | React Context | No Redux until complexity demands it |
-| Routing | React Router v6 | URL-based. iOS swipe-back works for free. Refresh preserves screen. |
+| Routing | React Router v7 | URL-based. iOS swipe-back works for free. Refresh preserves screen. |
 | Icons | Lucide React | 1.75px stroke weight, Amber on dark |
 
 ---
@@ -352,10 +352,10 @@ All screens are built and confirmed working in the browser:
 
 ---
 
-### [2026-03-14] — Orphan Storage Cleanup
+### [2026-03-14] — Orphan Storage Cleanup *(superseded 2026-04-16)*
 
-- When a clip is removed in Workspace, `removeClip` now extracts the storage path from `video_url` and `thumbnail_url` and calls `supabase.storage.from('cassette-media').remove([...paths])` after the DB row delete.
-- Previously only the DB row was deleted, leaving orphan files in storage.
+- Original approach: extract path from `video_url`/`thumbnail_url`, call `supabase.storage.remove()`.
+- **Superseded by `lib/mediaDelete.js` → `safeDeleteClipFiles(clips)`** — R2-aware, cross-scrapbook reference check. All three delete sites (ScrapbookDetailScreen, HomeScreen, WorkspaceScreen) now call `safeDeleteClipFiles` instead of `deleteFromR2` directly.
 
 ---
 
@@ -469,24 +469,6 @@ profiles (user_id, username UNIQUE, display_name, created_at)
 **Existing accounts:** Chad + Joelle backfilled via direct INSERT into profiles.
 
 **Note:** Email is still the Supabase Auth credential under the hood. Password reset emails go to the real email address.
-
----
-
-## ✅ Completed Feature Backlog
-
-| Feature | Notes |
-|---|---|
-| Year tag on Home | User sets year at intake (← YEAR →), collapsible year groups on Home. |
-| Cover photo | Intake step 2 picker + Home card "Change cover" option. |
-| Caption drag placement | Caption mode expands preview full-screen. Draggable on frame, saves x/y. |
-| Discovery screen | `/discover` — shuffled playlist of all clips. Swipe up/down/left/right. |
-| Export as MP4 | FFmpeg trim + concat → Web Share API or download. ✅ Working. |
-| Multi-user / signup | `/signup` public route, RLS user_id-scoped, each user sees own data only. |
-| Scrapbook sharing | Share by username. ShareScreen manages access. Shared with you on Home. ✅ |
-| Username login | Sign in as "chad" or "joelle". profiles table + trigger + RPCs. ✅ |
-| Rename scrapbook | Home card ⋯ menu → bottom sheet with text input. ✅ |
-| Auto-share defaults | Settings screen. Global defaults auto-share new scrapbooks. Retroactive + selective remove. ✅ |
-| Error boundary | Wraps entire app. Friendly reload screen on crash. ✅ |
 
 ---
 
@@ -762,19 +744,9 @@ Trim timestamps (`trimIn → trimOut · kept`) were shown below the mini timelin
 
 ---
 
-### [2026-03-27] — The Remix ✅ Complete
+### [2026-03-27] — The Remix *(SUPERSEDED — redesigned as Film Fest, 2026-03-29)*
 
-**New feature:** A random cut from the user's library (and optionally shared scrapbooks).
-
-**`/remix` → `RemixScreen`:**
-- Studio config screen: "The Remix" in italic Fraunces
-- Clip count stepper: 6–12 clips (default 8), large Fraunces number display with amber +/– buttons
-- "Include shared clips" toggle: pulls from `scrapbook_shares WHERE shared_with_id = user`
-- "Make My Remix" CTA → fetches clip pool → shuffles → selects N → cassette reel loading animation ("Making it groovy...") with 3s minimum + first blob preloaded → navigates to `/discover` with remix state
-
-**DiscoveryScreen remix mode:** Reads `useLocation().state.clips` — if present (isRemix), uses those clips directly and skips fetch. Header pill shows "The Remix" in italic amber. Source label shows "The Remix · year". Top-right button becomes amber Disc3 icon → navigates back to `/remix` to reconfigure.
-
-**HomeScreen:** Shuffle icon now routes to `/remix` instead of `/discover`. `/discover` remains accessible directly as a standalone browse-all experience.
+Original random clip stepper at `/remix`. Replaced by the Film Fest multi-filter workspace. Surprise Me (random mode) lives on as a pill within Film Fest. See Film Fest entries below.
 
 ---
 
@@ -810,17 +782,20 @@ Trim timestamps (`trimIn → trimOut · kept`) were shown below the mini timelin
 
 | # | Feature | Notes |
 |---|---|---|
-| 1 | **Reorder 2-step → 1-step UX** | Tap to select + same gesture drags. Hard: `onClick` fires after `touchend`. Parked. |
+| 1 | **Film Fest server-side export** | "Download" button in Film Fest (currently Coming Soon). Cloudflare Worker + FFmpeg concat all selected clips → streams back a single MP4. Needs Worker memory budget planning for large files. |
+| 2 | **Reorder 2-step → 1-step UX** | Tap to select + same gesture drags. Hard: `onClick` fires after `touchend`. Parked but wanted. |
 
 ---
 
 ## 💡 Parking Lot (Good Ideas, Not Yet)
 
-- **Caption burning on export** — re-encode captioned clips to bake text into video. Slow on mobile. v2. Caption metadata is already stored correctly — safe to add captions now.
-- **First-time user tutorial** — brief guide on first login: how playback works, trim, captions won't export, etc.
-- **Video compression on upload** — iPhone videos are 100MB+. Client-side canvas re-encode or server worker. Biggest perf lever.
-- **Cover image extraction** — auto-pull first frame. Needs canvas or server processing.
+- **Video compression on upload** — iPhone videos are 100MB+. Client-side canvas re-encode or server Worker re-encode. Biggest performance lever remaining.
+- **Caption burning on export** — re-encode captioned clips to bake text into video. Metadata already stored correctly. v2.
 - **Public share links (grandparent view)** — read-only link, no account needed. High value, v2.
+- **Reopen closed year** — no UI for this yet. Currently users can only close, not reopen. Low priority.
+- **Skeleton loading cards** on Home — polish, replaces spinner. Low effort.
+- **Toast notifications** — replaces inline status text (e.g. "Share added ✓"). Medium.
+- **Supabase image transforms for thumbnails** — append `?width=400` to cover/thumbnail URLs. Faster Home load.
 - **Background music / audio track** — v2.
 - **Native iOS app** — if PWA proves too limiting for video handling.
 - **Light mode** — not a Cassette experience. Maybe never.
@@ -1034,10 +1009,9 @@ ALTER TABLE clips ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'vid
 - "Filters" back button returns to the studio screen. Cancel from loading screen returns to select screen (not studio).
 - `loadingSourceRef` tracks which phase to cancel back to.
 
-**Combine-to-scrapbook decision: reference R2 files, don't copy**
-- When combining scrapbooks (Film Fest #3, Year Reel #4), new scrapbook clip rows will reference the same R2 `video_url`/`thumbnail_url` as the originals. No re-encoding, no file duplication.
-- Combined scrapbooks are viewing/export playlists — original scrapbooks remain intact and independent.
-- Delete guard needed: before calling `deleteFromR2` on a clip URL, check if any other clip row references it. If yes, skip the R2 delete. Implement when building combine feature.
+**Combine-to-scrapbook: reference R2 files, don't copy ✅ Done**
+- New clip rows reference same R2 `video_url`/`thumbnail_url`. No re-encoding, no file duplication.
+- Delete guard implemented: `lib/mediaDelete.js` → `safeDeleteClipFiles()`. See Film Fest #3 entry.
 
 ---
 
@@ -1069,3 +1043,99 @@ ALTER TABLE clips ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'vid
 - Upload flow: Browser → Worker (streams body) → R2 bucket binding. No presigned URLs, no S3 CORS issues.
 - Worker secrets set via `wrangler secret put` (6 secrets: UPLOAD_SECRET, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_PUBLIC_URL)
 - App env vars in Cloudflare Pages + `.env.local`: `VITE_WORKER_URL`, `VITE_UPLOAD_SECRET`
+
+---
+
+### [2026-04-16] — Film Fest #2: Saved Filter Configurations
+
+**What was built:**
+- `film_fest_saves` table added to Supabase (`id, user_id, name, filter_config jsonb, created_at` + RLS `user_id = auth.uid()`)
+- Bookmark icon added to Film Fest studio header (center, between ← Library and Surprise Me)
+- Icon is dim/wheat when no saves, amber with partial fill when saves exist
+- Opens a bottom sheet ("Saved Filters") with list of saved configs
+- Each row: config name + year/month summary label; tap to load filters; X to delete
+- "Save current filters" button at sheet bottom → inline name input → INSERT to `film_fest_saves`
+- Saved configs fetched on mount alongside available years
+
+**Design decisions:**
+- Store `{ years: int[], months: int[] }` in `filter_config` jsonb — simple, no scrapbook IDs (those are transient)
+- Bookmark icon state (dim vs amber) gives instant feedback that saves exist without opening the sheet
+- Save input is inline in the sheet (not a separate modal) — less friction
+
+
+---
+
+### [2026-04-16] — Film Fest #3: Combine to New Scrapbook + Delete Guard
+
+**What was built:**
+
+**1. `lib/mediaDelete.js` — `safeDeleteClipFiles(clips)`**
+- New utility replacing all direct `deleteFromR2` calls at clip/scrapbook deletion sites
+- Before deleting any R2 file, queries `clips` table to check if any OTHER clip rows still reference the same `video_url` or `thumbnail_url`
+- Only calls `deleteFromR2` on URLs with zero remaining references
+- Updated: `ScrapbookDetailScreen.handleDelete`, `HomeScreen.deleteScrapbook`, `WorkspaceScreen.removeClip`
+- This is the safety layer that makes combined scrapbooks safe — original R2 files are never orphaned
+
+**2. Film Fest "Save as Scrapbook" — combine flow**
+- "Save as Scrapbook" bordered button added alongside "Watch · N" on the Film Fest select screen
+- Tapping opens a bottom sheet: editable name input (auto-suggested: "2025 Mixtape"), clip+scrapbook count summary, "Create Scrapbook" CTA
+- `handleCombine()`: creates new scrapbook record, fetches clips from checked source scrapbooks with full metadata (`recorded_at`, `media_type` included), inserts copies with new IDs + sequential `order`
+- Clip ordering: follows user's checked scrapbook order from select screen, then clip order within each
+- Year: min year from checked scrapbooks. Month: only set if all checked scrapbooks share same year AND month
+- Cover image: first checked scrapbook's cover_image_url
+- On success: navigates to `/scrapbook/{newId}` (the new scrapbook detail screen)
+- No re-encoding, no R2 copies — new clip rows point to same R2 files as sources
+
+**Key design decisions:**
+- Clips are linked (not copied): new clip rows, same R2 URLs. Zero extra storage cost.
+- Delete guard (`safeDeleteClipFiles`) is the protection layer — Film Fest never deletes, only adds
+- If source scrapbook is later deleted by the user: `safeDeleteClipFiles` checks references first, R2 files survive as long as combined scrapbook's clips reference them
+- "Clips are linked, not copied. Original scrapbooks are unchanged." shown in combine sheet
+
+
+---
+
+### [2026-04-16] — Film Fest #4: Year Close + Annual Cassette
+
+**What was built:**
+
+**New Supabase table (user must run SQL):**
+```sql
+CREATE TABLE IF NOT EXISTS closed_years (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES auth.users NOT NULL,
+  year int NOT NULL,
+  cassette_scrapbook_id uuid REFERENCES scrapbooks(id) ON DELETE SET NULL,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(user_id, year)
+);
+ALTER TABLE closed_years ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users manage own closed years" ON closed_years FOR ALL USING (user_id = auth.uid());
+```
+
+**HomeScreen changes:**
+- Year header restructured from single `<button>` to `<div>` with two independent interactive elements
+- Left: collapse/expand button (chevron + year label + amber check badge if closed)
+- Right side logic:
+  - Closed + has cassette → amber "{year} Cassette" pill navigates to that scrapbook
+  - Not closed + collapsed → month preview text (unchanged)
+  - Not closed + expanded → dim circle "close year" button (Check icon)
+- `closedYears` state: `{ [year]: { id, cassette_scrapbook_id } }` fetched on mount
+
+**Close year sheet (two options):**
+1. "Create {year} Cassette" (amber) — calls `handleCloseYear(true)`:
+   - Creates new scrapbook named "{year} Cassette", year=year, month=null
+   - Fetches all clips from that year's scrapbooks with full metadata
+   - Sorts chronologically (Jan → Dec, ungrouped last)
+   - Batch INSERTs clip rows (same R2 URLs, protected by safeDeleteClipFiles)
+   - Inserts `closed_years` record with `cassette_scrapbook_id`
+   - Navigates to new scrapbook
+2. "Just close the year" (bordered) — calls `handleCloseYear(false)`:
+   - Inserts `closed_years` record with null `cassette_scrapbook_id`
+   - Year row gets amber check badge, no navigation
+
+**Design decisions:**
+- Annual Cassette is named "{year} Cassette" — short, on-brand, matches app name
+- `ON DELETE SET NULL` on `cassette_scrapbook_id` FK: if user deletes the Annual Cassette scrapbook, the year stays "closed" (badge remains), the cassette pill just disappears
+- Year close is personal organization only — no sharing or permissions changes
+- No "reopen year" UI in this version (can be added if needed)

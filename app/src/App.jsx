@@ -16,6 +16,7 @@ const ShareScreen           = lazy(() => import('./screens/ShareScreen'))
 const SettingsScreen        = lazy(() => import('./screens/SettingsScreen'))
 const ScrapbookDetailScreen = lazy(() => import('./screens/ScrapbookDetailScreen'))
 const FilmFestScreen        = lazy(() => import('./screens/RemixScreen'))
+const ResetPasswordScreen   = lazy(() => import('./screens/ResetPasswordScreen'))
 
 const FF_READY_KEY = 'cassette_ff_ready'
 
@@ -102,6 +103,7 @@ function AppRoutes() {
       <Routes>
         {/* Public */}
         <Route path="/signup" element={<SignupScreen />} />
+        <Route path="/reset-password" element={<ResetPasswordScreen />} />
 
         {/* Protected */}
         <Route path="/*" element={

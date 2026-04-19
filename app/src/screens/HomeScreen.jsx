@@ -423,7 +423,7 @@ export default function HomeScreen() {
         // Fetch clips with full metadata
         const { data: sourceClips, error: clipFetchErr } = await supabase
           .from('clips')
-          .select('video_url, thumbnail_url, duration, trim_in, trim_out, cut_in, cut_out, caption_text, caption_x, caption_y, caption_size, recorded_at, media_type, order, scrapbook_id')
+          .select('storage_path, video_url, thumbnail_url, duration, trim_in, trim_out, cut_in, cut_out, caption_text, caption_x, caption_y, caption_size, recorded_at, media_type, order, scrapbook_id')
           .in('scrapbook_id', yearBooks.map(sb => sb.id))
 
         if (clipFetchErr) throw new Error('Could not load clips')
@@ -446,17 +446,18 @@ export default function HomeScreen() {
 
         const clipRows = sortedClips.filter(c => c.video_url).map((clip, i) => ({
           scrapbook_id: newSb.id,
+          storage_path: clip.storage_path,
           video_url: clip.video_url,
           thumbnail_url: clip.thumbnail_url,
           duration: clip.duration,
-          trim_in: clip.trim_in,
+          trim_in: clip.trim_in ?? 0,
           trim_out: clip.trim_out,
           cut_in: clip.cut_in,
           cut_out: clip.cut_out,
           caption_text: clip.caption_text,
-          caption_x: clip.caption_x,
-          caption_y: clip.caption_y,
-          caption_size: clip.caption_size,
+          caption_x: clip.caption_x ?? 50,
+          caption_y: clip.caption_y ?? 85,
+          caption_size: clip.caption_size ?? 24,
           recorded_at: clip.recorded_at,
           media_type: clip.media_type,
           order: i,
@@ -1048,7 +1049,7 @@ export default function HomeScreen() {
       {yearToClose !== null && (
         <>
           <div className="absolute inset-0 bg-black/60 z-30" onClick={() => !closingYear && setYearToClose(null)} />
-          <div className="absolute bottom-0 left-0 right-0 z-40 rounded-t-3xl border-t border-walnut-light px-5 pb-10 pt-1" style={{ background: '#2C1A0E' }}>
+          <div className="absolute bottom-0 left-0 right-0 z-40 rounded-t-3xl border-t border-walnut-light px-5 pt-1" style={{ background: '#2C1A0E', paddingBottom: 'max(2.5rem, env(safe-area-inset-bottom))' }}>
             <div className="w-10 h-1 rounded-full bg-walnut-light mx-auto mt-3 mb-6" />
             <p className="font-display font-semibold text-xl text-wheat mb-1">Close out {yearToClose}?</p>
             {(() => {

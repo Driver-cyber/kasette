@@ -411,6 +411,15 @@ export default function DiscoveryScreen() {
         {videoLoading && currentClip?.thumbnail_url && (
           <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 1 }}>
             <img src={currentClip.thumbnail_url} className="w-full h-full object-cover" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full border-2 border-wheat/60 border-t-transparent animate-spin" />
+            </div>
+          </div>
+        )}
+        {/* Spinner for clips with no thumbnail */}
+        {videoLoading && !currentClip?.thumbnail_url && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 1 }}>
+            <div className="w-10 h-10 rounded-full border-2 border-wheat/60 border-t-transparent animate-spin" />
           </div>
         )}
       </div>

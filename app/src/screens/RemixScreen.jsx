@@ -176,6 +176,7 @@ export default function FilmFestScreen() {
   const [combineNameInput, setCombineNameInput] = useState('')
   const [combineWorking, setCombineWorking] = useState(false)
   const [combineError, setCombineError] = useState(null)
+  const [loadingClipCount, setLoadingClipCount] = useState(0)
   const cancelledRef = useRef(false)
   const loadingSourceRef = useRef('studio') // tracks which phase to return to on cancel
 
@@ -306,7 +307,7 @@ export default function FilmFestScreen() {
       // Fetch all clips from checked scrapbooks with full metadata
       const { data: sourceClips, error: clipFetchError } = await supabase
         .from('clips')
-        .select('video_url, thumbnail_url, duration, trim_in, trim_out, cut_in, cut_out, caption_text, caption_x, caption_y, caption_size, recorded_at, media_type, order, scrapbook_id')
+        .select('storage_path, video_url, thumbnail_url, duration, trim_in, trim_out, cut_in, cut_out, caption_text, caption_x, caption_y, caption_size, recorded_at, media_type, order, scrapbook_id')
         .in('scrapbook_id', checkedBooks.map(sb => sb.id))
 
       if (clipFetchError) throw new Error('Could not load clips')
@@ -325,17 +326,18 @@ export default function FilmFestScreen() {
 
       const clipRows = clipsWithVideo.map((clip, i) => ({
         scrapbook_id: newScrapbook.id,
+        storage_path: clip.storage_path,
         video_url: clip.video_url,
         thumbnail_url: clip.thumbnail_url,
         duration: clip.duration,
-        trim_in: clip.trim_in,
+        trim_in: clip.trim_in ?? 0,
         trim_out: clip.trim_out,
         cut_in: clip.cut_in,
         cut_out: clip.cut_out,
         caption_text: clip.caption_text,
-        caption_x: clip.caption_x,
-        caption_y: clip.caption_y,
-        caption_size: clip.caption_size,
+        caption_x: clip.caption_x ?? 50,
+        caption_y: clip.caption_y ?? 85,
+        caption_size: clip.caption_size ?? 24,
         recorded_at: clip.recorded_at,
         media_type: clip.media_type,
         order: i,
@@ -399,6 +401,7 @@ export default function FilmFestScreen() {
 
       if (pool.length === 0) { setPhase('select'); return }
 
+      setLoadingClipCount(pool.length)
       pool.forEach(c => { if (c.thumbnail_url) { const img = new Image(); img.src = c.thumbnail_url } })
       const minDelay = new Promise(r => setTimeout(r, 2000))
       const firstReady = preloadClips(pool, Math.min(3, pool.length))
@@ -501,7 +504,11 @@ export default function FilmFestScreen() {
             {isSurprise ? 'Rolling the dice…' : 'Preparing your film…'}
           </p>
           <p className="text-rust text-sm leading-relaxed">
-            {isSurprise ? 'Picking a mix just for you' : 'Loading clips for your Film Fest'}
+            {isSurprise
+              ? 'Picking a mix just for you'
+              : loadingClipCount > 0
+                ? `Loading ${loadingClipCount} clip${loadingClipCount !== 1 ? 's' : ''}…`
+                : 'Loading clips for your Film Fest'}
           </p>
         </div>
       </div>
@@ -527,8 +534,8 @@ export default function FilmFestScreen() {
               onClick={() => !combineWorking && setShowCombineSheet(false)}
             />
             <div
-              className="relative flex flex-col rounded-t-3xl px-5 pt-6 pb-10"
-              style={{ background: '#2C1A0E' }}
+              className="relative flex flex-col rounded-t-3xl px-5 pt-6 overflow-y-auto"
+              style={{ background: '#2C1A0E', paddingBottom: 'max(2.5rem, env(safe-area-inset-bottom))', maxHeight: '85dvh' }}
             >
               {/* Sheet header */}
               <div className="flex items-center justify-between mb-6 flex-shrink-0">
@@ -549,7 +556,6 @@ export default function FilmFestScreen() {
                 onChange={e => setCombineNameInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleCombine()}
                 placeholder="Give it a name…"
-                autoFocus
                 className="w-full rounded-xl px-4 py-3.5 font-display font-semibold text-[17px] text-wheat outline-none placeholder:text-rust mb-5"
                 style={{ background: '#3D2410', border: '1px solid rgba(242,162,74,0.35)' }}
               />

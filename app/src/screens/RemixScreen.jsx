@@ -849,9 +849,19 @@ export default function FilmFestScreen() {
         </div>
 
         {/* Filter section */}
-        <p className="text-rust text-[10px] font-bold tracking-[0.18em] uppercase mb-4">
-          Filter your film
-        </p>
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-rust text-[10px] font-bold tracking-[0.18em] uppercase">
+            Filter your film
+          </p>
+          {(selectedYears.length > 0 || selectedMonths.length > 0) && (
+            <button
+              onClick={() => { setSelectedYears([]); setSelectedMonths([]); setErrorMsg(null) }}
+              className="text-rust text-[12px] font-semibold active:opacity-60"
+            >
+              Clear
+            </button>
+          )}
+        </div>
 
         <MultiSelectDropdown
           allLabel="All Years"

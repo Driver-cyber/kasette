@@ -1139,3 +1139,34 @@ CREATE POLICY "Users manage own closed years" ON closed_years FOR ALL USING (use
 - `ON DELETE SET NULL` on `cassette_scrapbook_id` FK: if user deletes the Annual Cassette scrapbook, the year stays "closed" (badge remains), the cassette pill just disappears
 - Year close is personal organization only — no sharing or permissions changes
 - No "reopen year" UI in this version (can be added if needed)
+
+---
+
+### [2026-04-19] — Bug Fixes, Auth Flow, UX Polish
+
+**Bug fix: "Could not save clips" (Film Fest Mixtape + Annual Cassette)**
+- Root cause: `clips` table has `storage_path TEXT NOT NULL`. Both `handleCombine` (RemixScreen) and `handleCloseYear` (HomeScreen) were inserting clip rows without it — every insert failed silently.
+- Fix: added `storage_path` to both the SELECT query and the INSERT rows in both functions.
+- Also added null-safety fallbacks (`?? 0`, `?? 50`, `?? 85`, `?? 24`) for other NOT NULL columns with defaults (`trim_in`, `caption_x`, `caption_y`, `caption_size`).
+- **This same pattern applies to any future feature that copies clip rows.**
+
+**UI fixes:**
+- Combine sheet ("Save as New Scrapbook"): removed `autoFocus` so keyboard doesn't pop on open and hide content. Sheet is now scrollable with `overflow-y-auto maxHeight:85dvh` and safe-area bottom padding.
+- Close year sheet: changed `pb-10` to `paddingBottom: max(2.5rem, env(safe-area-inset-bottom))` — fixes home indicator cutoff on iPhone.
+- DiscoveryScreen: added loading spinner overlay when `videoLoading` is true (on top of thumbnail placeholder) so users know a clip is buffering vs stuck.
+- Film Fest loading screen: subtitle now shows "Loading N clips…" instead of generic text.
+- Film Fest studio: "Clear" button appears in top-right of filter section when any filter is active; clears both dropdowns in one tap.
+
+**Auth flow: Login screen completed**
+- Added "Create Account" outlined button + divider below Sign In form → navigates to `/signup`.
+- Added "Forgot password?" link → inline reset screen (email input → `supabase.auth.resetPasswordForEmail` → "Check your email" confirmation).
+
+**New screen: ResetPasswordScreen (`/reset-password`)**
+- Public route (alongside `/signup`) — outside AuthGate.
+- Listens for Supabase `PASSWORD_RECOVERY` auth event from URL hash token.
+- 4 states: spinner (waiting for token), password+confirm form, "Link expired" (4s timeout), success + "Open Cassette" button.
+- Calls `supabase.auth.updateUser({ password })` on submit.
+
+**Supabase email (pending, not yet done):**
+- Default Supabase email is `no-reply@mail.app.supabase.io`, ~3/hour limit, hits spam.
+- Fix: configure custom SMTP in Supabase Dashboard → Auth → SMTP Settings using Resend (already set up with `chadstewartcpa.com`). Create a new Resend API key named "Cassette", use `smtp.resend.com:465`, sender `noreply@chadstewartcpa.com`. No code changes needed.

@@ -173,6 +173,10 @@ export default function IntakeScreen() {
   const preRemuxRef = useRef(null)
   const [preRemuxReady, setPreRemuxReady] = useState(false)
 
+  // Metadata loading progress
+  const [metaLoaded, setMetaLoaded] = useState(0)
+  const [metaTotal, setMetaTotal] = useState(0)
+
   // Smooth progress bar
   const smoothPctRef = useRef(0)
   const [displayPct, setDisplayPct] = useState(0)
@@ -257,19 +261,19 @@ export default function IntakeScreen() {
       setPreRemuxReady(false)
       return
     }
-    const firstVideo = selectedItems.find(i => i.mediaType !== 'photo')
-    if (!firstVideo) {
+    const first = selectedItems[0]
+    if (!first || first.mediaType === 'photo') {
       setPreRemuxReady(true)
       return
     }
     preRemuxRef.current = { result: null }
-    remuxWithFaststart(firstVideo.file)
+    remuxWithFaststart(first.file)
       .then(remuxed => {
-        preRemuxRef.current = { result: { ...firstVideo, file: remuxed } }
+        preRemuxRef.current = { result: { ...first, file: remuxed } }
         setPreRemuxReady(true)
       })
       .catch(() => {
-        preRemuxRef.current = { result: firstVideo }
+        preRemuxRef.current = { result: first }
         setPreRemuxReady(true)
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -290,6 +294,8 @@ export default function IntakeScreen() {
       mediaType: file.type.startsWith('image/') ? 'photo' : 'video',
     }))
     setItems(seeded)
+    setMetaLoaded(0)
+    setMetaTotal(seeded.length)
 
     // Extract metadata in parallel (update each as it resolves)
     seeded.forEach(async (item) => {
@@ -299,6 +305,7 @@ export default function IntakeScreen() {
       setItems(prev => prev.map(p =>
         p.id === item.id ? { ...p, ...meta } : p
       ))
+      setMetaLoaded(prev => prev + 1)
     })
 
     // Clear input so the same files can be re-picked if needed
@@ -698,14 +705,25 @@ export default function IntakeScreen() {
 
       {/* Progress bar */}
       <div className="px-5 pb-4 flex-shrink-0">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-rust text-[11px] font-medium tracking-wide">
-            {items.length} {items.length === 1 ? 'item' : 'items'} imported
-          </span>
-          <span className="text-amber text-[11px] font-semibold">
-            {selectedItems.length} selected
-          </span>
-        </div>
+        {metaLoaded < metaTotal ? (
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-rust text-[11px] font-medium tracking-wide animate-pulse">
+              Loading clip info… {metaLoaded} of {metaTotal}
+            </span>
+            <span className="text-amber text-[11px] font-semibold">
+              {selectedItems.length} selected
+            </span>
+          </div>
+        ) : (
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-rust text-[11px] font-medium tracking-wide">
+              {items.length} {items.length === 1 ? 'item' : 'items'} imported
+            </span>
+            <span className="text-amber text-[11px] font-semibold">
+              {selectedItems.length} selected
+            </span>
+          </div>
+        )}
         <div className="h-[3px] bg-walnut-light rounded-full overflow-hidden">
           <div
             className="h-full rounded-full transition-all duration-300"
@@ -746,7 +764,7 @@ export default function IntakeScreen() {
                     />
                   ) : (
                     <div
-                      className="absolute inset-0 bg-walnut-mid"
+                      className={`absolute inset-0 bg-walnut-mid${item.duration === null ? ' animate-pulse' : ''}`}
                       style={{ filter: item.selected ? 'none' : 'brightness(0.5)' }}
                     />
                   )}

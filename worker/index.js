@@ -136,20 +136,29 @@ export default {
     if (request.method === 'POST' && url.pathname === '/upload') {
       const key = url.searchParams.get('key')
       if (!key) return err('key required')
+      if (!env.BUCKET) return err('R2 bucket not bound', 500)
 
-      const contentType = request.headers.get('Content-Type') || 'application/octet-stream'
-      await env.BUCKET.put(key, request.body, { httpMetadata: { contentType } })
-
-      return json({ publicUrl: `${env.R2_PUBLIC_URL}/${key}` })
+      try {
+        const contentType = request.headers.get('Content-Type') || 'application/octet-stream'
+        await env.BUCKET.put(key, request.body, { httpMetadata: { contentType } })
+        return json({ publicUrl: `${env.R2_PUBLIC_URL}/${key}` })
+      } catch (e) {
+        return err(e?.message || 'R2 put failed', 500)
+      }
     }
 
     // DELETE /delete?key=…
     if (request.method === 'DELETE' && url.pathname === '/delete') {
       const key = url.searchParams.get('key')
       if (!key) return err('key required')
+      if (!env.BUCKET) return err('R2 bucket not bound', 500)
 
-      await env.BUCKET.delete(key)
-      return json({ ok: true })
+      try {
+        await env.BUCKET.delete(key)
+        return json({ ok: true })
+      } catch (e) {
+        return err(e?.message || 'R2 delete failed', 500)
+      }
     }
 
     return err('Not found', 404)

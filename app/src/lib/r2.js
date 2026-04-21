@@ -10,19 +10,28 @@ const WORKER_URL = import.meta.env.VITE_WORKER_URL
 const UPLOAD_SECRET = import.meta.env.VITE_UPLOAD_SECRET
 const R2_PUBLIC_URL = 'https://pub-bab6003c5bee4548b6a48fc2eca4583a.r2.dev'
 
-async function workerFetch(path, options = {}) {
-  const res = await fetch(`${WORKER_URL}${path}`, {
-    ...options,
-    headers: {
-      ...options.headers,
-      'X-Upload-Secret': UPLOAD_SECRET,
-    },
-  })
-  if (!res.ok) {
-    const text = await res.text().catch(() => res.status)
-    throw new Error(`Worker ${path} failed: ${text}`)
+async function workerFetch(path, options = {}, maxAttempts = 3) {
+  let lastErr
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)))
+    try {
+      const res = await fetch(`${WORKER_URL}${path}`, {
+        ...options,
+        headers: { ...options.headers, 'X-Upload-Secret': UPLOAD_SECRET },
+      })
+      if (!res.ok) {
+        const text = await res.text().catch(() => String(res.status))
+        lastErr = new Error(`Worker ${path} failed: ${text}`)
+        if (res.status === 401) throw lastErr
+        continue
+      }
+      return res.json()
+    } catch (e) {
+      if (e.message?.includes('Unauthorized')) throw e
+      lastErr = e
+    }
   }
-  return res.json()
+  throw lastErr
 }
 
 /**

@@ -5,15 +5,9 @@ import { supabase } from '../lib/supabase'
 import { uploadToR2 } from '../lib/r2'
 import { useAuth } from '../context/AuthContext'
 import { remuxWithFaststart } from '../lib/remux'
-
-function dataURLtoBlob(dataURL) {
-  const [header, data] = dataURL.split(',')
-  const mime = header.match(/:(.*?);/)[1]
-  const binary = atob(data)
-  const arr = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i)
-  return new Blob([arr], { type: mime })
-}
+import { useUpload } from '../context/UploadContext'
+import { dataURLtoBlob } from '../lib/utils'
+import Reel from '../components/Reel'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -110,24 +104,6 @@ function formatSummaryRange(items) {
 }
 
 
-function Reel({ reverse = false }) {
-  return (
-    <div
-      className="animate-spin"
-      style={{ animationDuration: reverse ? '1.7s' : '2.1s', animationDirection: reverse ? 'reverse' : 'normal' }}
-    >
-      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-        <circle cx="24" cy="24" r="20" stroke="#F2A24A" strokeWidth="2.5" fill="none" />
-        <circle cx="24" cy="24" r="7" stroke="#F2A24A" strokeWidth="1.5" fill="none" />
-        <circle cx="24" cy="24" r="2.5" fill="#F2A24A" />
-        <line x1="24" y1="4" x2="24" y2="17" stroke="#F2A24A" strokeWidth="2" strokeLinecap="round" />
-        <line x1="41.3" y1="34" x2="30.1" y2="27.5" stroke="#F2A24A" strokeWidth="2" strokeLinecap="round" />
-        <line x1="6.7" y1="34" x2="17.9" y2="27.5" stroke="#F2A24A" strokeWidth="2" strokeLinecap="round" />
-      </svg>
-    </div>
-  )
-}
-
 function PickerDropdown({ value, options, onChange, mb = true }) {
   const [open, setOpen] = useState(false)
   const selectedLabel = options.find(o => o.value === value)?.label ?? '···'
@@ -174,6 +150,7 @@ export default function IntakeScreen() {
   const [searchParams] = useSearchParams()
   const addToId = searchParams.get('addTo') // existing scrapbook id, if adding clips
   const { session } = useAuth()
+  const { startBackgroundUpload } = useUpload()
   const fileInputRef = useRef(null)
 
   const [items, setItems] = useState([])        // { id, file, duration, thumbnail, selected, date }
@@ -191,6 +168,10 @@ export default function IntakeScreen() {
   const coverInputRef = useRef(null)
   const wakeLockRef = useRef(null)
   const cancelledRef = useRef(false)
+
+  // Pre-remux clip 1 silently while user types the scrapbook name
+  const preRemuxRef = useRef(null)
+  const [preRemuxReady, setPreRemuxReady] = useState(false)
 
   // Smooth progress bar
   const smoothPctRef = useRef(0)
@@ -269,6 +250,31 @@ export default function IntakeScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
 
+  // Kick off pre-remux for clip 1 as soon as the name sheet opens
+  useEffect(() => {
+    if (step !== 'name') {
+      preRemuxRef.current = null
+      setPreRemuxReady(false)
+      return
+    }
+    const firstVideo = selectedItems.find(i => i.mediaType !== 'photo')
+    if (!firstVideo) {
+      setPreRemuxReady(true)
+      return
+    }
+    preRemuxRef.current = { result: null }
+    remuxWithFaststart(firstVideo.file)
+      .then(remuxed => {
+        preRemuxRef.current = { result: { ...firstVideo, file: remuxed } }
+        setPreRemuxReady(true)
+      })
+      .catch(() => {
+        preRemuxRef.current = { result: firstVideo }
+        setPreRemuxReady(true)
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step])
+
   const handleFilePick = useCallback(async (e) => {
     const files = Array.from(e.target.files || [])
     if (!files.length) return
@@ -337,23 +343,27 @@ export default function IntakeScreen() {
     await acquireWakeLock()
 
     try {
-      // 1. Remux video clips with faststart (photos skip remux)
+      // 1. Get remuxed clip 1 — use pre-remux result if ready, otherwise remux now
       setUploadPhase('remuxing')
-      const remuxedItems = []
-      for (let i = 0; i < selectedItems.length; i++) {
-        if (cancelledRef.current) { releaseWakeLock(); return }
-        setUploadProgress({ current: i + 1, total: selectedItems.length })
-        if (selectedItems[i].mediaType === 'photo') {
-          remuxedItems.push(selectedItems[i])
+      setUploadProgress({ current: 0, total: 1 })
+      let clip1
+      if (preRemuxRef.current?.result) {
+        clip1 = preRemuxRef.current.result
+      } else {
+        const first = selectedItems[0]
+        if (first.mediaType === 'photo') {
+          clip1 = first
         } else {
-          const remuxedFile = await remuxWithFaststart(selectedItems[i].file)
-          remuxedItems.push({ ...selectedItems[i], file: remuxedFile })
+          const remuxed = await remuxWithFaststart(first.file)
+          if (cancelledRef.current) { releaseWakeLock(); return }
+          clip1 = { ...first, file: remuxed }
         }
       }
+      setUploadProgress({ current: 1, total: 1 })
 
       // 2. Create scrapbook record
       setUploadPhase('uploading')
-      setUploadProgress({ current: 0, total: remuxedItems.length })
+      setUploadProgress({ current: 0, total: 1 })
       const { data: sb, error: sbErr } = await supabase
         .from('scrapbooks')
         .insert({ name: name.trim(), user_id: session.user.id, year, month })
@@ -382,55 +392,64 @@ export default function IntakeScreen() {
       // 4. Upload cover image if provided
       if (coverFile) {
         const ext = coverFile.name.split('.').pop()?.toLowerCase() || 'jpg'
-        const coverKey = `${session.user.id}/covers/${sb.id}.${ext}`
         try {
-          const coverUrl = await uploadToR2(coverKey, coverFile)
+          const coverUrl = await uploadToR2(`${session.user.id}/covers/${sb.id}.${ext}`, coverFile)
           await supabase.from('scrapbooks').update({ cover_image_url: coverUrl }).eq('id', sb.id)
-        } catch { /* non-blocking — scrapbook still created */ }
+        } catch { /* non-blocking */ }
       }
 
-      // 4. Upload each clip + thumbnail
-      for (let i = 0; i < remuxedItems.length; i++) {
-        if (cancelledRef.current) { releaseWakeLock(); return }
-        setUploadProgress({ current: i + 1, total: remuxedItems.length })
-        const item = remuxedItems[i]
-        const isPhotoItem = item.mediaType === 'photo'
-        const clipId = crypto.randomUUID()
-        const ext = item.file.name.split('.').pop()?.toLowerCase() || (isPhotoItem ? 'jpg' : 'mp4')
-        const storagePath = `${session.user.id}/${sb.id}/${clipId}.${ext}`
+      // 5. Upload clip 1 + thumbnail, insert DB row
+      const clipId = crypto.randomUUID()
+      const isPhoto1 = clip1.mediaType === 'photo'
+      const ext1 = clip1.file.name.split('.').pop()?.toLowerCase() || (isPhoto1 ? 'jpg' : 'mp4')
+      const storagePath1 = `${session.user.id}/${sb.id}/${clipId}.${ext1}`
+      const publicUrl1 = await uploadToR2(storagePath1, clip1.file)
+      if (cancelledRef.current) { releaseWakeLock(); return }
 
-        const publicUrl = await uploadToR2(storagePath, item.file)
-
-        // Photos use their own URL as thumbnail; videos upload a separate thumb
-        let thumbnailUrl = isPhotoItem ? publicUrl : null
-        if (!isPhotoItem && item.thumbnail) {
-          const thumbBlob = dataURLtoBlob(item.thumbnail)
-          const thumbPath = `${session.user.id}/${sb.id}/${clipId}_thumb.jpg`
-          try {
-            thumbnailUrl = await uploadToR2(thumbPath, thumbBlob, 'image/jpeg')
-          } catch { /* non-blocking — clip still usable without thumbnail */ }
-        }
-
-        const clipDuration = isPhotoItem ? (item.duration || 5) : (item.duration || null)
-        const { error: clipErr } = await supabase
-          .from('clips')
-          .insert({
-            id: clipId,
-            scrapbook_id: sb.id,
-            storage_path: storagePath,
-            video_url: publicUrl,
-            thumbnail_url: thumbnailUrl,
-            order: i,
-            duration: clipDuration,
-            trim_in: 0,
-            trim_out: clipDuration,
-            recorded_at: item.date.toISOString(),
-            media_type: item.mediaType || 'video',
-          })
-        if (clipErr) throw clipErr
+      let thumbnailUrl1 = isPhoto1 ? publicUrl1 : null
+      if (!isPhoto1 && clip1.thumbnail) {
+        try {
+          thumbnailUrl1 = await uploadToR2(
+            `${session.user.id}/${sb.id}/${clipId}_thumb.jpg`,
+            dataURLtoBlob(clip1.thumbnail),
+            'image/jpeg'
+          )
+        } catch { /* non-blocking */ }
       }
 
+      const clipDuration1 = isPhoto1 ? (clip1.duration || 5) : (clip1.duration || null)
+      const { error: clipErr } = await supabase.from('clips').insert({
+        id: clipId,
+        scrapbook_id: sb.id,
+        storage_path: storagePath1,
+        video_url: publicUrl1,
+        thumbnail_url: thumbnailUrl1,
+        order: 0,
+        duration: clipDuration1,
+        trim_in: 0,
+        trim_out: clipDuration1,
+        recorded_at: clip1.date?.toISOString(),
+        media_type: clip1.mediaType || 'video',
+      })
+      if (clipErr) throw clipErr
+
+      setUploadProgress({ current: 1, total: 1 })
+
+      // 6. ★ Navigate now — clip 1 is live
       releaseWakeLock()
+      setUploading(false)
+
+      // 7. Hand remaining clips to background context (clips 2..N, un-remuxed)
+      const remaining = selectedItems.slice(1)
+      if (remaining.length > 0) {
+        startBackgroundUpload({
+          scrapbookId: sb.id,
+          clips: remaining,
+          userId: session.user.id,
+          concurrency: 3,
+        })
+      }
+
       navigate(`/scrapbook/${sb.id}`)
     } catch (err) {
       console.error(err)
@@ -448,23 +467,23 @@ export default function IntakeScreen() {
     await acquireWakeLock()
 
     try {
-      // 1. Remux video clips with faststart (photos skip remux)
+      // 1. Remux clip 1 only
       setUploadPhase('remuxing')
-      const remuxedItems = []
-      for (let i = 0; i < selectedItems.length; i++) {
+      setUploadProgress({ current: 0, total: 1 })
+      const first = selectedItems[0]
+      let clip1
+      if (first.mediaType === 'photo') {
+        clip1 = first
+      } else {
+        const remuxed = await remuxWithFaststart(first.file)
         if (cancelledRef.current) { releaseWakeLock(); return }
-        setUploadProgress({ current: i + 1, total: selectedItems.length })
-        if (selectedItems[i].mediaType === 'photo') {
-          remuxedItems.push(selectedItems[i])
-        } else {
-          const remuxedFile = await remuxWithFaststart(selectedItems[i].file)
-          remuxedItems.push({ ...selectedItems[i], file: remuxedFile })
-        }
+        clip1 = { ...first, file: remuxed }
       }
+      setUploadProgress({ current: 1, total: 1 })
 
-      // 2. Get current max order in the scrapbook
+      // 2. Get current max order
       setUploadPhase('uploading')
-      setUploadProgress({ current: 0, total: remuxedItems.length })
+      setUploadProgress({ current: 0, total: 1 })
       const { data: existingClips } = await supabase
         .from('clips')
         .select('order')
@@ -473,47 +492,58 @@ export default function IntakeScreen() {
         .limit(1)
       const orderOffset = existingClips?.length > 0 ? (existingClips[0].order + 1) : 0
 
-      // 3. Upload each new clip + thumbnail
-      for (let i = 0; i < remuxedItems.length; i++) {
-        if (cancelledRef.current) { releaseWakeLock(); return }
-        setUploadProgress({ current: i + 1, total: remuxedItems.length })
-        const item = remuxedItems[i]
-        const isPhotoItem = item.mediaType === 'photo'
-        const clipId = crypto.randomUUID()
-        const ext = item.file.name.split('.').pop()?.toLowerCase() || (isPhotoItem ? 'jpg' : 'mp4')
-        const storagePath = `${session.user.id}/${addToId}/${clipId}.${ext}`
+      // 3. Upload clip 1 + thumbnail, insert DB row
+      const clipId = crypto.randomUUID()
+      const isPhoto1 = clip1.mediaType === 'photo'
+      const ext1 = clip1.file.name.split('.').pop()?.toLowerCase() || (isPhoto1 ? 'jpg' : 'mp4')
+      const storagePath1 = `${session.user.id}/${addToId}/${clipId}.${ext1}`
+      const publicUrl1 = await uploadToR2(storagePath1, clip1.file)
+      if (cancelledRef.current) { releaseWakeLock(); return }
 
-        const publicUrl = await uploadToR2(storagePath, item.file)
-
-        let thumbnailUrl = isPhotoItem ? publicUrl : null
-        if (!isPhotoItem && item.thumbnail) {
-          const thumbBlob = dataURLtoBlob(item.thumbnail)
-          const thumbPath = `${session.user.id}/${addToId}/${clipId}_thumb.jpg`
-          try {
-            thumbnailUrl = await uploadToR2(thumbPath, thumbBlob, 'image/jpeg')
-          } catch { /* non-blocking */ }
-        }
-
-        const clipDuration = isPhotoItem ? (item.duration || 5) : (item.duration || null)
-        const { error: clipErr } = await supabase
-          .from('clips')
-          .insert({
-            id: clipId,
-            scrapbook_id: addToId,
-            storage_path: storagePath,
-            video_url: publicUrl,
-            thumbnail_url: thumbnailUrl,
-            order: orderOffset + i,
-            duration: clipDuration,
-            trim_in: 0,
-            trim_out: clipDuration,
-            recorded_at: item.date.toISOString(),
-            media_type: item.mediaType || 'video',
-          })
-        if (clipErr) throw clipErr
+      let thumbnailUrl1 = isPhoto1 ? publicUrl1 : null
+      if (!isPhoto1 && clip1.thumbnail) {
+        try {
+          thumbnailUrl1 = await uploadToR2(
+            `${session.user.id}/${addToId}/${clipId}_thumb.jpg`,
+            dataURLtoBlob(clip1.thumbnail),
+            'image/jpeg'
+          )
+        } catch { /* non-blocking */ }
       }
 
+      const clipDuration1 = isPhoto1 ? (clip1.duration || 5) : (clip1.duration || null)
+      const { error: clipErr } = await supabase.from('clips').insert({
+        id: clipId,
+        scrapbook_id: addToId,
+        storage_path: storagePath1,
+        video_url: publicUrl1,
+        thumbnail_url: thumbnailUrl1,
+        order: orderOffset,
+        duration: clipDuration1,
+        trim_in: 0,
+        trim_out: clipDuration1,
+        recorded_at: clip1.date?.toISOString(),
+        media_type: clip1.mediaType || 'video',
+      })
+      if (clipErr) throw clipErr
+
+      setUploadProgress({ current: 1, total: 1 })
+
+      // 4. Navigate now — clip 1 is live
       releaseWakeLock()
+      setUploading(false)
+
+      // 5. Hand remaining clips to background context
+      const remaining = selectedItems.slice(1)
+      if (remaining.length > 0) {
+        startBackgroundUpload({
+          scrapbookId: addToId,
+          clips: remaining,
+          userId: session.user.id,
+          concurrency: 3,
+        })
+      }
+
       navigate(`/scrapbook/${addToId}/edit`)
     } catch (err) {
       console.error(err)
@@ -529,8 +559,9 @@ export default function IntakeScreen() {
 
   // ── Uploading overlay ───────────────────────────────────────────────────
   if (uploading) {
+    const queuedCount = selectedItems.length - 1
     return (
-      <div className="relative flex flex-col items-center justify-center bg-walnut gap-10 px-8 text-center" style={{ height: '100dvh' }}>
+      <div className="relative flex flex-col items-center justify-center bg-walnut gap-8 px-8 text-center" style={{ height: '100dvh' }}>
         <button
           onClick={handleCancel}
           className="absolute top-14 right-5 w-10 h-10 flex items-center justify-center rounded-full active:opacity-60"
@@ -547,25 +578,47 @@ export default function IntakeScreen() {
             {uploadPhase === 'remuxing' ? 'Getting ready…' : addToId ? 'Adding clips…' : 'Saving memories…'}
           </p>
           <p className="text-rust text-sm leading-relaxed">
-            {uploadPhase === 'remuxing'
-              ? `Optimizing clip ${uploadProgress.current} of ${uploadProgress.total}`
-              : `Uploading clip ${uploadProgress.current} of ${uploadProgress.total}`
-            }
+            {uploadPhase === 'remuxing' ? 'Optimizing first clip' : 'Uploading first clip'}
           </p>
         </div>
-        <div className="w-full max-w-xs">
-          <div className="h-1 bg-walnut-light rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full"
-              style={{
-                width: `${displayPct}%`,
-                background: 'linear-gradient(90deg, #F2A24A, #E8855A)',
-                transition: 'width 0.08s linear',
-              }}
-            />
+        <div className="w-full max-w-xs flex flex-col gap-2.5">
+          <div>
+            <div className="flex justify-between mb-1.5">
+              <span className="text-[10px] font-bold text-wheat font-sans">Clip 1</span>
+              <span className="text-[10px] text-rust font-sans">{Math.round(displayPct)}%</span>
+            </div>
+            <div className="h-[3px] bg-walnut-light rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${displayPct}%`,
+                  background: 'linear-gradient(90deg, #F2A24A, #E8855A)',
+                  transition: 'width 0.08s linear',
+                }}
+              />
+            </div>
           </div>
+          {queuedCount > 0 && (
+            <div className="flex items-center gap-2 pt-0.5">
+              <div className="flex-1 h-px bg-walnut-light rounded-full" />
+              <span className="text-[10px] text-rust font-sans whitespace-nowrap">
+                {queuedCount} more clip{queuedCount !== 1 ? 's' : ''} queued
+              </span>
+              <div className="flex-1 h-px bg-walnut-light rounded-full" />
+            </div>
+          )}
         </div>
-        <p className="text-rust/50 text-[11px]">Keep this screen open until it's done</p>
+        {queuedCount > 0 && (
+          <div
+            className="w-full max-w-xs rounded-xl px-4 py-3 border border-walnut-light text-left"
+            style={{ background: '#2C1A0E' }}
+          >
+            <p className="text-wheat text-[11px] font-semibold font-sans mb-1">You can start editing right away</p>
+            <p className="text-rust text-[11px] font-sans leading-relaxed">
+              Remaining clips upload in the background — any trims or captions you add are saved instantly.
+            </p>
+          </div>
+        )}
       </div>
     )
   }
@@ -854,7 +907,7 @@ export default function IntakeScreen() {
             </button>
 
             {/* Summary pill */}
-            <div className="flex items-center gap-2 bg-walnut border border-walnut-light rounded-full px-3.5 py-2 mb-6 w-fit">
+            <div className="flex items-center gap-2 bg-walnut border border-walnut-light rounded-full px-3.5 py-2 mb-4 w-fit">
               <div className="w-1.5 h-1.5 rounded-full bg-amber flex-shrink-0" />
               <span className="text-wheat/65 text-[11px] font-medium">
                 {selectedItems.length} clips · {formatTotalDuration(totalDuration)}
@@ -862,15 +915,38 @@ export default function IntakeScreen() {
               </span>
             </div>
 
+            {/* Pre-remux indicator — only for batches with video clips */}
+            {selectedItems.some(i => i.mediaType !== 'photo') && (
+              <div
+                className="flex items-center gap-2.5 rounded-xl px-3 py-2 mb-4 border border-walnut-light"
+                style={{ background: '#2C1A0E' }}
+              >
+                {preRemuxReady ? (
+                  <div className="w-4 h-4 rounded-full bg-amber flex items-center justify-center flex-shrink-0">
+                    <Check size={9} strokeWidth={3} className="text-walnut" />
+                  </div>
+                ) : (
+                  <div className="w-4 h-4 rounded-full border-2 border-amber border-t-transparent animate-spin flex-shrink-0" />
+                )}
+                <span
+                  className="text-[11px] font-semibold font-sans"
+                  style={{ color: preRemuxReady ? '#F2A24A' : '#F5DEB3' }}
+                >
+                  {preRemuxReady ? 'Clip 1 optimized and ready' : 'Optimizing clip 1 while you type…'}
+                </span>
+              </div>
+            )}
+
             {error && (
               <p className="text-sienna text-sm mb-3">{error}</p>
             )}
 
-            {/* Create button */}
+            {/* Create button — always tappable; falls back to inline remux if pre-remux isn't done */}
             <button
               onClick={handleCreate}
               disabled={!name.trim() || uploading}
-              className="w-full bg-amber text-walnut font-sans font-bold text-[15px] rounded-2xl py-4 active:opacity-85 transition-opacity disabled:opacity-40"
+              className="w-full bg-amber text-walnut font-sans font-bold text-[15px] rounded-2xl py-4 active:opacity-85 transition-all disabled:opacity-40"
+              style={{ opacity: name.trim() ? (preRemuxReady ? 1 : 0.75) : undefined }}
             >
               Create Scrapbook
             </button>

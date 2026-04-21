@@ -1,10 +1,12 @@
 import { lazy, Suspense, useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { UploadProvider, useUpload } from './context/UploadContext'
 import { loadFFmpeg } from './lib/remux'
 import LoginScreen from './screens/LoginScreen'
 import InstallPrompt from './components/InstallPrompt'
 import ErrorBoundary from './components/ErrorBoundary'
+import Reel from './components/Reel'
 
 const HomeScreen            = lazy(() => import('./screens/HomeScreen'))
 const IntakeScreen          = lazy(() => import('./screens/IntakeScreen'))
@@ -19,6 +21,43 @@ const FilmFestScreen        = lazy(() => import('./screens/RemixScreen'))
 const ResetPasswordScreen   = lazy(() => import('./screens/ResetPasswordScreen'))
 
 const FF_READY_KEY = 'cassette_ff_ready'
+
+function UploadBanner() {
+  const { isActive, completedClips, totalClips, cancel } = useUpload()
+  if (!isActive) return null
+
+  const remaining = totalClips - completedClips
+  const pct = totalClips > 0 ? (completedClips / totalClips) * 100 : 0
+
+  return (
+    <div
+      className="fixed top-0 left-0 right-0 z-50 flex items-center gap-3 px-4 py-2.5 border-b border-walnut-light"
+      style={{ background: 'rgba(26,15,8,0.97)' }}
+    >
+      <Reel size={18} />
+      <div className="flex-1">
+        <div className="flex justify-between mb-1">
+          <span className="text-amber text-[11px] font-bold font-sans">
+            Uploading {remaining} more clip{remaining !== 1 ? 's' : ''}
+          </span>
+          <span className="text-rust text-[10px] font-sans">{Math.round(pct)}%</span>
+        </div>
+        <div className="h-[2px] bg-walnut-light rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #F2A24A, #E8855A)' }}
+          />
+        </div>
+      </div>
+      <button
+        onClick={cancel}
+        className="text-rust/50 text-[11px] font-semibold font-sans active:opacity-70 ml-1"
+      >
+        Cancel
+      </button>
+    </div>
+  )
+}
 
 function ScreenLoader() {
   return (
@@ -132,9 +171,12 @@ export default function App() {
     <BrowserRouter>
       <ErrorBoundary>
         <AuthProvider>
-          <AppInit>
-            <AppRoutes />
-          </AppInit>
+          <UploadProvider>
+            <UploadBanner />
+            <AppInit>
+              <AppRoutes />
+            </AppInit>
+          </UploadProvider>
         </AuthProvider>
       </ErrorBoundary>
     </BrowserRouter>

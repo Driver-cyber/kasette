@@ -4,6 +4,7 @@ import { ArrowLeft, Play, Pause, Type, Trash2, Check, GripVertical, Volume2, Vol
 import { supabase } from '../lib/supabase'
 import { safeDeleteClipFiles } from '../lib/mediaDelete'
 import { useAuth } from '../context/AuthContext'
+import { useUpload } from '../context/UploadContext'
 import { getBlob, preloadClip, preloadRest } from '../lib/blobCache'
 import { getCached, cacheScrapbook } from '../lib/dataCache'
 
@@ -42,6 +43,7 @@ export default function WorkspaceScreen() {
   const navigate = useNavigate()
   const { id } = useParams()
   const { session } = useAuth()
+  const { isActive, completedClips, totalClips, scrapbookId: uploadingId } = useUpload()
   const videoRef = useRef(null)
   const filmstripRef = useRef(null)
   const previewRef = useRef(null)
@@ -147,6 +149,28 @@ export default function WorkspaceScreen() {
       if (!cached) setLoading(false)
     })
   }, [id])
+
+  // Pick up new clips as they land from the background upload queue
+  useEffect(() => {
+    const channel = supabase
+      .channel(`workspace-clips:${id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'clips',
+        filter: `scrapbook_id=eq.${id}`,
+      }, payload => {
+        setClips(prev => {
+          if (prev.some(c => c.id === payload.new.id)) return prev
+          return [...prev, payload.new].sort((a, b) => a.order - b.order)
+        })
+      })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [id])
+
+  const uploadingThisScrapbook = isActive && uploadingId === id
+  const pendingCount = uploadingThisScrapbook ? totalClips - completedClips : 0
 
   const activeClip = clips.find(c => c.id === activeClipId)
 
@@ -811,6 +835,12 @@ export default function WorkspaceScreen() {
           </button>
         </div>
       </header>
+
+      {pendingCount > 0 && (
+        <p className="text-rust text-[10px] font-sans text-center pb-1 flex-shrink-0">
+          {pendingCount} clip{pendingCount !== 1 ? 's' : ''} still uploading in the background
+        </p>
+      )}
 
       {/* ── Preview zone ── */}
       {!reorderMode && (

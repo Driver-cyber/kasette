@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Upload Flow — Cassette Prototype</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,300;1,9..144,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #1A0F08;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-start;
+    min-height: 100vh;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: 32px 16px 60px;
+  }
+  @keyframes pulse { 0%,100% { opacity:.4 } 50% { opacity:1 } }
+  @keyframes shimmer {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+  @keyframes slideUp {
+    from { transform: translateY(100%); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
+  @keyframes slideDown {
+    from { transform: translateY(0);    opacity: 1; }
+    to   { transform: translateY(100%); opacity: 0; }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes barGrow { from { width: 0; } }
+</style>
+</head>
+<body>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel">
+
+// ── Brand tokens ──────────────────────────────────────────────
+const C = {
+  amber:       '#F2A24A',
+  sienna:      '#E8855A',
+  wheat:       '#F5DEB3',
+  walnut:      '#2C1A0E',
+  walnutMid:   '#3D2410',
+  walnutLight: '#4A2E18',
+  rust:        '#7A3B1E',
+  deep:        '#1A0F08',
+}
+
+// ── Clip data (30 clips, varying sizes) ──────────────────────
+const CLIPS = Array.from({ length: 30 }, (_, i) => ({
+  id: i,
+  label: `Clip ${i + 1}`,
+  duration: [12, 28, 8, 45, 19, 33, 7, 52, 14, 23, 41, 16, 38, 9, 27, 61, 18, 44, 11, 35,
+             22, 57, 13, 29, 48, 17, 36, 24, 42, 15][i],
+  sizeMB: [48, 210, 32, 380, 95, 180, 28, 430, 72, 115, 320, 78, 260, 38, 140, 510, 88, 355,
+           55, 230, 108, 470, 65, 150, 400, 84, 245, 118, 345, 73][i],
+  thumb: `hsl(${20 + i * 8}, 40%, ${15 + (i % 3) * 5}%)`,
+}))
+
+// ── Reel SVG (from existing app) ─────────────────────────────
+function Reel({ reverse = false, size = 32 }) {
+  return (
+    <div style={{
+      animation: `spin ${reverse ? '1.7s' : '2.1s'} linear infinite`,
+      animationDirection: reverse ? 'reverse' : 'normal',
+      width: size, height: size, flexShrink: 0,
+    }}>
+      <svg width={size} height={size} viewBox="0 0 48 48" fill="none">
+        <circle cx="24" cy="24" r="20" stroke={C.amber} strokeWidth="2.5" fill="none"/>
+        <circle cx="24" cy="24" r="7"  stroke={C.amber} strokeWidth="1.5" fill="none"/>
+        <circle cx="24" cy="24" r="2.5" fill={C.amber}/>
+        <line x1="24" y1="4"    x2="24"   y2="17"   stroke={C.amber} strokeWidth="2" strokeLinecap="round"/>
+        <line x1="41.3" y1="34" x2="30.1" y2="27.5" stroke={C.amber} strokeWidth="2" strokeLinecap="round"/>
+        <line x1="6.7"  y1="34" x2="17.9" y2="27.5" stroke={C.amber} strokeWidth="2" strokeLinecap="round"/>
+      </svg>
+    </div>
+  )
+}
+
+// ── Upload banner (persists across screens) ───────────────────
+function UploadBanner({ completed, total, visible }) {
+  const pct = (completed / total) * 100
+  const remaining = total - completed
+  if (!visible) return null
+  return (
+    <div style={{
+      position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100,
+      background: 'rgba(26,15,8,0.96)',
+      borderBottom: `1px solid ${C.walnutLight}`,
+      padding: '10px 16px 10px',
+      display: 'flex', alignItems: 'center', gap: 10,
+      animation: 'fadeIn 0.3s ease',
+    }}>
+      <Reel size={20}/>
+      <div style={{ flex: 1 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: C.amber }}>
+            Uploading {remaining} more clip{remaining !== 1 ? 's' : ''}
+          </span>
+          <span style={{ fontSize: 10, color: C.rust }}>
+            {Math.round(pct)}%
+          </span>
+        </div>
+        <div style={{ height: 2, background: C.walnutLight, borderRadius: 999, overflow: 'hidden' }}>
+          <div style={{
+            height: '100%',
+            width: `${pct}%`,
+            background: `linear-gradient(90deg, ${C.amber}, ${C.sienna})`,
+            borderRadius: 999,
+            transition: 'width 0.5s ease',
+          }}/>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Screen 1: IntakeScreen (name sheet, create button) ────────
+function ScreenIntake({ onCreateTap }) {
+  const thumbs = CLIPS.slice(0, 8)
+  // Simulate pre-remux happening silently while user types
+  const [preRemuxPct, setPreRemuxPct] = React.useState(0)
+  const [preRemuxDone, setPreRemuxDone] = React.useState(false)
+  React.useEffect(() => {
+    let pct = 0
+    const id = setInterval(() => {
+      pct += 6
+      setPreRemuxPct(Math.min(100, pct))
+      if (pct >= 100) { setPreRemuxDone(true); clearInterval(id) }
+    }, 100)
+    return () => clearInterval(id)
+  }, [])
+
+  return (
+    <div style={{ height: '100%', background: C.walnut, position: 'relative', overflow: 'hidden' }}>
+      {/* dimmed grid beneath */}
+      <div style={{ position: 'absolute', inset: 0, opacity: 0.35 }}>
+        <div style={{ padding: '60px 12px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          {thumbs.map(c => (
+            <div key={c.id} style={{ height: 140, borderRadius: 10, background: c.thumb, border: `2px solid ${C.amber}` }}/>
+          ))}
+        </div>
+      </div>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(44,26,14,0.75)' }}/>
+
+      {/* bottom sheet */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0,
+        background: C.walnutMid,
+        borderTop: `1px solid ${C.walnutLight}`,
+        borderRadius: '24px 24px 0 0',
+        padding: '0 20px 40px',
+        boxShadow: '0 -20px 60px rgba(0,0,0,0.4)',
+      }}>
+        <div style={{ width: 36, height: 4, borderRadius: 999, background: C.walnutLight, margin: '12px auto 16px' }}/>
+
+        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 26, fontWeight: 700, color: C.amber, marginBottom: 4 }}>
+          Almost <em style={{ fontWeight: 300, color: C.sienna }}>there.</em>
+        </div>
+        <div style={{ fontSize: 11, color: C.rust, marginBottom: 16, lineHeight: 1.6 }}>
+          Give this scrapbook a name.
+        </div>
+
+        {/* name field */}
+        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', color: C.rust, textTransform: 'uppercase', marginBottom: 6 }}>Scrapbook name</div>
+        <div style={{
+          background: C.walnut, border: `1.5px solid ${C.amber}`,
+          borderRadius: 12, padding: '12px 14px', marginBottom: 14,
+          fontFamily: 'Fraunces, serif', fontWeight: 600, fontSize: 17, color: C.wheat,
+        }}>
+          Christmas Morning 2025
+        </div>
+
+        {/* summary pill */}
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          background: C.walnut, border: `1px solid ${C.walnutLight}`,
+          borderRadius: 999, padding: '6px 12px', marginBottom: 14,
+        }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.amber }}/>
+          <span style={{ fontSize: 11, color: 'rgba(245,222,179,0.65)' }}>30 clips · ~14 min · Dec 25, 2025</span>
+        </div>
+
+        {/* ── SILENT PRE-REMUX INDICATOR ── */}
+        <div style={{
+          background: C.walnut, border: `1px solid ${C.walnutLight}`,
+          borderRadius: 10, padding: '9px 12px', marginBottom: 14,
+          display: 'flex', alignItems: 'center', gap: 10,
+          opacity: preRemuxDone ? 0.6 : 1,
+          transition: 'opacity 0.4s',
+        }}>
+          {preRemuxDone ? (
+            <div style={{
+              width: 18, height: 18, borderRadius: '50%', background: C.amber,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <svg width="8" height="8" viewBox="0 0 8 8"><path d="M1 4l2 2 4-4" stroke={C.walnut} strokeWidth="1.5" strokeLinecap="round" fill="none"/></svg>
+            </div>
+          ) : (
+            <div style={{
+              width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+              border: `2px solid ${C.amber}`, borderTopColor: 'transparent',
+              animation: 'spin 0.8s linear infinite',
+            }}/>
+          )}
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: preRemuxDone ? C.amber : C.wheat, marginBottom: 3 }}>
+              {preRemuxDone ? 'Clip 1 optimized and ready' : `Optimizing clip 1 while you type… ${Math.round(preRemuxPct)}%`}
+            </div>
+            {!preRemuxDone && (
+              <div style={{ height: 2, background: C.walnutLight, borderRadius: 999, overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%', borderRadius: 999,
+                  width: `${preRemuxPct}%`,
+                  background: `linear-gradient(90deg, ${C.amber}, ${C.sienna})`,
+                  transition: 'width 0.1s linear',
+                }}/>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* CTA — lights up amber when pre-remux done */}
+        <button
+          onClick={onCreateTap}
+          style={{
+            width: '100%',
+            background: preRemuxDone ? C.amber : 'rgba(242,162,74,0.5)',
+            border: 'none', borderRadius: 16, padding: '16px 0',
+            fontFamily: 'Plus Jakarta Sans, sans-serif',
+            fontSize: 15, fontWeight: 700, color: C.walnut,
+            cursor: 'pointer',
+            transition: 'background 0.3s',
+          }}
+        >
+          Create Scrapbook
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Screen 2: Micro-loading (clip 1 + 2, not full screen) ─────
+function ScreenLoading({ elapsed, clip1Pct, clip2Pct, onDone }) {
+  React.useEffect(() => {
+    if (clip1Pct >= 100) {
+      const t = setTimeout(onDone, 600)
+      return () => clearTimeout(t)
+    }
+  }, [clip1Pct])
+
+  return (
+    <div style={{ height: '100%', background: C.walnut, display: 'flex', flexDirection: 'column' }}>
+      {/* header */}
+      <div style={{ padding: '76px 20px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 36, height: 36, borderRadius: '50%', background: C.walnutMid, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.wheat} strokeWidth="2" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        </div>
+        <span style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 600, color: C.wheat }}>New Scrapbook</span>
+      </div>
+
+      {/* main content */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 28px', gap: 32 }}>
+        <div style={{ display: 'flex', gap: 24 }}>
+          <Reel size={40}/>
+          <Reel reverse size={40}/>
+        </div>
+
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontStyle: 'italic', color: C.amber, marginBottom: 6 }}>
+            {clip1Pct < 100 ? 'Getting ready…' : 'Almost there…'}
+          </div>
+          <div style={{ fontSize: 12, color: C.rust }}>
+            {clip1Pct < 100 ? `Uploading your first clip (${Math.round(clip1Pct)}%)` : 'Creating your scrapbook…'}
+          </div>
+        </div>
+
+        {/* TWO clip progress bars — this is the new thing */}
+        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* Clip 1 — priority upload */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: clip1Pct >= 100 ? C.amber : C.wheat }}>
+                {clip1Pct >= 100 ? '✓ Clip 1' : 'Clip 1'} <span style={{ fontWeight: 400, color: C.rust }}>· 48 MB</span>
+              </span>
+              <span style={{ fontSize: 10, color: clip1Pct >= 100 ? C.amber : C.rust }}>{Math.round(clip1Pct)}%</span>
+            </div>
+            <div style={{ height: 3, background: C.walnutLight, borderRadius: 999, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', borderRadius: 999,
+                width: `${clip1Pct}%`,
+                background: clip1Pct >= 100 ? C.amber : `linear-gradient(90deg, ${C.amber}, ${C.sienna})`,
+                transition: 'width 0.2s linear',
+              }}/>
+            </div>
+          </div>
+
+          {/* Clip 2 — concurrent upload (head start!) */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: C.rust }}>
+                Clip 2 <span style={{ fontWeight: 400 }}>· 210 MB</span>
+              </span>
+              <span style={{ fontSize: 10, color: C.rust }}>{Math.round(clip2Pct)}%</span>
+            </div>
+            <div style={{ height: 3, background: C.walnutLight, borderRadius: 999, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', borderRadius: 999,
+                width: `${clip2Pct}%`,
+                background: `rgba(242,162,74,0.35)`,
+                transition: 'width 0.2s linear',
+              }}/>
+            </div>
+          </div>
+
+          {/* clips 3-30 queued */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, paddingTop: 4,
+          }}>
+            <div style={{ flex: 1, height: 2, background: C.walnutLight, borderRadius: 999 }}/>
+            <span style={{ fontSize: 10, color: C.rust, whiteSpace: 'nowrap' }}>28 more clips queued</span>
+            <div style={{ flex: 1, height: 2, background: C.walnutLight, borderRadius: 999 }}/>
+          </div>
+        </div>
+
+        {/* reassurance blurb */}
+        <div style={{
+          background: C.walnutLight,
+          borderRadius: 12, padding: '12px 14px',
+          width: '100%',
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.wheat, marginBottom: 4 }}>
+            You can start editing right away
+          </div>
+          <div style={{ fontSize: 11, color: C.rust, lineHeight: 1.65 }}>
+            As soon as clip 1 lands you'll be in the workspace. Clips upload in the background — any trimming or captions you add are saved instantly and won't be lost.
+          </div>
+        </div>
+
+        <div style={{ fontSize: 10, color: `${C.rust}80`, textAlign: 'center' }}>
+          {elapsed}s elapsed · navigating when clip 1 lands
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Screen 3: Scrapbook Detail (landed!) ──────────────────────
+function ScreenDetail({ uploadCompleted, uploadTotal, onEdit, onWatch }) {
+  return (
+    <div style={{ height: '100%', background: C.walnut, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      {/* upload banner */}
+      <UploadBanner completed={uploadCompleted} total={uploadTotal} visible={uploadCompleted < uploadTotal}/>
+
+      {/* hero */}
+      <div style={{
+        height: 220,
+        background: `linear-gradient(145deg, #3D2410, #4A2E18, #2C1A0E)`,
+        display: 'flex', alignItems: 'flex-end',
+        padding: '0 20px 16px',
+        marginTop: uploadCompleted < uploadTotal ? 38 : 0,
+        flexShrink: 0,
+      }}>
+        {/* First clip thumbnail preview */}
+        <div style={{
+          width: 72, height: 72, borderRadius: 12,
+          background: CLIPS[0].thumb,
+          border: `2px solid ${C.amber}`,
+          marginRight: 14, flexShrink: 0,
+        }}/>
+        <div>
+          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 700, color: C.wheat, marginBottom: 2 }}>
+            Christmas Morning
+          </div>
+          <div style={{ fontSize: 11, color: C.rust }}>2025 · 30 clips · ~14 min</div>
+          {uploadCompleted < uploadTotal && (
+            <div style={{
+              marginTop: 6, fontSize: 10, color: C.amber, fontWeight: 600,
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.amber, animation: 'pulse 1.5s ease-in-out infinite' }}/>
+              Uploading {uploadTotal - uploadCompleted} more clips…
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* actions */}
+      <div style={{ padding: '20px 20px 0', display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
+        <button onClick={onWatch} style={{
+          background: C.amber, border: 'none', borderRadius: 14,
+          padding: '16px', fontFamily: 'Plus Jakarta Sans, sans-serif',
+          fontSize: 15, fontWeight: 700, color: C.walnut, cursor: 'pointer',
+        }}>Watch</button>
+        <button onClick={onEdit} style={{
+          background: C.walnutMid, border: `1px solid ${C.walnutLight}`,
+          borderRadius: 14, padding: '14px',
+          fontFamily: 'Plus Jakarta Sans, sans-serif',
+          fontSize: 14, fontWeight: 600, color: C.wheat, cursor: 'pointer',
+        }}>Edit in Workspace</button>
+
+        {/* clip grid preview — shows all 30 clips, first 2 are ready */}
+        <div style={{ marginTop: 8 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', color: C.rust, textTransform: 'uppercase', marginBottom: 10 }}>
+            Clips
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
+            {CLIPS.slice(0, 10).map((c, i) => {
+              const isReady = i < uploadCompleted
+              const isUploading = i >= uploadCompleted && i < uploadCompleted + 3
+              return (
+                <div key={c.id} style={{
+                  aspectRatio: '1',
+                  borderRadius: 8,
+                  background: isReady ? c.thumb : C.walnutLight,
+                  position: 'relative', overflow: 'hidden',
+                  border: `1.5px solid ${isReady ? 'transparent' : C.walnutLight}`,
+                }}>
+                  {isUploading && (
+                    <div style={{
+                      position: 'absolute', inset: 0,
+                      background: `linear-gradient(90deg, transparent, rgba(242,162,74,0.2), transparent)`,
+                      backgroundSize: '200% 100%',
+                      animation: 'shimmer 1.5s linear infinite',
+                    }}/>
+                  )}
+                  {isReady && (
+                    <div style={{
+                      position: 'absolute', bottom: 2, right: 2,
+                      width: 12, height: 12, borderRadius: '50%',
+                      background: C.amber, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <svg width="6" height="6" viewBox="0 0 8 8"><path d="M1 4l2 2 4-4" stroke={C.walnut} strokeWidth="1.5" strokeLinecap="round" fill="none"/></svg>
+                    </div>
+                  )}
+                  {!isReady && !isUploading && (
+                    <div style={{
+                      position: 'absolute', inset: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <div style={{ width: 14, height: 14, borderRadius: '50%', border: `1.5px solid ${C.rust}` }}/>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <div style={{ fontSize: 10, color: C.rust, marginTop: 6, textAlign: 'right' }}>
+            +20 more clips
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Screen 4: Workspace (with clip states) ────────────────────
+function ScreenWorkspace({ uploadCompleted, uploadTotal, onBack, activeClip, setActiveClip, toastClip, setToastClip }) {
+  const CLIP_COUNT = 10
+
+  function handleClipTap(i) {
+    const isReady = i < uploadCompleted
+    if (isReady) {
+      setActiveClip(i)
+      setToastClip(null)
+    } else {
+      setToastClip(i)
+      setTimeout(() => setToastClip(null), 2500)
+    }
+  }
+
+  // Estimated upload time for not-yet-ready clips
+  function etaText(clipIdx) {
+    if (clipIdx < uploadCompleted) return null
+    const queued = clipIdx - uploadCompleted
+    const secsEach = 25
+    const secs = queued * secsEach + 10
+    if (secs < 60) return `~${secs}s`
+    return `~${Math.ceil(secs/60)}m`
+  }
+
+  const clip = CLIPS[activeClip]
+
+  return (
+    <div style={{ height: '100%', background: C.walnut, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+      {/* upload banner */}
+      <UploadBanner completed={uploadCompleted} total={uploadTotal} visible={uploadCompleted < uploadTotal}/>
+
+      {/* nav */}
+      <div style={{
+        padding: `${uploadCompleted < uploadTotal ? 48 : 10}px 16px 10px`,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        flexShrink: 0,
+      }}>
+        <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(245,222,179,0.6)" strokeWidth="2" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(245,222,179,0.6)' }}>Back</span>
+        </button>
+        <span style={{ fontFamily: 'Fraunces, serif', fontSize: 17, fontWeight: 600, color: C.wheat }}>Christmas Morning</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: C.amber }}>Watch</span>
+      </div>
+
+      {/* preview zone */}
+      <div style={{
+        margin: '0 12px 10px',
+        borderRadius: 14,
+        background: clip ? clip.thumb : C.walnutMid,
+        height: 190, flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        position: 'relative', overflow: 'hidden',
+      }}>
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(180deg, rgba(26,15,8,0) 40%, rgba(26,15,8,0.8) 100%)',
+        }}/>
+        <div style={{
+          position: 'absolute', bottom: 10, left: 14,
+          fontFamily: 'Fraunces, serif', fontSize: 13, color: C.wheat, fontWeight: 600,
+        }}>
+          {clip ? `Clip ${activeClip + 1} · ${clip.duration}s` : ''}
+        </div>
+        {/* play button */}
+        <div style={{
+          width: 44, height: 44, borderRadius: '50%',
+          background: 'rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          position: 'relative',
+        }}>
+          <svg width="16" height="18" viewBox="0 0 16 18" fill={C.wheat}><path d="M2 1l13 8-13 8V1z"/></svg>
+        </div>
+      </div>
+
+      {/* horizontal clip strip */}
+      <div style={{ padding: '0 12px 8px', flexShrink: 0 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', color: C.rust, textTransform: 'uppercase', marginBottom: 8 }}>
+          Clips
+        </div>
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+          {CLIPS.slice(0, CLIP_COUNT).map((c, i) => {
+            const isActive = i === activeClip
+            const isReady = i < uploadCompleted
+            const isUploading = !isReady && i < uploadCompleted + 3
+            const isQueued = !isReady && !isUploading
+            return (
+              <button
+                key={c.id}
+                onClick={() => handleClipTap(i)}
+                style={{
+                  width: 64, height: 64, borderRadius: 10, flexShrink: 0,
+                  background: isReady ? c.thumb : C.walnutLight,
+                  border: `2px solid ${isActive ? C.amber : 'transparent'}`,
+                  position: 'relative', overflow: 'hidden', cursor: 'pointer',
+                  outline: 'none',
+                }}
+              >
+                {/* uploading shimmer */}
+                {isUploading && (
+                  <div style={{
+                    position: 'absolute', inset: 0,
+                    background: `linear-gradient(90deg, transparent, rgba(242,162,74,0.25), transparent)`,
+                    backgroundSize: '200% 100%',
+                    animation: 'shimmer 1.5s linear infinite',
+                  }}/>
+                )}
+                {/* queued dimmer */}
+                {isQueued && (
+                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(26,15,8,0.5)' }}/>
+                )}
+                {/* status icon */}
+                {isReady && (
+                  <div style={{
+                    position: 'absolute', top: 3, right: 3,
+                    width: 14, height: 14, borderRadius: '50%', background: C.amber,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <svg width="7" height="7" viewBox="0 0 8 8"><path d="M1 4l2 2 4-4" stroke={C.walnut} strokeWidth="1.5" strokeLinecap="round" fill="none"/></svg>
+                  </div>
+                )}
+                {isUploading && (
+                  <div style={{
+                    position: 'absolute', top: 3, right: 3,
+                    width: 14, height: 14, borderRadius: '50%',
+                    border: `1.5px solid ${C.amber}`,
+                    borderTopColor: 'transparent',
+                    animation: 'spin 0.8s linear infinite',
+                  }}/>
+                )}
+                {/* ETA for unready clips */}
+                {!isReady && (
+                  <div style={{
+                    position: 'absolute', bottom: 2, left: 0, right: 0,
+                    textAlign: 'center', fontSize: 8, fontWeight: 700, color: C.rust,
+                  }}>
+                    {isUploading ? 'now' : etaText(i)}
+                  </div>
+                )}
+                {/* clip number */}
+                <div style={{
+                  position: 'absolute', bottom: isReady ? 3 : 10, left: 4,
+                  fontSize: 9, fontWeight: 700, color: isReady ? C.wheat : C.rust,
+                }}>
+                  {i + 1}
+                </div>
+              </button>
+            )
+          })}
+          {/* overflow indicator */}
+          <div style={{
+            width: 64, height: 64, borderRadius: 10, flexShrink: 0,
+            background: C.walnutLight, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span style={{ fontSize: 11, color: C.rust, fontWeight: 600 }}>+20</span>
+          </div>
+        </div>
+      </div>
+
+      {/* tool row */}
+      <div style={{
+        padding: '8px 16px 12px',
+        display: 'flex', justifyContent: 'space-around',
+        flexShrink: 0, borderTop: `1px solid ${C.walnutLight}`,
+      }}>
+        {['Trim','Caption','Mute','Remove'].map(t => (
+          <button key={t} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: 11, fontWeight: 600, color: C.rust,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+          }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: C.walnutMid, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {t === 'Trim' && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.rust} strokeWidth="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6M9 6l12 0M9 18l12-6"/></svg>}
+              {t === 'Caption' && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.rust} strokeWidth="2"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M7 12h5M7 16h3"/></svg>}
+              {t === 'Mute' && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.rust} strokeWidth="2"><path d="M11 5L6 9H2v6h4l5 4V5zM23 9l-6 6M17 9l6 6"/></svg>}
+              {t === 'Remove' && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.rust} strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>}
+            </div>
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* toast for tapping unready clip */}
+      {toastClip !== null && (
+        <div style={{
+          position: 'absolute', bottom: 90, left: 16, right: 16,
+          background: C.walnutMid,
+          border: `1px solid ${C.walnutLight}`,
+          borderRadius: 12, padding: '12px 16px',
+          display: 'flex', alignItems: 'center', gap: 10,
+          animation: 'fadeIn 0.2s ease',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+        }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: '50%',
+            border: `1.5px solid ${C.amber}`, borderTopColor: 'transparent',
+            animation: 'spin 0.8s linear infinite',
+            flexShrink: 0,
+          }}/>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.wheat, marginBottom: 1 }}>
+              Clip {toastClip + 1} is still uploading
+            </div>
+            <div style={{ fontSize: 11, color: C.rust }}>
+              Ready in {etaText(toastClip)} — available soon
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main app ──────────────────────────────────────────────────
+function App() {
+  const [screen, setScreen] = React.useState('intake') // intake | loading | detail | workspace
+  const [elapsed, setElapsed] = React.useState(0)
+  const [clip1Pct, setClip1Pct] = React.useState(0)
+  const [clip2Pct, setClip2Pct] = React.useState(0)
+  const [uploadCompleted, setUploadCompleted] = React.useState(1) // clip 1 done on arrival
+  const [activeClip, setActiveClip] = React.useState(0)
+  const [toastClip, setToastClip] = React.useState(null)
+  const timerRef = React.useRef(null)
+
+  // Simulate clip 1 + 2 uploading concurrently on loading screen
+  React.useEffect(() => {
+    if (screen !== 'loading') return
+    setElapsed(0)
+    setClip1Pct(0)
+    setClip2Pct(0)
+
+    let t = 0
+    timerRef.current = setInterval(() => {
+      t += 0.15
+      setElapsed(prev => prev + 0.15)
+      // Clip 1 (48MB) — finishes around 8s
+      setClip1Pct(Math.min(100, (t / 8) * 100))
+      // Clip 2 (210MB, 4× bigger) — started same time, finishes around 35s
+      setClip2Pct(Math.min(100, (t / 35) * 100))
+    }, 150)
+    return () => clearInterval(timerRef.current)
+  }, [screen])
+
+  // Navigate to detail when clip1 done
+  React.useEffect(() => {
+    if (screen !== 'loading') return
+    if (clip1Pct >= 100) {
+      clearInterval(timerRef.current)
+      setTimeout(() => {
+        setScreen('detail')
+        setUploadCompleted(1)
+        startBackgroundDrain()
+      }, 500)
+    }
+  }, [clip1Pct, screen])
+
+  // Background drain simulation after navigation
+  function startBackgroundDrain() {
+    let done = 1
+    const drainInterval = setInterval(() => {
+      done++
+      setUploadCompleted(done)
+      if (done >= 30) clearInterval(drainInterval)
+    }, 1800) // one clip finishes every 1.8s (sped up for demo)
+  }
+
+  function handleCreateTap() {
+    setScreen('loading')
+  }
+
+  const phoneScale = (() => {
+    if (typeof window === 'undefined') return 0.82
+    const vh = window.innerHeight
+    const vw = window.innerWidth
+    const maxH = Math.max(400, vh - 180)
+    const maxW = Math.max(320, vw - 32)
+    return Math.max(0.5, Math.min(maxH / 874, maxW / 402, 0.92))
+  })()
+
+  return (
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
+      {/* label */}
+      <div style={{ marginBottom: 20, textAlign: 'center' }}>
+        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 28, fontWeight: 700, color: '#F5DEB3', marginBottom: 4 }}>
+          Upload Flow <em style={{ fontWeight: 300, color: '#E8855A' }}>Prototype</em>
+        </div>
+        <div style={{ fontSize: 12, color: '#7A3B1E' }}>
+          {screen === 'intake'    && 'Step 1 of 4 — Intake: name sheet · tap Create to simulate'}
+          {screen === 'loading'   && `Step 2 of 4 — Micro-loading: clip 1 + clip 2 uploading concurrently · ${Math.round(elapsed)}s elapsed`}
+          {screen === 'detail'    && `Step 3 of 4 — Scrapbook Detail: navigated! · ${uploadCompleted}/30 clips uploaded`}
+          {screen === 'workspace' && `Step 4 of 4 — Workspace: tap ready clips to select, tap uploading clips to see toast`}
+        </div>
+      </div>
+
+      {/* phone */}
+      <div style={{ transform: `scale(${phoneScale})`, transformOrigin: 'top center' }}>
+        <IOSDevice dark width={402} height={874}>
+          <div style={{ height: '100%', paddingTop: 54 }}>
+            {screen === 'intake' && (
+              <ScreenIntake onCreateTap={handleCreateTap}/>
+            )}
+            {screen === 'loading' && (
+              <ScreenLoading
+                elapsed={Math.round(elapsed)}
+                clip1Pct={clip1Pct}
+                clip2Pct={clip2Pct}
+                onDone={() => {}}
+              />
+            )}
+            {screen === 'detail' && (
+              <ScreenDetail
+                uploadCompleted={uploadCompleted}
+                uploadTotal={30}
+                onEdit={() => { setScreen('workspace') }}
+                onWatch={() => {}}
+              />
+            )}
+            {screen === 'workspace' && (
+              <ScreenWorkspace
+                uploadCompleted={uploadCompleted}
+                uploadTotal={30}
+                onBack={() => setScreen('detail')}
+                activeClip={activeClip}
+                setActiveClip={setActiveClip}
+                toastClip={toastClip}
+                setToastClip={setToastClip}
+              />
+            )}
+          </div>
+        </IOSDevice>
+      </div>
+
+      {/* nav controls */}
+      <div style={{
+        marginTop: 24,
+        display: 'flex', gap: 10, alignItems: 'center',
+      }}>
+        {['intake','loading','detail','workspace'].map((s, i) => (
+          <button
+            key={s}
+            onClick={() => {
+              if (s === 'detail' || s === 'workspace') {
+                setUploadCompleted(Math.max(uploadCompleted, 1))
+                if (s === 'detail') startBackgroundDrain()
+              }
+              setScreen(s)
+            }}
+            style={{
+              padding: '8px 16px', borderRadius: 999,
+              background: screen === s ? '#F2A24A' : '#3D2410',
+              border: `1px solid ${screen === s ? '#F2A24A' : '#4A2E18'}`,
+              color: screen === s ? '#2C1A0E' : '#7A3B1E',
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            {['Intake','Loading','Detail','Workspace'][i]}
+          </button>
+        ))}
+      </div>
+
+      {/* legend */}
+      <div style={{
+        marginTop: 24, display: 'flex', gap: 20, flexWrap: 'wrap',
+        justifyContent: 'center', maxWidth: 500,
+      }}>
+        {[
+          { color: '#F2A24A', label: 'Uploaded & ready' },
+          { shimmer: true,    label: 'Uploading now' },
+          { dim: true,        label: 'Queued' },
+        ].map((item, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{
+              width: 14, height: 14, borderRadius: 4,
+              background: item.color || '#4A2E18',
+              opacity: item.dim ? 0.5 : 1,
+              border: item.shimmer ? '1px solid rgba(242,162,74,0.4)' : 'none',
+            }}/>
+            <span style={{ fontSize: 11, color: '#7A3B1E' }}>{item.label}</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ marginTop: 16, fontSize: 11, color: '#4A2E18', textAlign: 'center', maxWidth: 380 }}>
+        Background drain is sped up (1.8s/clip) for demo purposes.
+        Real timing: 3 concurrent uploads drain 1GB in ~3 minutes while she uses the app.
+      </div>
+    </div>
+  )
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>)
+</script>
+<div id="root"></div>
+</body>
+</html>

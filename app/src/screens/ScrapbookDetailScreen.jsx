@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { uploadToR2 } from '../lib/r2'
 import { safeDeleteClipFiles } from '../lib/mediaDelete'
 import { useAuth } from '../context/AuthContext'
+import { useUpload } from '../context/UploadContext'
 import { preloadClips, preloadRest } from '../lib/blobCache'
 import { cacheScrapbook } from '../lib/dataCache'
 import { exportScrapbook } from '../lib/export'
@@ -117,6 +118,7 @@ export default function ScrapbookDetailScreen() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { session } = useAuth()
+  const { isActive, completedClips, totalClips, scrapbookId: uploadingId } = useUpload()
   const coverInputRef = useRef(null)
 
   const [scrapbook, setScrapbook] = useState(null)
@@ -285,6 +287,14 @@ export default function ScrapbookDetailScreen() {
             {clips.length} {clips.length === 1 ? 'clip' : 'clips'}
             {totalDuration > 0 && ` · ${fmt(totalDuration)}`}
           </p>
+          {isActive && uploadingId === id && (
+            <div className="flex items-center gap-1.5 mt-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-amber animate-pulse" />
+              <span className="text-amber text-[11px] font-semibold font-sans">
+                Uploading {totalClips - completedClips} more clip{totalClips - completedClips !== 1 ? 's' : ''}…
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

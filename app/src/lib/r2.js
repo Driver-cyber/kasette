@@ -6,23 +6,32 @@
  *   VITE_UPLOAD_SECRET     – shared secret matching Worker's UPLOAD_SECRET
  */
 
-const WORKER_URL = import.meta.env.VITE_WORKER_URL
+const WORKER_URL = import.meta.env.VITE_WORKER_URL || 'https://cassette-worker.cstewch.workers.dev'
 const UPLOAD_SECRET = import.meta.env.VITE_UPLOAD_SECRET
 const R2_PUBLIC_URL = 'https://pub-bab6003c5bee4548b6a48fc2eca4583a.r2.dev'
 
-async function workerFetch(path, options = {}) {
-  const res = await fetch(`${WORKER_URL}${path}`, {
-    ...options,
-    headers: {
-      ...options.headers,
-      'X-Upload-Secret': UPLOAD_SECRET,
-    },
-  })
-  if (!res.ok) {
-    const text = await res.text().catch(() => res.status)
-    throw new Error(`Worker ${path} failed: ${text}`)
+async function workerFetch(path, options = {}, maxAttempts = 3) {
+  let lastErr
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)))
+    try {
+      const res = await fetch(`${WORKER_URL}${path}`, {
+        ...options,
+        headers: { ...options.headers, 'X-Upload-Secret': UPLOAD_SECRET },
+      })
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        lastErr = new Error(`Worker ${path} failed (${res.status}): ${text || 'empty body'}`)
+        if (res.status === 401) throw lastErr
+        continue
+      }
+      return res.json()
+    } catch (e) {
+      if (e.message?.includes('Unauthorized')) throw e
+      lastErr = e
+    }
   }
-  return res.json()
+  throw lastErr
 }
 
 /**
@@ -32,17 +41,42 @@ async function workerFetch(path, options = {}) {
  * @param {string} key  Storage key, e.g. `userId/scrapbookId/clipId.mp4`
  * @param {File|Blob} file
  * @param {string} [contentType]  Defaults to file.type
+ * @param {(fraction: number) => void} [onProgress]  Called with 0–1 as bytes are sent
  */
-export async function uploadToR2(key, file, contentType) {
+export function uploadToR2(key, file, contentType, onProgress) {
   const ct = contentType || file.type || 'application/octet-stream'
+  const url = `${WORKER_URL}/upload?key=${encodeURIComponent(key)}`
 
-  const { publicUrl } = await workerFetch(`/upload?key=${encodeURIComponent(key)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': ct },
-    body: file,
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', url)
+    xhr.setRequestHeader('Content-Type', ct)
+    xhr.setRequestHeader('X-Upload-Secret', UPLOAD_SECRET)
+
+    if (onProgress) {
+      xhr.upload.addEventListener('progress', e => {
+        if (e.lengthComputable) onProgress(e.loaded / e.total)
+      })
+    }
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const { publicUrl } = JSON.parse(xhr.responseText)
+          resolve(publicUrl)
+        } catch {
+          reject(new Error('Invalid JSON from worker'))
+        }
+      } else {
+        reject(new Error(`Worker upload failed (${xhr.status}): ${xhr.responseText || 'empty body'}`))
+      }
+    })
+
+    xhr.addEventListener('error', () => reject(new Error('Network error during upload')))
+    xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')))
+
+    xhr.send(file)
   })
-
-  return publicUrl
 }
 
 /**

@@ -14,7 +14,7 @@ to create and watch private video scrapbooks from her iPhone.**
 **Vibe:** Warm, cozy, nostalgic. Functional first, beautiful second. 
 Mobile-first always. Don't let perfect be the enemy of shipped.
 
-**Current phase:** Working v1 shipped and in active family use. All four Film Fest library features complete. Next major build: server-side Film Fest export (Cloudflare Worker + FFmpeg concat → downloadable MP4).
+**Current phase:** Working v1 shipped and in active family use. Upload performance overhauled — navigate-after-clip-1 + background queue live. **Next major build: native iOS app via Expo** (see [2026-04-22] entry).
 
 ---
 
@@ -782,8 +782,9 @@ Original random clip stepper at `/remix`. Replaced by the Film Fest multi-filter
 
 | # | Feature | Notes |
 |---|---|---|
-| 1 | **Film Fest server-side export** | "Download" button in Film Fest (currently Coming Soon). Cloudflare Worker + FFmpeg concat all selected clips → streams back a single MP4. Needs Worker memory budget planning for large files. |
-| 2 | **Reorder 2-step → 1-step UX** | Tap to select + same gesture drags. Hard: `onClick` fires after `touchend`. Parked but wanted. |
+| 1 | **Native iOS app (Expo)** | Next major build. Expo/React Native — reuses React + Supabase/R2 layer. Unlocks: instant photo library thumbnails, hardware video encoding (10–100× faster than WASM), true background URLSession uploads. See [2026-04-22] decision entry. |
+| 2 | **Film Fest server-side export** | "Download" button in Film Fest (currently Coming Soon). Cloudflare Worker + FFmpeg concat all selected clips → streams back a single MP4. Needs Worker memory budget planning for large files. |
+| 3 | **Reorder 2-step → 1-step UX** | Tap to select + same gesture drags. Hard: `onClick` fires after `touchend`. Parked but wanted. |
 
 ---
 
@@ -797,7 +798,7 @@ Original random clip stepper at `/remix`. Replaced by the Film Fest multi-filter
 - **Toast notifications** — replaces inline status text (e.g. "Share added ✓"). Medium.
 - **Supabase image transforms for thumbnails** — append `?width=400` to cover/thumbnail URLs. Faster Home load.
 - **Background music / audio track** — v2.
-- **Native iOS app** — if PWA proves too limiting for video handling.
+- **Native iOS app** — ✅ Approved, moved to Feature Backlog [2026-04-22].
 - **Light mode** — not a Cassette experience. Maybe never.
 
 ---
@@ -1170,3 +1171,118 @@ CREATE POLICY "Users manage own closed years" ON closed_years FOR ALL USING (use
 **Supabase email (pending, not yet done):**
 - Default Supabase email is `no-reply@mail.app.supabase.io`, ~3/hour limit, hits spam.
 - Fix: configure custom SMTP in Supabase Dashboard → Auth → SMTP Settings using Resend (already set up with `chadstewartcpa.com`). Create a new Resend API key named "Cassette", use `smtp.resend.com:465`, sender `noreply@chadstewartcpa.com`. No code changes needed.
+
+---
+
+### [2026-04-22] — Upload Performance Overhaul: Background Queue + Early Navigation
+
+**Problem:** Creating a scrapbook blocked on a full-screen overlay while ALL clips uploaded — for a 15-clip batch this meant 10+ minutes before the user could do anything. Every tapped "Create" felt like the app froze.
+
+**Goal:** Get from "Create Scrapbook" tap to the next screen in under 15 seconds for any batch size.
+
+**Architecture: three-part solution**
+
+**1. Pre-remux clip 1 silently while the user types the name**
+- As soon as the name sheet opens (`step === 'name'`), `remuxWithFaststart(selectedItems[0].file)` runs in the background
+- Result stored in `preRemuxRef.current` — if ready when user taps Create, remux phase is instant
+- Pre-remux targets `selectedItems[0]` exactly — not the first non-photo. Bug: original code used `selectedItems.find(i => i.mediaType !== 'photo')` which caused double-upload in mixed batches. Fixed to `selectedItems[0]` with photo check.
+- Pre-remux indicator in name sheet: spinner → amber checkmark when ready. Button always tappable (falls back to inline remux if not ready).
+
+**2. Navigate after clip 1 only**
+- `handleCreate` remuxes + uploads clip 1 only, inserts its DB row, then immediately navigates to WorkspaceScreen
+- Remaining clips (`selectedItems.slice(1)`) handed off to background context
+
+**3. Global background upload queue (`UploadContext`)**
+- New file: `app/src/context/UploadContext.jsx` — React Context that survives navigation
+- `startBackgroundUpload({ scrapbookId, clips, userId, concurrency })` — concurrency-limited pool (3 workers, shared index pointer, safe because JS is single-threaded)
+- Each task: remux (skip if photo) → upload video → upload thumbnail (non-blocking) → DB insert
+- `orderOffset` queried from DB after clip 1 lands, ensuring correct order
+- Wake lock: acquired on start, re-acquired on visibilitychange, released on finish/cancel
+- `cancel()` sets `cancelledRef`, releases wake lock, sets `isActive: false`
+- Wrapped around entire app in `App.jsx` (inside `AuthProvider`, outside `AppInit`)
+
+**New files created:**
+- `app/src/components/Reel.jsx` — extracted from IntakeScreen + ScrapbookDetailScreen; `size` prop (default 48) for reuse at different scales
+- `app/src/lib/utils.js` — `dataURLtoBlob()` extracted from IntakeScreen so both IntakeScreen and UploadContext can share it
+
+**UploadBanner (App.jsx):**
+- `position: fixed, top: 0, z-50` — floats above all screens without requiring layout changes
+- Shows amber gradient progress bar + "Uploading N more clips" + Cancel button
+- `Reel` component at `size=18` as the icon
+- Only renders when `isActive === true`
+
+**WorkspaceScreen changes:**
+- Supabase Realtime `postgres_changes` INSERT subscription on `clips` filtered by scrapbook_id
+- New clips land in the clip strip in real time as background uploads complete
+- `pendingCount` = `totalClips - completedClips` shown below nav header when > 0: "N clips still uploading in the background"
+
+**ScrapbookDetailScreen changes:**
+- Shows pulsing amber dot + "Uploading N more clips…" when `isActive && uploadingId === scrapbookId`
+
+**Upload overlay redesigned:**
+- Clip 1 progress bar only (not all clips)
+- Divider + "N more clips queued" count
+- "You can start editing right away" reassurance card when batch > 1
+
+---
+
+### [2026-04-22] — XHR Upload Progress (Real Byte-Level Progress)
+
+**Problem:** `fetch` API has no upload progress events. The clip 1 progress bar sat frozen at 40% for the entire network transfer (10–20s for large iPhone videos), then jumped to 95%.
+
+**Fix:** Replaced `fetch` in `uploadToR2` with `XMLHttpRequest`. `xhr.upload.addEventListener('progress', e => onProgress(e.loaded / e.total))` fires as bytes are sent.
+
+`uploadToR2(key, file, contentType, onProgress)` — `onProgress` is optional. When provided, passes fraction (0–1) to caller. IntakeScreen passes a callback that calls `setUploadProgress({ current: fraction, total: 1 })`, which feeds the existing smooth lerp and moves the bar from 40% → 95% in real time.
+
+Delete calls still use `workerFetch` (no progress needed).
+
+---
+
+### [2026-04-22] — Worker CORS Fix + Retry Logic
+
+**Problem:** `env.BUCKET.put()` exceptions propagated out of the worker's `fetch` handler. Cloudflare returned a raw 500 with no CORS headers. Browser blocked reading the body — `res.text()` returned `""`. Error displayed as "Worker … failed:" with nothing after the colon.
+
+**Fix — worker:** Wrapped `env.BUCKET.put()` and `env.BUCKET.delete()` in try/catch. Errors now return through the `err()` helper which always includes CORS headers. Added `if (!env.BUCKET) return err('R2 bucket not bound', 500)` guard.
+
+**Fix — r2.js:** `workerFetch` retries up to 3 times with exponential backoff (1s, 2s). Auth errors (401) skip retries. Error message now always includes HTTP status: `failed (500): R2 put failed`.
+
+**Worker URL hardcoded as fallback:** `VITE_WORKER_URL || 'https://cassette-worker.cstewch.workers.dev'` — the URL is public (in CLAUDE.md), so hardcoding it prevents env var propagation issues on branch preview deployments from breaking uploads.
+
+**Cloudflare Pages env var note:** Preview deployments require vars set under `Settings → Variables and Secrets → Choose Environment: Preview`, separate from production. Production vars do NOT automatically inherit to preview builds.
+
+---
+
+### [2026-04-22] — Selection Screen: Metadata Loading Indicator
+
+**Problem:** After picking 12 clips, nothing happened visually for ~90 seconds (iOS processing files), then small loading spinners appeared only on visible clips. User had no indication anything was happening.
+
+**What was built:**
+- `metaLoaded` / `metaTotal` state in IntakeScreen
+- `handleFilePick` sets `metaTotal = files.length`, `metaLoaded = 0`, increments `metaLoaded` as each clip's metadata resolves
+- Grid header: while `metaLoaded < metaTotal`, shows amber spinning ring + bold "Loading clip info… X of Y" replacing the quiet rust "X items imported" text
+- Clip cards without a thumbnail yet: `animate-pulse` on the background so the grid visually communicates loading state from the first render
+
+**What can't be fixed:** The iOS file hand-off delay (90s freeze before clips appear) is iOS-level, not app-level. The browser only receives files after the native picker closes and iOS finishes decoding/transferring them. No web API exists to pre-grant photo library access or pre-process files before the picker.
+
+---
+
+### [2026-04-22] — Decision: Native iOS App (Expo) is Next Major Build
+
+**Context:** Upload experience on web (PWA) has three hard limits that can't be solved at the browser level:
+1. iOS file picker hand-off delay — iOS processes and transfers video files to the browser after the picker closes, causing a ~60–90s freeze before the selection grid appears
+2. FFmpeg WASM speed — software remux takes 10–30s per clip; blocks the entire UI thread; can't be parallelized
+3. Background upload fragility — wake lock is best-effort; iOS can revoke it when the app is backgrounded or the screen locks
+
+**What a native Expo app unlocks:**
+- `expo-media-library` → instant cached thumbnails from iOS photo library, no video decoding delay
+- `AVFoundation` hardware H.264 encoding → ~10–100× faster than FFmpeg WASM
+- `URLSession` background configuration → true background uploads that survive screen lock and app switching
+- Direct `PHAsset` access → no file hand-off from iOS picker
+
+**Decision: Build native iOS app via Expo (React Native)**
+
+Rationale: Expo preserves React knowledge and reuses most business logic (Supabase, R2, data model, screen architecture). The core bottleneck is the media layer — `expo-media-library`, `expo-av`, and native upload APIs replace the three WASM/browser limitations above. Estimated 2–3 months for a feature-complete port.
+
+**Web app stays live** — existing users continue on the PWA during native development. No shutdown.
+
+**Prerequisite:** Validate that today's upload improvements are sufficient for Joelle's current usage patterns before committing to native. If the web experience is workable, native goes into the roadmap but isn't urgent. If upload friction is still a consistent blocker, native moves to immediate next build.

@@ -292,5 +292,50 @@
   </div>
 
 </div>
+<script id="tracker-data" type="application/json">
+{
+  "project": "Cassette",
+  "description": "Private family video scrapbook app",
+  "updated": "2026-04-22",
+  "columns": [
+    {
+      "name": "kasette — Web PWA",
+      "sub": "Feature lab · Cloudflare Pages · React + Vite",
+      "priorities": [
+        { "title": "Configure Supabase SMTP via Resend", "note": "Auth emails hit spam + rate-limited. No code changes needed." },
+        { "title": "Film Fest Download / Export", "note": "Cloudflare Worker + FFmpeg concat. Plan memory budget first." },
+        { "title": "UX Polish Pass", "note": "Skeleton cards, toast notifications, image transforms for thumbnails." }
+      ],
+      "backlog": [
+        "Reorder UX — 1-step tap+drag",
+        "Public share links — grandparent view",
+        "Caption burning on export — v2",
+        "Video compression on upload",
+        "Offline indicator banner",
+        "Swipe-to-delete cards",
+        "Bug: wrong signOut redirect in HomeScreen"
+      ]
+    },
+    {
+      "name": "kasette-native — iOS",
+      "sub": "Expo · React Native · Unlisted App Store · EAS",
+      "priorities": [
+        { "title": "Scaffold Expo project + EAS setup", "note": "create-expo-app kasette-native · EAS CLI · Apple Dev account linked." },
+        { "title": "TestFlight pipeline: auth + one video", "note": "Prove the pipeline end to end. First build in hand." },
+        { "title": "Port core screens: home, intake shell, playback", "note": "expo-media-library + AVFoundation + React Navigation." }
+      ],
+      "backlog": [
+        "Port workspace editor — trim, split, captions",
+        "Background upload queue — URLSession",
+        "Push notifications — APNs via Expo",
+        "Port sharing features",
+        "EAS OTA updates config",
+        "App Store submission — unlisted",
+        "Sellable clone — separate repo, rebrand"
+      ]
+    }
+  ]
+}
+</script>
 </body>
 </html>

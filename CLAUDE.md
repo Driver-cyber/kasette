@@ -10,6 +10,12 @@
 
 - **Read First:** Always check `DECISIONS.md` before starting any task. Understand 
   the current vibe, stack, and what's been decided before touching code.
+- **Check the tracker:** Also check `cassette-tracker.html` for current priorities 
+  and what's actively being built. Update it at the end of any session that changes priorities.
+- **Two-repo context:** `kasette` (this repo) is the web PWA and active feature lab. 
+  `kasette-native` is the companion Expo iOS app targeting the same Supabase + R2 backend. 
+  Features are built and proven here first, then ported. If opening a `kasette-native` 
+  session, read this DECISIONS.md as the canonical product brain. Schema changes affect both.
 - **Measure Twice:** For any change touching more than one file, write out a brief 
   plan and wait for approval (`y` / `go`) before executing. One extra question now 
   beats an hour of rework later.
@@ -311,14 +317,14 @@ Profile {
 
 ---
 
-## 💡 What Cassette Is Not (v1 Scope)
+## 💡 What Cassette Is Not (v1 Scope for this repo)
 
-Explicitly out of scope. Do not build, do not plan for:
+Explicitly out of scope for `kasette` (web PWA). Do not build, do not plan for:
 
 - Background music or audio mixing
 - Server-side video re-encoding or stitching
 - Social sharing or public links
-- Native mobile app (web app only)
+- Native-specific code in this repo — native iOS lives in `kasette-native` (Expo)
 - Light mode
 - Caption burning into video (export ships captions as overlay metadata only; v2 idea)
 
@@ -327,6 +333,10 @@ Explicitly out of scope. Do not build, do not plan for:
 ## 📝 Maintenance Rules
 
 - **After a major pivot:** Update `DECISIONS.md` and note the date and reason.
+- **Build tracker:** Update `cassette-tracker.html` at the end of any session that 
+  changes priorities or completes planned work. Update the "Last updated" date.
+- **Cross-repo sync:** When a feature ships in `kasette`, update the Cross-Repo Sync 
+  Log in `DECISIONS.md` and mark it "native: pending" if a port is warranted.
 - **Long conversations:** Remind user to `/clear` if chat history exceeds 20 messages.
 - **Scope creep check:** If a feature would touch core architecture, flag it first.
 - **Never silently expand scope.** Always ask.

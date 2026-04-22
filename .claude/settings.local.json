@@ -7,7 +7,10 @@
       "Bash(echo $SHELL)",
       "Bash(export:*)",
       "Bash(/opt/homebrew/bin/node:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(rm -rf /home/user/project-dashboard/.git)",
+      "Read(//home/user/project-dashboard/**)",
+      "Read(//home/user/project-dashboard/workflow/**)"
     ]
   }
 }

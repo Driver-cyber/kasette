@@ -1340,3 +1340,29 @@ Tracks which features have been ported from web to native. Update this whenever 
 | Settings screen | ✅ | pending | |
 | Export as MP4 | ✅ | pending | Native share sheet replaces Web Share API |
 | Push notifications | — | pending | APNs via Expo Notifications |
+
+---
+
+### [2026-04-22] — Project Dashboard Live + Session Wrap
+
+**Cross-project dashboard deployed:**
+- Repo: `driver-cyber/project-dashboard`
+- Live at: `project-dashboard-6a7.pages.dev`
+- Contains: `project-dashboard.html` (drag-drop tracker files → project cards with staleness tracking) + `workflow/` prompt docs
+- `cassette-tracker.html` is dashboard-compatible — drop it onto the dashboard to refresh the Cassette card
+
+**Session workflow established:**
+- End of each session: Claude updates `cassette-tracker.html` (priorities + date) and commits
+- To refresh the dashboard: download `cassette-tracker.html` from the repo, drop onto `project-dashboard-6a7.pages.dev`
+- kasette is private → GitHub API live-fetch won't work without auth; file-upload is the current method
+
+**This session summary (2026-04-22):**
+- Analyzed Tiny Path iOS strategy memo → confirmed Expo (not Capacitor) is right for Cassette because core problem is video encoding speed, not install friction
+- Apple Developer account purchased
+- Platform strategy finalized: unlisted App Store listing, family + close friends by direct link, sellable clone later if needed
+- Two-repo workflow documented: kasette = web lab, kasette-native = Expo port
+- `cassette-tracker.html` created as founding doc with machine-readable JSON block
+- `project-dashboard.html` built and moved to standalone repo, deployed to Cloudflare Pages
+- Workflow prompt docs created: `tracker-retrofit-prompt.md`, `new-project-snippet.md`
+- CLAUDE.md updated: two-repo context, tracker reading rule, cross-repo sync rule
+- DECISIONS.md updated: platform strategy, multi-repo workflow, Cross-Repo Sync Log

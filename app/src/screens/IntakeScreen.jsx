@@ -709,25 +709,21 @@ export default function IntakeScreen() {
 
       {/* Progress bar */}
       <div className="px-5 pb-4 flex-shrink-0">
-        {metaLoaded < metaTotal ? (
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-rust text-[11px] font-medium tracking-wide animate-pulse">
+        <div className="flex justify-between items-center mb-2">
+          {metaLoaded < metaTotal ? (
+            <span className="flex items-center gap-1.5 text-amber text-[11px] font-semibold font-sans">
+              <span className="w-2.5 h-2.5 rounded-full border-[1.5px] border-amber border-t-transparent animate-spin inline-block flex-shrink-0" />
               Loading clip info… {metaLoaded} of {metaTotal}
             </span>
-            <span className="text-amber text-[11px] font-semibold">
-              {selectedItems.length} selected
-            </span>
-          </div>
-        ) : (
-          <div className="flex justify-between items-center mb-2">
+          ) : (
             <span className="text-rust text-[11px] font-medium tracking-wide">
               {items.length} {items.length === 1 ? 'item' : 'items'} imported
             </span>
-            <span className="text-amber text-[11px] font-semibold">
-              {selectedItems.length} selected
-            </span>
-          </div>
-        )}
+          )}
+          <span className="text-amber text-[11px] font-semibold">
+            {selectedItems.length} selected
+          </span>
+        </div>
         <div className="h-[3px] bg-walnut-light rounded-full overflow-hidden">
           <div
             className="h-full rounded-full transition-all duration-300"

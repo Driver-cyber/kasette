@@ -410,7 +410,9 @@ export default function IntakeScreen() {
       const isPhoto1 = clip1.mediaType === 'photo'
       const ext1 = clip1.file.name.split('.').pop()?.toLowerCase() || (isPhoto1 ? 'jpg' : 'mp4')
       const storagePath1 = `${session.user.id}/${sb.id}/${clipId}.${ext1}`
-      const publicUrl1 = await uploadToR2(storagePath1, clip1.file)
+      const publicUrl1 = await uploadToR2(storagePath1, clip1.file, undefined, (fraction) => {
+        setUploadProgress({ current: fraction, total: 1 })
+      })
       if (cancelledRef.current) { releaseWakeLock(); return }
 
       let thumbnailUrl1 = isPhoto1 ? publicUrl1 : null
@@ -504,7 +506,9 @@ export default function IntakeScreen() {
       const isPhoto1 = clip1.mediaType === 'photo'
       const ext1 = clip1.file.name.split('.').pop()?.toLowerCase() || (isPhoto1 ? 'jpg' : 'mp4')
       const storagePath1 = `${session.user.id}/${addToId}/${clipId}.${ext1}`
-      const publicUrl1 = await uploadToR2(storagePath1, clip1.file)
+      const publicUrl1 = await uploadToR2(storagePath1, clip1.file, undefined, (fraction) => {
+        setUploadProgress({ current: fraction, total: 1 })
+      })
       if (cancelledRef.current) { releaseWakeLock(); return }
 
       let thumbnailUrl1 = isPhoto1 ? publicUrl1 : null

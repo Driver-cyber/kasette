@@ -41,17 +41,42 @@ async function workerFetch(path, options = {}, maxAttempts = 3) {
  * @param {string} key  Storage key, e.g. `userId/scrapbookId/clipId.mp4`
  * @param {File|Blob} file
  * @param {string} [contentType]  Defaults to file.type
+ * @param {(fraction: number) => void} [onProgress]  Called with 0–1 as bytes are sent
  */
-export async function uploadToR2(key, file, contentType) {
+export function uploadToR2(key, file, contentType, onProgress) {
   const ct = contentType || file.type || 'application/octet-stream'
+  const url = `${WORKER_URL}/upload?key=${encodeURIComponent(key)}`
 
-  const { publicUrl } = await workerFetch(`/upload?key=${encodeURIComponent(key)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': ct },
-    body: file,
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', url)
+    xhr.setRequestHeader('Content-Type', ct)
+    xhr.setRequestHeader('X-Upload-Secret', UPLOAD_SECRET)
+
+    if (onProgress) {
+      xhr.upload.addEventListener('progress', e => {
+        if (e.lengthComputable) onProgress(e.loaded / e.total)
+      })
+    }
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const { publicUrl } = JSON.parse(xhr.responseText)
+          resolve(publicUrl)
+        } catch {
+          reject(new Error('Invalid JSON from worker'))
+        }
+      } else {
+        reject(new Error(`Worker upload failed (${xhr.status}): ${xhr.responseText || 'empty body'}`))
+      }
+    })
+
+    xhr.addEventListener('error', () => reject(new Error('Network error during upload')))
+    xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')))
+
+    xhr.send(file)
   })
-
-  return publicUrl
 }
 
 /**

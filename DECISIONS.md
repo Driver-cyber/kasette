@@ -14,7 +14,7 @@ to create and watch private video scrapbooks from her iPhone.**
 **Vibe:** Warm, cozy, nostalgic. Functional first, beautiful second. 
 Mobile-first always. Don't let perfect be the enemy of shipped.
 
-**Current phase:** Working v1 shipped and in active family use. Upload performance overhauled — navigate-after-clip-1 + background queue live. **Next major build: native iOS app via Expo** (see [2026-04-22] entry).
+**Current phase:** Working v1 in active family use. Upload performance overhauled. **Two-repo strategy active:** web PWA continues as the feature lab; native iOS (Expo) underway as `kasette-native`. Goal: unlisted App Store app for family and close friends. See [2026-04-22] platform strategy entry.
 
 ---
 
@@ -782,7 +782,7 @@ Original random clip stepper at `/remix`. Replaced by the Film Fest multi-filter
 
 | # | Feature | Notes |
 |---|---|---|
-| 1 | **Native iOS app (Expo)** | Next major build. Expo/React Native — reuses React + Supabase/R2 layer. Unlocks: instant photo library thumbnails, hardware video encoding (10–100× faster than WASM), true background URLSession uploads. See [2026-04-22] decision entry. |
+| 1 | **Native iOS app (Expo) — `kasette-native`** | Goal: unlisted App Store listing (direct link, not searchable). Apple Dev account purchased 2026-04-22. Expo/React Native — reuses React + Supabase/R2 layer. Unlocks: instant photo library thumbnails, hardware encoding (10–100× faster than WASM), background URLSession uploads. Sellable clone considered later — separate repo, rebrand, new Supabase project. See [2026-04-22] platform strategy entry. |
 | 2 | **Film Fest server-side export** | "Download" button in Film Fest (currently Coming Soon). Cloudflare Worker + FFmpeg concat all selected clips → streams back a single MP4. Needs Worker memory budget planning for large files. |
 | 3 | **Reorder 2-step → 1-step UX** | Tap to select + same gesture drags. Hard: `onClick` fires after `touchend`. Parked but wanted. |
 
@@ -1286,3 +1286,83 @@ Rationale: Expo preserves React knowledge and reuses most business logic (Supaba
 **Web app stays live** — existing users continue on the PWA during native development. No shutdown.
 
 **Prerequisite:** Validate that today's upload improvements are sufficient for Joelle's current usage patterns before committing to native. If the web experience is workable, native goes into the roadmap but isn't urgent. If upload friction is still a consistent blocker, native moves to immediate next build.
+
+---
+
+### [2026-04-22] — Platform Strategy: Unlisted App Store + Multi-Repo Workflow
+
+**App Store goal:** Unlisted App Store listing — app exists in the App Store system but is not publicly searchable. Distribution by direct link only. Family and close friends via invite. No public listing unless we choose to go to market.
+
+**Sellable clone:** If we ever go to market, clone `kasette-native`, rebrand, new Supabase project, new R2 bucket. Cassette stays private and family-only permanently. Architecture is the asset.
+
+**Apple Developer account:** Purchased 2026-04-22. $99/yr. Enables TestFlight + App Store.
+
+**Two-repo structure:**
+- `kasette` — web PWA, active development lab. Fastest iteration, instant Cloudflare Pages deploys. Where features get built and proven.
+- `kasette-native` — Expo iOS app. Gets proven features ported in, not experiments. Targets the same Supabase project and R2 bucket — no schema or storage divergence.
+
+**No monorepo.** UI paradigms differ (HTML/CSS vs React Native StyleSheet). Shared assets are the backend and product decisions, not components.
+
+**What transfers from web to native:** React hooks, Context, business logic, `lib/r2.js`, Supabase client/auth.
+**What needs rewriting:** All UI components (View/Text/Pressable), navigation (React Navigation), `lib/remux.js` → native AVFoundation encoding.
+
+**Feature lifecycle:**
+```
+Idea → Build in kasette (web) → Iterate until solid
+     → Mark "native: pending" in Cross-Repo Sync Log
+     → Port to kasette-native in a dedicated session
+     → Mark "native: ✅" in sync log
+```
+
+**Session protocol:**
+- `kasette-native` sessions start by reading `kasette/DECISIONS.md` as canonical product context
+- `kasette-native` has its own DECISIONS.md for native-specific concerns (Expo version, EAS config, plugin choices, build status)
+- GitHub Issues in `kasette` is the single feature backlog — labeled `web`, `native`, or `both`
+- Supabase schema changes affect both apps — flag explicitly in DECISIONS.md when a migration runs
+- Build tracker: `cassette-tracker.html` — two-column priority board, updated each session
+
+---
+
+## 🔄 Cross-Repo Sync Log
+
+Tracks which features have been ported from web to native. Update this whenever a feature ships in either repo.
+
+| Feature | kasette (web) | kasette-native (iOS) | Notes |
+|---|---|---|---|
+| Auth — login / signup / password reset | ✅ | pending | Same Supabase credentials |
+| Home screen — year/month library | ✅ | pending | expo-media-library for thumbnails |
+| Intake / upload flow | ✅ | pending | expo-media-library + AVFoundation encoding |
+| Playback — Reels-style viewer | ✅ | pending | expo-av |
+| Workspace editor | ✅ | pending | Trim, split, captions |
+| Scrapbook sharing | ✅ | pending | Same ScrapbookShare table |
+| Discovery screen | ✅ | pending | |
+| Film Fest / Surprise Me | ✅ | pending | |
+| Settings screen | ✅ | pending | |
+| Export as MP4 | ✅ | pending | Native share sheet replaces Web Share API |
+| Push notifications | — | pending | APNs via Expo Notifications |
+
+---
+
+### [2026-04-22] — Project Dashboard Live + Session Wrap
+
+**Cross-project dashboard deployed:**
+- Repo: `driver-cyber/project-dashboard`
+- Live at: `project-dashboard-6a7.pages.dev`
+- Contains: `project-dashboard.html` (drag-drop tracker files → project cards with staleness tracking) + `workflow/` prompt docs
+- `cassette-tracker.html` is dashboard-compatible — drop it onto the dashboard to refresh the Cassette card
+
+**Session workflow established:**
+- End of each session: Claude updates `cassette-tracker.html` (priorities + date) and commits
+- To refresh the dashboard: download `cassette-tracker.html` from the repo, drop onto `project-dashboard-6a7.pages.dev`
+- kasette is private → GitHub API live-fetch won't work without auth; file-upload is the current method
+
+**This session summary (2026-04-22):**
+- Analyzed Tiny Path iOS strategy memo → confirmed Expo (not Capacitor) is right for Cassette because core problem is video encoding speed, not install friction
+- Apple Developer account purchased
+- Platform strategy finalized: unlisted App Store listing, family + close friends by direct link, sellable clone later if needed
+- Two-repo workflow documented: kasette = web lab, kasette-native = Expo port
+- `cassette-tracker.html` created as founding doc with machine-readable JSON block
+- `project-dashboard.html` built and moved to standalone repo, deployed to Cloudflare Pages
+- Workflow prompt docs created: `tracker-retrofit-prompt.md`, `new-project-snippet.md`
+- CLAUDE.md updated: two-repo context, tracker reading rule, cross-repo sync rule
+- DECISIONS.md updated: platform strategy, multi-repo workflow, Cross-Repo Sync Log

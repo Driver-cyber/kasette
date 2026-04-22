@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cassette Build Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,400&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --amber: #F2A24A;
+      --sienna: #E8855A;
+      --wheat: #F5DEB3;
+      --walnut: #2C1A0E;
+      --walnut-mid: #3D2410;
+      --walnut-light: #4A2E18;
+      --rust: #7A3B1E;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--walnut);
+      color: var(--wheat);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+      padding: 32px 24px 64px;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+    header h1 {
+      font-family: 'Fraunces', serif;
+      font-style: italic;
+      font-size: 28px;
+      color: var(--amber);
+      letter-spacing: -0.5px;
+    }
+    header p {
+      font-size: 12px;
+      color: var(--rust);
+      margin-top: 4px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    @media (max-width: 600px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+    .col {
+      background: var(--walnut-mid);
+      border: 1px solid var(--walnut-light);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .col-header {
+      background: var(--walnut-light);
+      padding: 14px 18px 12px;
+      border-bottom: 1px solid rgba(242,162,74,0.2);
+    }
+    .col-header h2 {
+      font-family: 'Fraunces', serif;
+      font-size: 16px;
+      color: var(--amber);
+      font-weight: 600;
+    }
+    .col-header p {
+      font-size: 11px;
+      color: var(--rust);
+      margin-top: 2px;
+    }
+    .section {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--walnut-light);
+    }
+    .section:last-child { border-bottom: none; }
+    .section-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--rust);
+      margin-bottom: 12px;
+    }
+    /* Next 3 priorities */
+    ol.priorities {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    ol.priorities li {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .num {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      background: var(--amber);
+      color: var(--walnut);
+      border-radius: 50%;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1px;
+    }
+    .priority-text strong {
+      display: block;
+      color: var(--wheat);
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+    .priority-text span {
+      font-size: 11px;
+      color: var(--rust);
+      line-height: 1.4;
+    }
+    /* Backlog / notes */
+    ul.notes {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    ul.notes li {
+      font-size: 12px;
+      color: var(--rust);
+      padding-left: 14px;
+      position: relative;
+      line-height: 1.4;
+    }
+    ul.notes li::before {
+      content: '·';
+      position: absolute;
+      left: 4px;
+      color: var(--walnut-light);
+      font-size: 16px;
+      line-height: 1;
+      top: 1px;
+    }
+    ul.notes li strong {
+      color: var(--wheat);
+      font-weight: 500;
+    }
+    /* Status badges */
+    .badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 4px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    .badge-done { background: rgba(242,162,74,0.15); color: var(--amber); }
+    .badge-soon { background: rgba(232,133,90,0.15); color: var(--sienna); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Cassette Build Tracker</h1>
+  <!-- UPDATE DATE EACH SESSION -->
+  <p>Last updated: 2026-04-22</p>
+</header>
+
+<div class="grid">
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--  COLUMN 1: KASETTE WEB                      -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="col">
+    <div class="col-header">
+      <h2>kasette — Web PWA</h2>
+      <p>Feature lab · Cloudflare Pages · React + Vite</p>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Next 3 Priorities</div>
+      <!-- WEB: NEXT 3 — edit text here to update priorities -->
+      <ol class="priorities">
+        <li>
+          <div class="num">1</div>
+          <div class="priority-text">
+            <strong>Configure Supabase SMTP via Resend</strong>
+            <span>Auth emails hit spam + rate-limited. Resend API key → Supabase SMTP settings. No code changes needed.</span>
+          </div>
+        </li>
+        <li>
+          <div class="num">2</div>
+          <div class="priority-text">
+            <strong>Film Fest Download / Export</strong>
+            <span>Currently "Coming Soon." Cloudflare Worker + FFmpeg concat → stream MP4. Plan memory budget for large files first.</span>
+          </div>
+        </li>
+        <li>
+          <div class="num">3</div>
+          <div class="priority-text">
+            <strong>UX Polish Pass</strong>
+            <span>Skeleton loading cards, toast notifications, Supabase image transforms for thumbnails (?width=400). Small wins, big feel.</span>
+          </div>
+        </li>
+      </ol>
+      <!-- END WEB: NEXT 3 -->
+    </div>
+
+    <div class="section">
+      <div class="section-label">Backlog &amp; Notes</div>
+      <!-- WEB: BACKLOG — add/remove bullets here -->
+      <ul class="notes">
+        <li><strong>Reorder UX</strong> — 1-step tap+drag instead of 2-step mode. Hard: onClick fires after touchend. Parked.</li>
+        <li><strong>Public share links</strong> — read-only, no account needed. Grandparent view. High value, v2.</li>
+        <li><strong>Caption burning on export</strong> — re-encode to bake captions into video. v2.</li>
+        <li><strong>Video compression on upload</strong> — iPhone videos are 100MB+. Biggest remaining perf lever.</li>
+        <li><strong>Offline indicator banner</strong> — graceful network loss handling.</li>
+        <li><strong>"New clips" badge</strong> — on shared scrapbooks when new clips added. v2 sharing enhancement.</li>
+        <li><strong>Swipe-to-delete cards</strong> — more intuitive than ⋯ menu. Medium effort.</li>
+        <li><strong>Light mode</strong> — not a Cassette experience. Probably never.</li>
+        <li><strong>Bug: wrong signOut redirect</strong> — HomeScreen calls navigate('/login') after signOut. AuthGate handles it. Remove the navigate call.</li>
+        <li><strong>Note: mute is client-side only</strong> — no `muted` column in DB. Never add one.</li>
+      </ul>
+      <!-- END WEB: BACKLOG -->
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--  COLUMN 2: KASETTE NATIVE                   -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="col">
+    <div class="col-header">
+      <h2>kasette-native — iOS</h2>
+      <p>Expo · React Native · Unlisted App Store · EAS</p>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Next 3 Priorities</div>
+      <!-- NATIVE: NEXT 3 — edit text here to update priorities -->
+      <ol class="priorities">
+        <li>
+          <div class="num">1</div>
+          <div class="priority-text">
+            <strong>Scaffold Expo project + EAS setup</strong>
+            <span>create-expo-app kasette-native · EAS CLI · link Apple Dev account (✅ purchased) · bundle ID · first build config.</span>
+          </div>
+        </li>
+        <li>
+          <div class="num">2</div>
+          <div class="priority-text">
+            <strong>TestFlight pipeline: auth + one video</strong>
+            <span>Supabase login screen working · one clip playing from R2 · archive → EAS Build → TestFlight → install on device. Prove the pipeline.</span>
+          </div>
+        </li>
+        <li>
+          <div class="num">3</div>
+          <div class="priority-text">
+            <strong>Port core screens: home, intake shell, playback</strong>
+            <span>expo-media-library for photo library · AVFoundation encoding · React Navigation. Get the primary loop working natively.</span>
+          </div>
+        </li>
+      </ol>
+      <!-- END NATIVE: NEXT 3 -->
+    </div>
+
+    <div class="section">
+      <div class="section-label">Backlog &amp; Notes</div>
+      <!-- NATIVE: BACKLOG — add/remove bullets here -->
+      <ul class="notes">
+        <li><strong>Port workspace editor</strong> — trim, split, captions. After intake + playback are solid.</li>
+        <li><strong>Background upload queue</strong> — URLSession background config. True uploads that survive screen lock.</li>
+        <li><strong>Push notifications</strong> — APNs via Expo Notifications. "Joelle shared a scrapbook with you."</li>
+        <li><strong>Port sharing features</strong> — ShareScreen, auto-share defaults, shared tab.</li>
+        <li><strong>Port Film Fest / Discovery</strong> — after core loop is done.</li>
+        <li><strong>EAS OTA updates</strong> — configure for JS-layer changes that skip App Store review.</li>
+        <li><strong>App Store submission</strong> — privacy policy required · demo account in TestFlight notes · 1024×1024 icon (no alpha) · screenshots.</li>
+        <li><strong>Unlisted listing goal</strong> — not searchable in App Store, distributed by direct link.</li>
+        <li><strong>Sellable clone later</strong> — separate repo, rebrand, new Supabase project. Cassette stays private.</li>
+        <li><strong>90-day TestFlight expiry</strong> — set calendar reminder, re-upload takes ~20 min.</li>
+        <li><strong>Note: same Supabase + R2 backend</strong> — no schema divergence. Schema changes affect both apps.</li>
+      </ul>
+      <!-- END NATIVE: BACKLOG -->
+    </div>
+  </div>
+
+</div>
+<script id="tracker-data" type="application/json">
+{
+  "project": "Cassette",
+  "description": "Private family video scrapbook app",
+  "updated": "2026-04-22",
+  "columns": [
+    {
+      "name": "kasette — Web PWA",
+      "sub": "Feature lab · Cloudflare Pages · React + Vite",
+      "priorities": [
+        { "title": "Configure Supabase SMTP via Resend", "note": "Auth emails hit spam + rate-limited. No code changes needed." },
+        { "title": "Film Fest Download / Export", "note": "Cloudflare Worker + FFmpeg concat. Plan memory budget first." },
+        { "title": "UX Polish Pass", "note": "Skeleton cards, toast notifications, image transforms for thumbnails." }
+      ],
+      "backlog": [
+        "Reorder UX — 1-step tap+drag",
+        "Public share links — grandparent view",
+        "Caption burning on export — v2",
+        "Video compression on upload",
+        "Offline indicator banner",
+        "Swipe-to-delete cards",
+        "Bug: wrong signOut redirect in HomeScreen"
+      ]
+    },
+    {
+      "name": "kasette-native — iOS",
+      "sub": "Expo · React Native · Unlisted App Store · EAS",
+      "priorities": [
+        { "title": "Scaffold Expo project + EAS setup", "note": "create-expo-app kasette-native · EAS CLI · Apple Dev account linked." },
+        { "title": "TestFlight pipeline: auth + one video", "note": "Prove the pipeline end to end. First build in hand." },
+        { "title": "Port core screens: home, intake shell, playback", "note": "expo-media-library + AVFoundation + React Navigation." }
+      ],
+      "backlog": [
+        "Port workspace editor — trim, split, captions",
+        "Background upload queue — URLSession",
+        "Push notifications — APNs via Expo",
+        "Port sharing features",
+        "EAS OTA updates config",
+        "App Store submission — unlisted",
+        "Sellable clone — separate repo, rebrand"
+      ]
+    }
+  ]
+}
+</script>
+</body>
+</html>

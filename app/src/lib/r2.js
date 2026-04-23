@@ -35,23 +35,28 @@ async function workerFetch(path, options = {}, maxAttempts = 3) {
 }
 
 /**
- * Upload a File/Blob to R2 via the Worker. Returns the public R2 URL.
- * The Worker streams the body directly into R2 using its bucket binding,
- * avoiding any CORS issues with R2's S3-compatible API.
+ * Upload a File/Blob to R2. Returns the public R2 URL.
+ * Gets a presigned PUT URL from the Worker, then uploads directly to R2 —
+ * bypassing the 100 MB Worker body limit entirely.
+ * Requires CORS configured on the R2 bucket: AllowedMethods=[PUT], AllowedHeaders=[Content-Type].
  * @param {string} key  Storage key, e.g. `userId/scrapbookId/clipId.mp4`
  * @param {File|Blob} file
  * @param {string} [contentType]  Defaults to file.type
  * @param {(fraction: number) => void} [onProgress]  Called with 0–1 as bytes are sent
  */
-export function uploadToR2(key, file, contentType, onProgress) {
+export async function uploadToR2(key, file, contentType, onProgress) {
   const ct = contentType || file.type || 'application/octet-stream'
-  const url = `${WORKER_URL}/upload?key=${encodeURIComponent(key)}`
 
-  return new Promise((resolve, reject) => {
+  const { uploadUrl, publicUrl } = await workerFetch('/presign', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, contentType: ct }),
+  })
+
+  await new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
-    xhr.open('POST', url)
+    xhr.open('PUT', uploadUrl)
     xhr.setRequestHeader('Content-Type', ct)
-    xhr.setRequestHeader('X-Upload-Secret', UPLOAD_SECRET)
 
     if (onProgress) {
       xhr.upload.addEventListener('progress', e => {
@@ -61,14 +66,9 @@ export function uploadToR2(key, file, contentType, onProgress) {
 
     xhr.addEventListener('load', () => {
       if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          const { publicUrl } = JSON.parse(xhr.responseText)
-          resolve(publicUrl)
-        } catch {
-          reject(new Error('Invalid JSON from worker'))
-        }
+        resolve()
       } else {
-        reject(new Error(`Worker upload failed (${xhr.status}): ${xhr.responseText || 'empty body'}`))
+        reject(new Error(`R2 upload failed (${xhr.status}): ${xhr.responseText || 'empty body'}`))
       }
     })
 
@@ -77,6 +77,8 @@ export function uploadToR2(key, file, contentType, onProgress) {
 
     xhr.send(file)
   })
+
+  return publicUrl
 }
 
 /**

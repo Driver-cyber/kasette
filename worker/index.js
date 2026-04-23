@@ -132,6 +132,18 @@ export default {
       return err('Unauthorized', 401)
     }
 
+    // POST /presign — return a presigned PUT URL so the browser uploads direct to R2
+    if (request.method === 'POST' && url.pathname === '/presign') {
+      const { key, contentType } = await request.json().catch(() => ({}))
+      if (!key) return err('key required')
+      try {
+        const uploadUrl = await generatePresignedPut(key, contentType || 'application/octet-stream', env)
+        return json({ uploadUrl, publicUrl: `${env.R2_PUBLIC_URL}/${key}` })
+      } catch (e) {
+        return err(e?.message || 'presign failed', 500)
+      }
+    }
+
     // POST /upload?key=… — stream file body directly into R2 via bucket binding
     if (request.method === 'POST' && url.pathname === '/upload') {
       const key = url.searchParams.get('key')

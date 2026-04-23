@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Play, Search, X, MoreHorizontal, ChevronDown, Image, Shuffle, Pencil, Settings, Check } from 'lucide-react'
+import { Plus, Play, Search, X, MoreHorizontal, ChevronDown, Image, Shuffle, Pencil, Settings, Check, Share2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { uploadToR2 } from '../lib/r2'
 import { safeDeleteClipFiles } from '../lib/mediaDelete'
@@ -65,7 +65,7 @@ function extractStoragePath(url) {
   return idx >= 0 ? url.slice(idx + marker.length) : null
 }
 
-function ScrapbookCard({ scrapbook, onClick, onOptionsPress, readOnly = false, isNew = false, ownerName = null }) {
+function ScrapbookCard({ scrapbook, onClick, onOptionsPress, readOnly = false, isNew = false, subtitle = null }) {
   const clips = scrapbook.clips ?? []
   const totalDuration = clips.reduce((sum, c) => {
     const out = c.trim_out ?? c.duration ?? 0
@@ -114,7 +114,7 @@ function ScrapbookCard({ scrapbook, onClick, onOptionsPress, readOnly = false, i
           {scrapbook.name}
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-rust text-[11px]">{ownerName ? `from ${ownerName}` : date}</span>
+          <span className="text-rust text-[11px]">{subtitle ?? date}</span>
           {duration && <span className="text-wheat text-[11px] opacity-35">{duration}</span>}
         </div>
       </div>
@@ -169,6 +169,8 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true)
   const [sharedScrapbooks, setSharedScrapbooks] = useState([])
   const [ownerNames, setOwnerNames] = useState({}) // { [owner_id]: display_name }
+  const [outboundShareRows, setOutboundShareRows] = useState([]) // shares I've sent to others
+  const [recipientNames, setRecipientNames] = useState({}) // { [user_id]: display_name }
   const [showSearch, setShowSearch] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState('yours') // 'yours' | 'shared'
@@ -261,6 +263,28 @@ export default function HomeScreen() {
       })
   }, [session])
 
+  // ── Fetch outbound shares (scrapbooks I've shared with others) ────────────
+  useEffect(() => {
+    if (!session) return
+    supabase
+      .from('scrapbook_shares')
+      .select('id, scrapbook_id, shared_with_id, scrapbooks(*, clips(id, video_url, duration, trim_in, trim_out, recorded_at))')
+      .eq('owner_id', session.user.id)
+      .order('created_at', { ascending: false })
+      .then(async ({ data }) => {
+        if (!data) return
+        const recipientIds = [...new Set(data.map(r => r.shared_with_id).filter(Boolean))]
+        let nameMap = {}
+        if (recipientIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles').select('user_id, display_name').in('user_id', recipientIds)
+          if (profiles) profiles.forEach(p => { nameMap[p.user_id] = p.display_name })
+        }
+        setRecipientNames(nameMap)
+        setOutboundShareRows(data.map(r => ({ ...r, scrapbook: r.scrapbooks })))
+      })
+  }, [session])
+
   // ── Default expansion: current year auto-open ─────────────────────────────
   useEffect(() => {
     if (scrapbooks.length === 0 || initDone.current) return
@@ -319,6 +343,20 @@ export default function HomeScreen() {
   }, {})
 
   const hasUnseenShared = sharedScrapbooks.some(s => !s.seen)
+
+  // Outbound: one feed item per unique scrapbook (with all recipient names)
+  const outboundByScrapbook = outboundShareRows.reduce((acc, row) => {
+    if (!acc[row.scrapbook_id]) acc[row.scrapbook_id] = { scrapbook: row.scrapbook, recipientIds: [] }
+    acc[row.scrapbook_id].recipientIds.push(row.shared_with_id)
+    return acc
+  }, {})
+  const outboundFeedItems = Object.values(outboundByScrapbook)
+
+  // Outbound: grouped by recipient (for By Person view)
+  const outboundByRecipient = outboundShareRows.reduce((acc, row) => {
+    ;(acc[row.shared_with_id] ??= []).push(row)
+    return acc
+  }, {})
 
   // ── Options derived ───────────────────────────────────────────────────────
   const optionsScrapbook = scrapbooks.find(sb => sb.id === optionsId)
@@ -535,7 +573,7 @@ export default function HomeScreen() {
     <div className="flex flex-col h-screen bg-walnut">
 
       {/* Header */}
-      <header className="flex items-center justify-between px-6 pt-12 pb-2 flex-shrink-0">
+      <header className="flex items-center justify-between px-6 pb-2 flex-shrink-0" style={{ paddingTop: 'max(3.5rem, calc(env(safe-area-inset-top) + 1rem))' }}>
         <button onClick={() => setShowVersion(true)} className="flex items-center gap-2.5 active:opacity-70">
           <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
             <rect width="48" height="48" rx="9" fill="#3D2410"/>
@@ -756,10 +794,10 @@ export default function HomeScreen() {
         {/* ── SHARED TAB ── */}
         {activeTab === 'shared' && (
           <div className="px-5 pt-4">
-            {sortedShared.length === 0 ? (
+            {sortedShared.length === 0 && outboundFeedItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center text-center pt-20 px-8">
                 <p className="text-wheat font-display font-semibold text-xl mb-2">Nothing shared yet</p>
-                <p className="text-rust text-sm leading-relaxed">When someone shares a scrapbook with you, it'll appear here.</p>
+                <p className="text-rust text-sm leading-relaxed">Scrapbooks you share — or that others share with you — will appear here.</p>
               </div>
             ) : (
               <>
@@ -792,24 +830,55 @@ export default function HomeScreen() {
 
                 {/* Feed view */}
                 {sharedView === 'feed' && (
-                  <div className="grid gap-4">
-                    {sortedShared.map((share) => (
-                      <ScrapbookCard
-                        key={share.id}
-                        scrapbook={share.scrapbooks}
-                        onClick={() => handleSharedCardTap(share)}
-                        onOptionsPress={() => setSharedOptionsShareId(share.id)}
-                        readOnly
-                        isNew={!share.seen}
-                        ownerName={ownerNames[share.owner_id] ?? null}
-                      />
-                    ))}
+                  <div className="space-y-4">
+                    {sortedShared.length > 0 && (
+                      <div>
+                        {outboundFeedItems.length > 0 && (
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="text-rust/55 font-sans font-semibold text-[10px] tracking-[0.15em] uppercase flex-shrink-0">From others</span>
+                            <div className="flex-1 h-px" style={{ background: '#3D2410' }} />
+                          </div>
+                        )}
+                        <div className="grid gap-4">
+                          {sortedShared.map((share) => (
+                            <ScrapbookCard
+                              key={share.id}
+                              scrapbook={share.scrapbooks}
+                              onClick={() => handleSharedCardTap(share)}
+                              onOptionsPress={() => setSharedOptionsShareId(share.id)}
+                              readOnly
+                              isNew={!share.seen}
+                              subtitle={ownerNames[share.owner_id] ? `from ${ownerNames[share.owner_id]}` : null}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {outboundFeedItems.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-3 mt-1">
+                          <span className="text-rust/55 font-sans font-semibold text-[10px] tracking-[0.15em] uppercase flex-shrink-0">Shared by you</span>
+                          <div className="flex-1 h-px" style={{ background: '#3D2410' }} />
+                        </div>
+                        <div className="grid gap-4">
+                          {outboundFeedItems.map((item) => (
+                            <ScrapbookCard
+                              key={item.scrapbook?.id}
+                              scrapbook={item.scrapbook}
+                              onClick={() => navigate(`/scrapbook/${item.scrapbook?.id}`)}
+                              subtitle={`shared with ${item.recipientIds.map(id => recipientNames[id] ?? 'Someone').join(', ')}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* By Person view */}
                 {sharedView === 'byPerson' && (
                   <div className="space-y-1">
+                    {/* Inbound: grouped by owner */}
                     {Object.entries(groupedByOwner).map(([ownerId, shares]) => {
                       const name = ownerNames[ownerId] ?? 'Someone'
                       const isCollapsed = collapsedOwners.has(ownerId)
@@ -839,7 +908,41 @@ export default function HomeScreen() {
                                   onOptionsPress={() => setSharedOptionsShareId(share.id)}
                                   readOnly
                                   isNew={!share.seen}
-                                  ownerName={name}
+                                  subtitle={`from ${name}`}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                    {/* Outbound: grouped by recipient */}
+                    {Object.entries(outboundByRecipient).map(([recipientId, rows]) => {
+                      const name = recipientNames[recipientId] ?? 'Someone'
+                      const isCollapsed = collapsedOwners.has(`out-${recipientId}`)
+                      return (
+                        <div key={`out-${recipientId}`} className="mb-2">
+                          <button
+                            onClick={() => toggleOwner(`out-${recipientId}`)}
+                            className="flex items-center gap-2 w-full py-2.5 active:opacity-70"
+                          >
+                            <ChevronDown
+                              size={14} strokeWidth={2.5}
+                              className="text-rust transition-transform flex-shrink-0"
+                              style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+                            />
+                            <span className="text-rust font-sans font-bold text-[12px] tracking-[0.12em] uppercase">{name}</span>
+                            <span className="text-rust/40 font-sans text-[10px]">{rows.length}</span>
+                            <span className="text-rust/30 font-sans text-[9px] tracking-wider uppercase ml-1">shared by you</span>
+                          </button>
+                          {!isCollapsed && (
+                            <div className="grid gap-4 pl-1 pb-2">
+                              {rows.map((row) => (
+                                <ScrapbookCard
+                                  key={row.id}
+                                  scrapbook={row.scrapbook}
+                                  onClick={() => navigate(`/scrapbook/${row.scrapbook?.id}`)}
+                                  subtitle={`shared with ${name}`}
                                 />
                               ))}
                             </div>
@@ -885,7 +988,7 @@ export default function HomeScreen() {
       {optionsId && (
         <>
           <div className="absolute inset-0 bg-black/50 z-10" onClick={() => setOptionsId(null)} />
-          <div className="absolute bottom-0 left-0 right-0 z-20 rounded-t-3xl border-t border-walnut-light px-5 pb-10 pt-1" style={{ background: '#3D2410' }}>
+          <div className="absolute bottom-0 left-0 right-0 z-20 rounded-t-3xl border-t border-walnut-light px-5 pt-1" style={{ background: '#3D2410', paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
             <div className="w-10 h-1 rounded-full bg-walnut-light mx-auto mt-3 mb-5" />
             <p className="font-display font-semibold text-lg text-wheat mb-5 px-1">{optionsScrapbook?.name}</p>
 
@@ -916,6 +1019,16 @@ export default function HomeScreen() {
               <div className="flex-1 text-left">
                 <p className="text-wheat text-[14px] font-semibold leading-none mb-0.5">Rename &amp; Redate</p>
                 <p className="text-rust text-[11px]">Change name, year, or month</p>
+              </div>
+            </button>
+
+            <button onClick={() => { setOptionsId(null); navigate(`/scrapbook/${optionsId}/share`) }} className="w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl mb-2 active:opacity-75" style={{ background: '#2C1A0E' }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(242,162,74,0.1)' }}>
+                <Share2 size={16} strokeWidth={1.75} className="text-amber" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-wheat text-[14px] font-semibold leading-none mb-0.5">Share</p>
+                <p className="text-rust text-[11px]">Invite family members</p>
               </div>
             </button>
 

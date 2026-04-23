@@ -1399,3 +1399,54 @@ Previously the Shared tab only showed inbound shares (scrapbooks others shared w
 **Session close:**
 - Tracker updated to 2026-04-23
 - All changes committed to `claude/optimize-upload-performance-TGW1K`
+
+---
+
+### [2026-04-23 · pt 2] — Split Tool Redesign + Presigned Uploads + Code Review Sweep
+
+**Split tool: 3-step confirm flow → instant two-handle UX.**
+
+Old flow required "Set Split 1 → Set Split 2 → Confirm & Cut" — three taps with a draggable bar that rebirthed after each confirm. New flow: tapping SPLIT immediately places both cut handles centered in the playable range (`center ± max(1s, 15% of range)`), both draggable right away with the excluded zone shaded, single "Split" button commits. Much closer to what iMovie does.
+
+**Implementation notes:**
+- State reduced from three vars (`splitPct`, `splitPct1`, `splitStep`) to two (`splitInPct`, `splitOutPct`)
+- Drag handler uses local `currentInPct` / `currentOutPct` vars alongside `setSplit*Pct` calls to avoid stale-closure clamping during drag
+- Handles enforce a minimum 2s gap so they can't overlap
+- `removeSplit` behavior unchanged when a cut already exists
+
+**Uploads: Worker proxy → presigned PUT direct to R2.** *(Architectural shift — supersedes 2026-04-15 R2 migration's proxy pattern.)*
+
+Worker's 100MB request body limit was breaking uploads for any iPhone clip over ~60s at 4K. User hit this with a real 95.7MB clip. Fix: Worker now generates presigned S3 PUT URLs (code was already written as `generatePresignedPut` but never wired up); browser PUTs the file body directly to `{accountId}.r2.cloudflarestorage.com` — no Worker involvement for the body itself, only for auth. Ceiling is now R2's 5GB single-object limit.
+
+**Changes:**
+- `worker/index.js`: added `POST /presign → { uploadUrl, publicUrl }`; removed now-dead `POST /upload` endpoint. BUCKET binding only used by `/delete` now.
+- `app/src/lib/r2.js`: `uploadToR2` refactored to `await workerFetch('/presign', ...)` then XHR PUT to the returned `uploadUrl`. Progress tracking unchanged.
+- R2 bucket CORS already had `PUT + GET, Content-Type, *` origins — no change needed.
+- User redeployed the Worker twice via the Cloudflare dashboard web editor (mobile, no CLI).
+
+**Orphan scrapbook cleanup on failed upload.**
+
+Previously, tapping "Create Scrapbook" inserted the scrapbook row *before* uploading clip 1. A network failure left an empty scrapbook; retrying created a second one; user's library filled with duplicates. Fix: `handleCreate` now tracks `createdScrapbookId` in the outer scope and the catch block deletes the orphan before surfacing the error. Captures ID into local `orphanId` before nulling so the `.then` callback doesn't read a stale reference.
+
+**Code review sweep (chunks 1–3):**
+
+Used a subagent for a targeted review of recently-changed files, verified each finding by hand (several false positives), fixed what was real:
+
+- **Dead code:** removed Worker `/upload` handler (~15 lines) — nothing calls it post-migration.
+- **Silent DB failures:** `HomeScreen.handleSharedCardTap` — `seen: true` DB update was using `.then(() => {})` which swallowed errors while local state optimistically updated. Now catches the error, logs it, and rolls back local state so the amber unread dot won't lie.
+- **Silent DB failures:** `IntakeScreen` orphan cleanup — `.then(console.warn)` wrapper so failures surface in logs.
+- **Documentation:** `IntakeScreen` pre-remux `useEffect` has a load-bearing eslint-disable — added a comment explaining why depending only on `step` is correct (selectedItems can't change while `step === 'name'`, so the pick → name transition always retriggers).
+
+**False positives worth noting (agent flagged, I verified and skipped):**
+- HomeScreen options-menu "rename race condition" — closure captures `optionsId` correctly before `setOptionsId(null)`; not a bug.
+- `trim_out: duration` in UploadContext — correct initial value for an untrimmed clip, not redundant.
+- `cancelledRef` duplicated between IntakeScreen and UploadContext — they're separate refs for separate lifecycles, not a shared ref with dual ownership.
+- File-type validation in `uploadToR2` — all callers pass valid Blobs; validating internally would be noise.
+
+**Takeaway for future sessions:** subagent code reviews are useful for surfacing candidates, not for drawing conclusions. Always verify line numbers and claims against the real code before acting. Roughly half of the review findings were genuine; the other half were either misreadings or valid-looking patterns that were actually correct.
+
+**Session close:**
+- All changes on `main` (PR #15 merged earlier; post-merge work pushed directly to main)
+- Worker redeployed to production by user
+- Tracker updated for 2026-04-23 to reflect pt-2 work
+- Good pause point; no outstanding work or verification needed

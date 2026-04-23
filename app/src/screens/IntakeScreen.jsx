@@ -254,7 +254,9 @@ export default function IntakeScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
 
-  // Kick off pre-remux for clip 1 as soon as the name sheet opens
+  // Kick off pre-remux for clip 1 as soon as the name sheet opens.
+  // Intentionally depends only on `step`: selectedItems can't change while
+  // step === 'name', and the pick → name transition always retriggers this.
   useEffect(() => {
     if (step !== 'name') {
       preRemuxRef.current = null

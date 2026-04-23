@@ -468,8 +468,12 @@ export default function IntakeScreen() {
       releaseWakeLock()
       // Delete the orphaned scrapbook so retrying doesn't create duplicates
       if (createdScrapbookId) {
-        supabase.from('scrapbooks').delete().eq('id', createdScrapbookId).then(() => {})
+        const orphanId = createdScrapbookId
         createdScrapbookId = null
+        supabase.from('scrapbooks').delete().eq('id', orphanId)
+          .then(({ error }) => {
+            if (error) console.warn('Failed to clean up orphaned scrapbook:', orphanId, error)
+          })
       }
       setError(err.message || 'Upload failed. Please try again.')
       setUploading(false)

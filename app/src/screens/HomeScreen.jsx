@@ -367,7 +367,13 @@ export default function HomeScreen() {
   async function handleSharedCardTap(share) {
     if (!share.seen) {
       setSharedScrapbooks(prev => prev.map(s => s.id === share.id ? { ...s, seen: true } : s))
-      supabase.from('scrapbook_shares').update({ seen: true }).eq('id', share.id).then(() => {})
+      supabase.from('scrapbook_shares').update({ seen: true }).eq('id', share.id)
+        .then(({ error }) => {
+          if (error) {
+            console.warn('Failed to mark share seen:', error)
+            setSharedScrapbooks(prev => prev.map(s => s.id === share.id ? { ...s, seen: false } : s))
+          }
+        })
     }
     navigate(`/scrapbook/${share.scrapbooks.id}`)
   }

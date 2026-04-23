@@ -3,7 +3,7 @@
  *
  * Endpoints:
  *   POST /presign   { key, contentType } → { uploadUrl, publicUrl }
- *   DELETE /delete?key=…                → { ok: true }
+ *   DELETE /delete?key=…                 → { ok: true }
  *
  * Auth: X-Upload-Secret header must match UPLOAD_SECRET env var.
  *
@@ -15,7 +15,7 @@
  *   R2_BUCKET             – bucket name (cassette-media)
  *   R2_PUBLIC_URL         – public URL base (https://pub-….r2.dev)
  *
- * BUCKET binding is declared in wrangler.toml.
+ * BUCKET binding is declared in wrangler.toml (used by /delete only).
  */
 
 const PRESIGN_EXPIRY_SECS = 900 // 15 minutes
@@ -141,21 +141,6 @@ export default {
         return json({ uploadUrl, publicUrl: `${env.R2_PUBLIC_URL}/${key}` })
       } catch (e) {
         return err(e?.message || 'presign failed', 500)
-      }
-    }
-
-    // POST /upload?key=… — stream file body directly into R2 via bucket binding
-    if (request.method === 'POST' && url.pathname === '/upload') {
-      const key = url.searchParams.get('key')
-      if (!key) return err('key required')
-      if (!env.BUCKET) return err('R2 bucket not bound', 500)
-
-      try {
-        const contentType = request.headers.get('Content-Type') || 'application/octet-stream'
-        await env.BUCKET.put(key, request.body, { httpMetadata: { contentType } })
-        return json({ publicUrl: `${env.R2_PUBLIC_URL}/${key}` })
-      } catch (e) {
-        return err(e?.message || 'R2 put failed', 500)
       }
     }
 

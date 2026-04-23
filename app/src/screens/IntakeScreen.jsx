@@ -349,6 +349,7 @@ export default function IntakeScreen() {
     setError(null)
     await acquireWakeLock()
 
+    let createdScrapbookId = null
     try {
       // 1. Get remuxed clip 1 — use pre-remux result if ready, otherwise remux now
       setUploadPhase('remuxing')
@@ -377,6 +378,7 @@ export default function IntakeScreen() {
         .select()
         .single()
       if (sbErr) throw sbErr
+      createdScrapbookId = sb.id
 
       // 3. Auto-share with defaults (silent — never blocks scrapbook creation)
       try {
@@ -459,10 +461,16 @@ export default function IntakeScreen() {
         })
       }
 
+      createdScrapbookId = null
       navigate(`/scrapbook/${sb.id}`)
     } catch (err) {
       console.error(err)
       releaseWakeLock()
+      // Delete the orphaned scrapbook so retrying doesn't create duplicates
+      if (createdScrapbookId) {
+        supabase.from('scrapbooks').delete().eq('id', createdScrapbookId).then(() => {})
+        createdScrapbookId = null
+      }
       setError(err.message || 'Upload failed. Please try again.')
       setUploading(false)
     }

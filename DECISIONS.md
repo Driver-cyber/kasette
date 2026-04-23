@@ -1366,3 +1366,36 @@ Tracks which features have been ported from web to native. Update this whenever 
 - Workflow prompt docs created: `tracker-retrofit-prompt.md`, `new-project-snippet.md`
 - CLAUDE.md updated: two-repo context, tracker reading rule, cross-repo sync rule
 - DECISIONS.md updated: platform strategy, multi-repo workflow, Cross-Repo Sync Log
+
+---
+
+### [2026-04-23] — Shared Tab: Outbound Shares + Options Menu Share Button + Padding Fixes
+
+**Shared tab now shows scrapbooks you've shared with others.**
+
+Previously the Shared tab only showed inbound shares (scrapbooks others shared with you). Now:
+
+- **Feed view:** when you have both inbound and outbound shares, inbound appears under a "From others" section header and outbound appears under a "Shared by you" section header. If you only have inbound (most users today), no headers show — UI unchanged.
+- **By Person view:** outbound shares appear as collapsible recipient groups (same pattern as inbound owner groups). Each group shows a subtle "shared by you" label to distinguish it from inbound groups.
+- **Empty state copy** updated: "Scrapbooks you share — or that others share with you — will appear here."
+
+**Implementation notes:**
+- `outboundShareRows` state: raw share rows from `scrapbook_shares` where `owner_id = session.user.id`
+- `recipientNames` state: profile lookup map for recipient display names
+- `outboundFeedItems`: derived — grouped by `scrapbook_id`, with all `recipientIds` collected (for "shared with Name1, Name2" subtitle)
+- `outboundByRecipient`: derived — grouped by `shared_with_id` (for By Person view)
+- `ScrapbookCard` prop renamed: `ownerName` → `subtitle`. Now renders the string directly instead of prepending "from ". Callers format the string (`"from Jane"`, `"shared with Jane, Bob"`).
+- Outbound recipient groups use `out-${recipientId}` as key in `collapsedOwners` Set to avoid conflicts with inbound owner groups
+
+**Options menu: Share button added**
+- New "Share" button in the three-dot card options sheet, between Rename & Redate and Delete Scrapbook
+- Uses `Share2` icon (amber), subtitle "Invite family members"
+- Navigates to `/scrapbook/:id/share` (ShareScreen)
+
+**Padding fixes:**
+- Header `pt-12` → `paddingTop: 'max(3.5rem, calc(env(safe-area-inset-top) + 1rem))'` — gives proper breathing room between iOS status bar and Cassette logo on all iPhone models
+- Options sheet `pb-10` → `paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))'` — eliminates the excess blank space below Cancel on Face ID iPhones. The `Close Year` sheet already used this pattern; now all sheets should follow it.
+
+**Session close:**
+- Tracker updated to 2026-04-23
+- All changes committed to `claude/optimize-upload-performance-TGW1K`

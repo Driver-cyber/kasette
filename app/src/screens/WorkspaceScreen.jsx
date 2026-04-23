@@ -69,9 +69,8 @@ export default function WorkspaceScreen() {
   const [undoable, setUndoable] = useState(null) // last undoable action
   const [savedFlash, setSavedFlash] = useState(false)
   const savedFlashTimer = useRef(null)
-  const [splitPct, setSplitPct] = useState(50)   // active (draggable) split bar position as % of full duration
-  const [splitPct1, setSplitPct1] = useState(null) // locked first bar after "Set Split 1"
-  const [splitStep, setSplitStep] = useState(1)    // 1 | 2 | 3
+  const [splitInPct, setSplitInPct] = useState(35)  // left cut handle as % of full duration
+  const [splitOutPct, setSplitOutPct] = useState(65) // right cut handle as % of full duration
 
   // Preview swipe navigation
   const previewSwipeStart = useRef(null)
@@ -344,39 +343,50 @@ export default function WorkspaceScreen() {
     }
   }
 
-  // ── Split mode: reset to step 1 and position bar at ~30% when activated ──
+  // ── Split mode: auto-place two handles centered in playable range ──
   useEffect(() => {
     if (trimMode === 'split' && activeClip) {
       const start = trimIn
       const end = trimOut ?? duration
-      const bar1Time = start + (end - start) * 0.30
-      const pct = duration > 0 ? (bar1Time / duration) * 100 : 30
-      setSplitStep(1)
-      setSplitPct1(null)
-      setSplitPct(pct)
-      if (videoRef.current) videoRef.current.currentTime = bar1Time
+      const range = end - start
+      const center = start + range * 0.5
+      const half = Math.max(1, range * 0.15)
+      const inTime = Math.max(start + 0.1, center - half)
+      const outTime = Math.min(end - 0.1, center + half)
+      setSplitInPct(duration > 0 ? (inTime / duration) * 100 : 35)
+      setSplitOutPct(duration > 0 ? (outTime / duration) * 100 : 65)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trimMode])
 
-  // ── Split marker drag ───────────────────────────────────────────────────
-  function startSplitDrag(e) {
+  // ── Split handle drag ───────────────────────────────────────────────────
+  function startSplitHandleDrag(which, e) {
     e.preventDefault()
     e.stopPropagation()
     const strip = filmstripRef.current
     if (!strip || !activeClip) return
     const rect = strip.getBoundingClientRect()
     const clipDuration = activeClip.duration || 1
-    const inPct = (activeClip.trim_in || 0) / clipDuration * 100
-    const outPct = ((activeClip.trim_out ?? clipDuration) / clipDuration) * 100
+    const trimInBound = (activeClip.trim_in || 0) / clipDuration * 100
+    const trimOutBound = ((activeClip.trim_out ?? clipDuration) / clipDuration) * 100
+    const minGapPct = Math.min(2 / clipDuration * 100, 5)
+    let currentInPct = splitInPct
+    let currentOutPct = splitOutPct
 
     function onMove(ev) {
       const clientX = ev.touches ? ev.touches[0].clientX : ev.clientX
       if (ev.touches) ev.preventDefault()
       const raw = (clientX - rect.left) / rect.width * 100
-      const clamped = Math.max(inPct + 1, Math.min(outPct - 1, raw))
-      setSplitPct(clamped)
-      if (videoRef.current) videoRef.current.currentTime = (clamped / 100) * clipDuration
+      if (which === 'in') {
+        const clamped = Math.max(trimInBound + 0.5, Math.min(currentOutPct - minGapPct, raw))
+        currentInPct = clamped
+        setSplitInPct(clamped)
+      } else {
+        const clamped = Math.max(currentInPct + minGapPct, Math.min(trimOutBound - 0.5, raw))
+        currentOutPct = clamped
+        setSplitOutPct(clamped)
+      }
+      if (videoRef.current) videoRef.current.currentTime = (raw / 100) * clipDuration
     }
 
     function onEnd() {
@@ -399,29 +409,14 @@ export default function WorkspaceScreen() {
     }
   }
 
-  // ── Multi-step split: Set Split 1 → Set Split 2 → Confirm & Cut ──────────
-  async function advanceSplitStep() {
+  // ── Commit split cut ─────────────────────────────────────────────────────
+  async function commitSplit() {
     if (!activeClip || !duration) return
-    if (splitStep === 1) {
-      // Lock bar 1, spawn bar 2 at +30% or 75% cap
-      setSplitPct1(splitPct)
-      const bar2Pct = Math.min(splitPct + 30, 90)
-      setSplitPct(bar2Pct)
-      if (videoRef.current) videoRef.current.currentTime = (bar2Pct / 100) * duration
-      setSplitStep(2)
-    } else if (splitStep === 2) {
-      // Just advance to confirm state — user can still drag bar 2
-      setSplitStep(3)
-    } else if (splitStep === 3) {
-      // Commit — sort so cut_in < cut_out regardless of bar order
-      const p1 = Math.min(splitPct1, splitPct)
-      const p2 = Math.max(splitPct1, splitPct)
-      const cutInTime = (p1 / 100) * duration
-      const cutOutTime = (p2 / 100) * duration
-      setUndoable({ type: 'clip', clipId: activeClip.id, prev: { cut_in: activeClip.cut_in ?? null, cut_out: activeClip.cut_out ?? null } })
-      await saveClipChanges(activeClip.id, { cut_in: cutInTime, cut_out: cutOutTime })
-      setTrimMode(null)
-    }
+    const cutInTime = (splitInPct / 100) * duration
+    const cutOutTime = (splitOutPct / 100) * duration
+    setUndoable({ type: 'clip', clipId: activeClip.id, prev: { cut_in: activeClip.cut_in ?? null, cut_out: activeClip.cut_out ?? null } })
+    await saveClipChanges(activeClip.id, { cut_in: cutInTime, cut_out: cutOutTime })
+    setTrimMode(null)
   }
 
   // ── Mini timeline scrub ─────────────────────────────────────────────────
@@ -1120,12 +1115,12 @@ export default function WorkspaceScreen() {
                   style={{ left: `${trimInPct}%`, right: `${100 - trimOutPct}%` }} />
                 <div className="absolute top-0 bottom-0 w-px bg-white/60 pointer-events-none"
                   style={{ left: `${playheadPct}%` }} />
-                {/* Split excluded zone — step 2/3: shade between bar 1 and bar 2 */}
-                {trimMode === 'split' && cutIn == null && splitStep >= 2 && splitPct1 != null && (
+                {/* Split excluded zone — shade between the two split handles */}
+                {trimMode === 'split' && cutIn == null && (
                   <div className="absolute top-0 bottom-0 pointer-events-none"
                     style={{
-                      left: `${Math.min(splitPct1, splitPct)}%`,
-                      width: `${Math.abs(splitPct - splitPct1)}%`,
+                      left: `${splitInPct}%`,
+                      width: `${splitOutPct - splitInPct}%`,
                       background: 'rgba(232,133,90,0.22)',
                     }} />
                 )}
@@ -1198,34 +1193,34 @@ export default function WorkspaceScreen() {
                 </>
               )}
 
-              {/* Split markers — only when no cut exists yet */}
+              {/* Split handles — both draggable immediately */}
               {trimMode === 'split' && cutIn == null && (<>
-                {/* Bar 1 — locked after step 1, shown in steps 2/3 */}
-                {splitStep >= 2 && splitPct1 != null && (
-                  <div
-                    className="absolute top-0 bottom-0 pointer-events-none z-10"
-                    style={{ left: `${splitPct1}%`, width: 52, marginLeft: -26 }}
-                  >
-                    <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-[3px]"
-                      style={{ background: '#E8855A', opacity: 0.5 }} />
-                    <div className="absolute left-1/2 -translate-x-1/2 -top-4 px-1.5 py-0.5 rounded-full text-[9px] font-bold text-walnut whitespace-nowrap"
-                      style={{ background: '#E8855A', opacity: 0.6 }}>
-                      {fmt((splitPct1 / 100) * duration)}
-                    </div>
-                  </div>
-                )}
-                {/* Active bar — draggable, shown in all steps */}
+                {/* In handle */}
                 <div
                   className="absolute top-0 bottom-0 cursor-ew-resize touch-none z-20"
-                  style={{ left: `${splitPct}%`, width: 52, marginLeft: -26 }}
-                  onTouchStart={startSplitDrag}
-                  onMouseDown={startSplitDrag}
+                  style={{ left: `${splitInPct}%`, width: 52, marginLeft: -26 }}
+                  onTouchStart={(e) => startSplitHandleDrag('in', e)}
+                  onMouseDown={(e) => startSplitHandleDrag('in', e)}
                 >
                   <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-[3px]"
-                    style={{ background: '#E8855A', boxShadow: '0 0 8px rgba(232,133,90,0.8)', borderLeft: '2px dashed rgba(255,255,255,0.3)' }} />
+                    style={{ background: '#E8855A', boxShadow: '0 0 8px rgba(232,133,90,0.8)' }} />
                   <div className="absolute left-1/2 -translate-x-1/2 -top-4 px-1.5 py-0.5 rounded-full text-[9px] font-bold text-walnut whitespace-nowrap"
                     style={{ background: '#E8855A' }}>
-                    {fmt((splitPct / 100) * duration)}
+                    {fmt((splitInPct / 100) * duration)}
+                  </div>
+                </div>
+                {/* Out handle */}
+                <div
+                  className="absolute top-0 bottom-0 cursor-ew-resize touch-none z-20"
+                  style={{ left: `${splitOutPct}%`, width: 52, marginLeft: -26 }}
+                  onTouchStart={(e) => startSplitHandleDrag('out', e)}
+                  onMouseDown={(e) => startSplitHandleDrag('out', e)}
+                >
+                  <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-[3px]"
+                    style={{ background: '#E8855A', boxShadow: '0 0 8px rgba(232,133,90,0.8)' }} />
+                  <div className="absolute left-1/2 -translate-x-1/2 -top-4 px-1.5 py-0.5 rounded-full text-[9px] font-bold text-walnut whitespace-nowrap"
+                    style={{ background: '#E8855A' }}>
+                    {fmt((splitOutPct / 100) * duration)}
                   </div>
                 </div>
               </>)}
@@ -1251,25 +1246,14 @@ export default function WorkspaceScreen() {
                 <Scissors size={13} />
                 Remove cut
               </button>
-            ) : splitStep === 3 ? (
+            ) : (
               <button
-                onClick={advanceSplitStep}
+                onClick={commitSplit}
                 className="mt-2.5 w-full py-2.5 rounded-xl font-sans font-bold text-[13px] active:opacity-80 flex items-center justify-center gap-2"
                 style={{ background: '#E8855A', color: '#2C1A0E' }}
               >
                 <Scissors size={13} />
-                Confirm &amp; Cut
-              </button>
-            ) : (
-              <button
-                onClick={advanceSplitStep}
-                className="mt-2.5 w-full py-2.5 rounded-xl font-sans font-bold text-[13px] active:opacity-80 flex items-center justify-center gap-2"
-                style={{ background: 'rgba(232,133,90,0.15)', border: '1px solid rgba(232,133,90,0.3)', color: '#E8855A' }}
-              >
-                <Scissors size={13} />
-                {splitStep === 1
-                  ? `Set Split 1 · ${fmt((splitPct / 100) * duration)}`
-                  : `Set Split 2 · ${fmt((splitPct / 100) * duration)}`}
+                Split
               </button>
             )
           )}

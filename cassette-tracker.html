@@ -296,7 +296,7 @@
 {
   "project": "Cassette",
   "description": "Private family video scrapbook app",
-  "updated": "2026-04-23",
+  "updated": "2026-04-28",
   "columns": [
     {
       "name": "kasette — Web PWA",
@@ -314,6 +314,151 @@
         "Offline indicator banner",
         "Swipe-to-delete cards",
         "Bug: wrong signOut redirect in HomeScreen"
+      ],
+      "shipped": [
+        {
+          "date": "2026-04-23",
+          "what": "Split tool redesigned to instant two-handle UX — both handles appear centered in the playable range and are immediately draggable; single Split button commits.",
+          "tags": ["ux", "mobile", "workspace"]
+        },
+        {
+          "date": "2026-04-23",
+          "what": "Uploads moved to presigned PUT direct to R2, bypassing the Cloudflare Worker 100MB body limit; ceiling is now R2's 5 GB single-object limit.",
+          "tags": ["cloudflare", "mobile", "architecture"],
+          "learned": "Workers cap incoming request bodies at 100 MB; presigned S3 URLs route the data path around the Worker entirely."
+        },
+        {
+          "date": "2026-04-23",
+          "what": "Orphaned scrapbook records are deleted automatically when an upload fails mid-session, preventing duplicate library entries on retry.",
+          "tags": ["defensive-coding", "mobile"],
+          "learned": "Stale closures in async cleanup require capturing mutable IDs to a const before nulling the source variable."
+        },
+        {
+          "date": "2026-04-23",
+          "what": "Outbound shares now visible in the Shared tab; Share action added to the scrapbook options menu.",
+          "tags": ["ux", "mobile"]
+        },
+        {
+          "date": "2026-04-22",
+          "what": "Real XHR upload progress replaces fake lerp — bar now reflects actual bytes transferred and no longer stalls at 40%.",
+          "tags": ["ux", "mobile"]
+        },
+        {
+          "date": "2026-04-22",
+          "what": "Background upload queue ships — app navigates to the new scrapbook after clip 1 finishes while remaining clips drain concurrently.",
+          "tags": ["mobile", "architecture"]
+        },
+        {
+          "date": "2026-04-22",
+          "what": "Cross-project dashboard live with Galaxy tab; multi-repo workflow established for kasette + kasette-native.",
+          "tags": ["docs", "architecture", "founding"]
+        },
+        {
+          "date": "2026-04-21",
+          "what": "R2 Worker CORS misconfiguration fixed; upload error messages now include HTTP status; retry logic added for transient failures.",
+          "tags": ["cloudflare", "defensive-coding"]
+        },
+        {
+          "date": "2026-04-19",
+          "what": "Forgot Password and Reset Password flows added; login screen gains a Create Account link.",
+          "tags": ["ux", "mobile"]
+        },
+        {
+          "date": "2026-04-15",
+          "what": "R2 migration complete — all uploads and deletes route through Cloudflare Worker to R2; Supabase Storage fully retired.",
+          "tags": ["cloudflare", "architecture"]
+        },
+        {
+          "date": "2026-04-09",
+          "what": "Surprise Me feature ships in Film Fest — shuffles 10–15 clips across all own (optionally shared) scrapbooks with blob prewarm on mount.",
+          "tags": ["ux", "mobile"]
+        },
+        {
+          "date": "2026-03-29",
+          "what": "Film Fest studio screen ships — year/month multi-select filters, Watch and Download modes, cassette-reel loading animation.",
+          "tags": ["ux", "mobile", "animation"]
+        },
+        {
+          "date": "2026-03-27",
+          "what": "Workspace undo (single-level) added to nav header; mini clip timeline with trim region and amber playhead added above the clip strip.",
+          "tags": ["ux", "workspace"]
+        },
+        {
+          "date": "2026-03-27",
+          "what": "Workspace clip strip redesigned to horizontal scrollable row with active amber border; TOOLS row made collapsible.",
+          "tags": ["ux", "workspace", "mobile"]
+        },
+        {
+          "date": "2026-03-27",
+          "what": "Wake Lock API prevents screen sleep during uploads — fixes upload failures when iPhone screen locks mid-session.",
+          "tags": ["mobile", "ios", "defensive-coding"]
+        },
+        {
+          "date": "2026-03-27",
+          "what": "Scrapbook detail hub screen added; blob preload cache wired so Playback starts instantly without re-fetching.",
+          "tags": ["ux", "mobile", "architecture"]
+        },
+        {
+          "date": "2026-03-27",
+          "what": "Trim/Split UX overhauled with drag handles on a filmstrip; swipe-up/down clip navigation added to Playback.",
+          "tags": ["ux", "mobile", "workspace"]
+        },
+        {
+          "date": "2026-03-27",
+          "what": "Thumbnail overlay shown between clips in Playback, eliminating the black flash on clip transition.",
+          "tags": ["ux", "mobile", "animation"]
+        },
+        {
+          "date": "2026-03-27",
+          "what": "Add Clips to an existing scrapbook — intake flow extended to append clips rather than always creating a new scrapbook.",
+          "tags": ["ux", "mobile"]
+        },
+        {
+          "date": "2026-03-16",
+          "what": "Auto-share defaults added to Settings — new scrapbooks can be automatically shared with saved family members.",
+          "tags": ["ux", "mobile"]
+        },
+        {
+          "date": "2026-03-16",
+          "what": "iOS PWA install prompt banner guides mobile users to Add to Home Screen.",
+          "tags": ["ios", "mobile", "ux"]
+        },
+        {
+          "date": "2026-03-16",
+          "what": "Rename scrapbook flow added; error boundary wraps all screens; cover image cache invalidated on update.",
+          "tags": ["ux", "defensive-coding"]
+        },
+        {
+          "date": "2026-03-15",
+          "what": "Username-based login and name-based signup replace email-only auth; share flow now uses username instead of email.",
+          "tags": ["ux", "mobile", "architecture"]
+        },
+        {
+          "date": "2026-03-15",
+          "what": "Share management screen ships — add family by username, remove self from shared scrapbooks, collapsible shared section on Home.",
+          "tags": ["ux", "mobile"]
+        },
+        {
+          "date": "2026-03-14",
+          "what": "Export scrapbook as MP4 — client-side trim+concat via FFmpeg WASM, downloadable or share-sheet on iOS.",
+          "tags": ["ios", "mobile", "architecture"]
+        },
+        {
+          "date": "2026-03-14",
+          "what": "Public /signup route added so family members can self-register without any admin action.",
+          "tags": ["ux", "mobile", "founding"]
+        },
+        {
+          "date": "2026-03-14",
+          "what": "FastStart remux (moov atom moved to front) + poster frame extraction run before upload, enabling instant playback seek.",
+          "tags": ["mobile", "ios", "architecture"],
+          "learned": "iPhone .MOV files have moov at the tail; remuxing to MP4 FastStart before upload is essential for streaming seek."
+        },
+        {
+          "date": "2026-03-14",
+          "what": "Hold-to-pause fixed — releasing hold no longer fires the tap-to-navigate handler in Playback.",
+          "tags": ["ux", "mobile", "ios"]
+        }
       ]
     },
     {

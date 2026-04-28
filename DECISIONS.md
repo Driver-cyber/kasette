@@ -1450,3 +1450,24 @@ Used a subagent for a targeted review of recently-changed files, verified each f
 - Worker redeployed to production by user
 - Tracker updated for 2026-04-23 to reflect pt-2 work
 - Good pause point; no outstanding work or verification needed
+
+---
+
+### [2026-04-28] — Tracker Shipped-History Enrichment for Galaxy View
+
+**What happened:** No product features changed this session. Work was entirely meta — enriching the build tracker so the cross-project Galaxy view renders rich data.
+
+**Why:** The project-dashboard's Galaxy tab expects each `shipped` entry in `columns[0].shipped` to be a structured object with `date`, `what`, `tags`, and an optional `learned` field. The tracker had no `shipped` array at all. The session also introduced the pattern for all Cassette sessions going forward.
+
+**What changed (`cassette-tracker.html`):**
+- Added `columns[0].shipped` array — 28 entries covering all meaningful feature ships from 2026-03-14 (app genesis) through 2026-04-23 (most recent session).
+- Each entry carries: `date` (from git log), `what` (one-sentence description), `tags` (1–4 from shared dashboard vocabulary + project-specific `workspace`), and `learned` where there's a non-obvious lesson (4 entries: Workers 100MB cap, stale-closure ID capture, FastStart remux requirement, hold-to-pause event ordering).
+- Entries sorted newest-first by date.
+- Bumped `updated` JSON field and HTML display to `2026-04-28`.
+- No other tracker content changed (priorities, backlog, second column).
+
+**Tags used:** `ux`, `mobile`, `ios`, `cloudflare`, `architecture`, `defensive-coding`, `animation`, `docs`, `founding`, `workspace` (project-specific).
+
+**Session close:**
+- All changes committed and pushed to `main` (`953a8a1`)
+- Good pause point; no outstanding code or verification work

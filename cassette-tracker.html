@@ -171,7 +171,7 @@
 <header>
   <h1>Cassette Build Tracker</h1>
   <!-- UPDATE DATE EACH SESSION -->
-  <p>Last updated: 2026-04-28</p>
+  <p>Last updated: 2026-05-06</p>
 </header>
 
 <div class="grid">
@@ -182,32 +182,18 @@
   <div class="col">
     <div class="col-header">
       <h2>kasette — Web PWA</h2>
-      <p>Feature lab · Cloudflare Pages · React + Vite</p>
+      <p>Feature-frozen · Cloudflare Pages · stays live</p>
     </div>
 
     <div class="section">
-      <div class="section-label">Next 3 Priorities</div>
+      <div class="section-label">Status: Feature-Frozen</div>
       <!-- WEB: NEXT 3 — edit text here to update priorities -->
       <ol class="priorities">
         <li>
-          <div class="num">1</div>
+          <div class="num">—</div>
           <div class="priority-text">
-            <strong>Configure Supabase SMTP via Resend</strong>
-            <span>Auth emails hit spam + rate-limited. Resend API key → Supabase SMTP settings. No code changes needed.</span>
-          </div>
-        </li>
-        <li>
-          <div class="num">2</div>
-          <div class="priority-text">
-            <strong>Film Fest Download / Export</strong>
-            <span>Currently "Coming Soon." Cloudflare Worker + FFmpeg concat → stream MP4. Plan memory budget for large files first.</span>
-          </div>
-        </li>
-        <li>
-          <div class="num">3</div>
-          <div class="priority-text">
-            <strong>UX Polish Pass</strong>
-            <span>Skeleton loading cards, toast notifications, Supabase image transforms for thumbnails (?width=400). Small wins, big feel. (2026-04-23 pt 2: split tool redesigned to instant 2-handle UX; uploads moved to presigned PUT direct to R2 — 100MB Worker limit gone; orphan scrapbook cleanup on failed uploads; dead Worker /upload endpoint removed.)</span>
+            <strong>No active development</strong>
+            <span>Frozen 2026-05-06. Native iOS (Expo) is now the primary build target. Web stays live but receives no new features. Upload bug intentionally left — the real fix is native photo library access.</span>
           </div>
         </li>
       </ol>
@@ -218,14 +204,12 @@
       <div class="section-label">Backlog &amp; Notes</div>
       <!-- WEB: BACKLOG — add/remove bullets here -->
       <ul class="notes">
-        <li><strong>Reorder UX</strong> — 1-step tap+drag instead of 2-step mode. Hard: onClick fires after touchend. Parked.</li>
+        <li><strong>Deferred → native: Supabase SMTP via Resend</strong> — auth emails hit spam. Resend API key → Supabase SMTP. No code changes needed when revisited.</li>
+        <li><strong>Deferred → native: Film Fest Download / Export</strong> — Cloudflare Worker + FFmpeg concat. Plan memory budget first.</li>
+        <li><strong>Deferred → native: UX Polish Pass</strong> — skeleton cards, toast notifications, image transforms. Context preserved in prior tracker entries.</li>
+        <li><strong>Reorder UX</strong> — 1-step tap+drag. Hard on web: onClick fires after touchend. Native touch APIs solve this cleanly.</li>
         <li><strong>Public share links</strong> — read-only, no account needed. Grandparent view. High value, v2.</li>
         <li><strong>Caption burning on export</strong> — re-encode to bake captions into video. v2.</li>
-        <li><strong>Video compression on upload</strong> — iPhone videos are 100MB+. Biggest remaining perf lever.</li>
-        <li><strong>Offline indicator banner</strong> — graceful network loss handling.</li>
-        <li><strong>"New clips" badge</strong> — on shared scrapbooks when new clips added. v2 sharing enhancement.</li>
-        <li><strong>Swipe-to-delete cards</strong> — more intuitive than ⋯ menu. Medium effort.</li>
-        <li><strong>Light mode</strong> — not a Cassette experience. Probably never.</li>
         <li><strong>Bug: wrong signOut redirect</strong> — HomeScreen calls navigate('/login') after signOut. AuthGate handles it. Remove the navigate call.</li>
         <li><strong>Note: mute is client-side only</strong> — no `muted` column in DB. Never add one.</li>
       </ul>
@@ -239,7 +223,7 @@
   <div class="col">
     <div class="col-header">
       <h2>kasette-native — iOS</h2>
-      <p>Expo · React Native · Unlisted App Store · EAS</p>
+      <p>PRIMARY BUILD TARGET · Expo · React Native · EAS</p>
     </div>
 
     <div class="section">
@@ -296,23 +280,21 @@
 {
   "project": "Cassette",
   "description": "Private family video scrapbook app",
-  "updated": "2026-04-28",
+  "updated": "2026-05-06",
   "columns": [
     {
       "name": "kasette — Web PWA",
-      "sub": "Feature lab · Cloudflare Pages · React + Vite",
+      "sub": "Feature-frozen · Cloudflare Pages · stays live",
       "priorities": [
-        { "title": "Configure Supabase SMTP via Resend", "note": "Auth emails hit spam + rate-limited. No code changes needed." },
-        { "title": "Film Fest Download / Export", "note": "Cloudflare Worker + FFmpeg concat. Plan memory budget first." },
-        { "title": "UX Polish Pass", "note": "Skeleton cards, toast notifications, image transforms for thumbnails. (2026-04-23 pt 2: split tool redesigned to instant 2-handle UX; uploads moved to presigned PUT direct to R2 — 100MB Worker limit gone; orphan scrapbook cleanup on failed uploads; dead Worker /upload endpoint removed.)" }
+        { "title": "No active development", "note": "Frozen 2026-05-06. Native iOS is now primary build target. Upload bug intentionally left — real fix is native photo library access." }
       ],
       "backlog": [
-        "Reorder UX — 1-step tap+drag",
+        "Deferred → native: Supabase SMTP via Resend",
+        "Deferred → native: Film Fest Download / Export",
+        "Deferred → native: UX Polish Pass",
+        "Reorder UX — 1-step tap+drag (native touch APIs solve this cleanly)",
         "Public share links — grandparent view",
         "Caption burning on export — v2",
-        "Video compression on upload",
-        "Offline indicator banner",
-        "Swipe-to-delete cards",
         "Bug: wrong signOut redirect in HomeScreen"
       ],
       "shipped": [
@@ -463,7 +445,7 @@
     },
     {
       "name": "kasette-native — iOS",
-      "sub": "Expo · React Native · Unlisted App Store · EAS",
+      "sub": "PRIMARY BUILD TARGET · Expo · React Native · EAS",
       "priorities": [
         { "title": "Scaffold Expo project + EAS setup", "note": "create-expo-app kasette-native · EAS CLI · Apple Dev account linked." },
         { "title": "TestFlight pipeline: auth + one video", "note": "Prove the pipeline end to end. First build in hand." },

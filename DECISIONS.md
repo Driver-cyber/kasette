@@ -1453,6 +1453,41 @@ Used a subagent for a targeted review of recently-changed files, verified each f
 
 ---
 
+### [2026-05-06] — Pivot: Native-First. Web PWA Feature-Frozen.
+
+**Context:** The presigned PUT upload flow (shipped 2026-04-23) broke and was never confirmed end-to-end. Wife stopped using the app. During the pause, independently built a garden iOS app with Expo — gaining real React Native / EAS / TestFlight reps. That experience, combined with three hard web limits that can never be solved at the browser level, makes native the clear path:
+
+1. **iOS file picker hand-off delay** — ~60–90s freeze before the selection grid appears; iOS-level, no web workaround
+2. **FFmpeg WASM speed** — 10–30s per clip, blocks UI thread, can't be parallelized
+3. **Wake lock fragility** — iOS revokes it on screen lock or backgrounding; background uploads are best-effort only
+
+**Decision: Pivot to native-first. No new features built on the web PWA.**
+
+- `kasette-native` (Expo iOS) is now the primary build target — the only place new features get built
+- `kasette` (web PWA) is feature-frozen — stays live for any existing sessions, zero new development
+- Upload bug on web intentionally left broken — the real fix is `expo-media-library` + native `URLSession`, not patching the Worker
+- Garden app experience validated the Expo/EAS toolchain; no new unknowns
+
+**What transfers to native:** React hooks, Context patterns, Supabase client, `lib/r2.js` upload logic, all product decisions, brand system, data model.  
+**What gets rewritten:** All UI components (View/Text/Pressable), navigation (React Navigation replaces React Router), `lib/remux.js` → native AVFoundation encoding.
+
+**Feature lifecycle going forward:**
+```
+Idea → Build in kasette-native → Iterate until solid → Ship via TestFlight / App Store
+     → Web gets no port (PWA frozen)
+```
+
+**Immediate next moves:**
+1. `npx create-expo-app kasette-native`
+2. `eas build:configure` → link Apple Dev account
+3. Wire Supabase client + `lib/r2.js` patterns — prove backend on device
+4. Supabase login screen → one clip playing → TestFlight install → prove the pipeline
+5. Port: Home → Intake (native photo picker) → Playback
+
+**Session close:** Pivot logged. Tracker updated. No code changes this session.
+
+---
+
 ### [2026-04-28] — Tracker Shipped-History Enrichment for Galaxy View
 
 **What happened:** No product features changed this session. Work was entirely meta — enriching the build tracker so the cross-project Galaxy view renders rich data.

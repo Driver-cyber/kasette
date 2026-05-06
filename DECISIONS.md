@@ -1488,6 +1488,72 @@ Idea → Build in kasette-native → Iterate until solid → Ship via TestFlight
 
 ---
 
+### [2026-05-06] pt 2 — kasette-native: Scaffold Decisions (Handoff to Local Session)
+
+**Purpose:** Lock in the technical choices for `kasette-native` before opening a local Claude Code session to actually scaffold. These decisions came out of the same session as the pivot — capturing them here so the founding docs hold the plan independent of any chat context.
+
+**Repo structure:**
+- New repo, sibling to `kasette/` on local disk (e.g. `~/projects/kasette/` and `~/projects/kasette-native/`).
+- Separate git repo, separate GitHub remote.
+- **Not a monorepo, not a subfolder.** UI paradigms differ; shared assets are the backend (Supabase + R2) and product decisions, not components. (Reaffirms [2026-04-22] platform strategy.)
+
+**Scaffold choices:**
+
+| Decision | Choice | Why |
+|---|---|---|
+| Template | Blank (TypeScript) | Cleanest slate; TS gives autocomplete + type-checking as the codebase grows |
+| Navigation | React Navigation (stack) | Cassette needs precise control over custom transitions (hold-to-pause, swipe between clips). Expo Router is better for simpler tab/page apps. |
+| Bundle ID | `com.drivercyber.cassette` | Reverse-domain based on GitHub org. Changeable in `app.json` until first App Store submission. |
+| Display name | Cassette | What appears under the icon |
+| Expo SDK | Latest stable at scaffold time | No reason to pin older |
+| Package manager | npm (or whatever `create-expo-app` defaults to) | Don't fight defaults |
+
+**Tooling prerequisites for the local session:**
+- Node 20+ installed
+- `kasette` repo cloned locally so Claude can read `CLAUDE.md` + `DECISIONS.md` for context
+- **Expo Go** app installed on iPhone (free App Store) — for daily dev preview via QR code scan, no TestFlight needed
+- Apple Developer credentials accessible for later `eas login` (not needed day 1)
+
+**Opening prompt for the local session:**
+
+```
+We're starting kasette-native, the iOS Expo companion to the kasette
+web PWA. Read these for full context first:
+
+  ~/path/to/kasette/CLAUDE.md
+  ~/path/to/kasette/DECISIONS.md
+    (esp. the [2026-05-06] pivot entry,
+     the [2026-05-06] pt 2 scaffold decisions entry,
+     and the [2026-04-22] platform strategy entry)
+
+Decisions already locked from the prior session:
+  - Template: Blank (TypeScript)
+  - Navigation: React Navigation (stack)
+  - Bundle ID: com.drivercyber.cassette
+  - Display name: Cassette
+  - Repo location: sibling to kasette/, fresh git repo
+  - Same Supabase + R2 backend (no schema divergence)
+
+Next step: scaffold the project, init git, first dev build via Expo Go.
+```
+
+**First-session goal sequence (for the local Claude to execute):**
+1. `cd` to parent dir of `kasette/` → `npx create-expo-app kasette-native --template blank-typescript`
+2. Set bundle ID + display name in `app.json`
+3. `git init` + first commit
+4. Create GitHub remote (`gh repo create driver-cyber/kasette-native --private`)
+5. `npx expo start` → scan QR with Expo Go on phone → confirm "Hello World" renders
+6. *Stop. Don't go further day 1.* Get a clean dev loop working before adding anything.
+
+**Day 2+ priorities (per tracker native column):**
+1. Install Supabase client + port `lib/r2.js` patterns — prove backend connection on device
+2. Build login screen + render one clip from R2 → archive → EAS Build → TestFlight install
+3. Port core screens: Home → Intake (with `expo-media-library`) → Playback (`expo-av`)
+
+**Session close:** Scaffold decisions captured. Local session can pick this up cold from the founding docs alone.
+
+---
+
 ### [2026-04-28] — Tracker Shipped-History Enrichment for Galaxy View
 
 **What happened:** No product features changed this session. Work was entirely meta — enriching the build tracker so the cross-project Galaxy view renders rich data.

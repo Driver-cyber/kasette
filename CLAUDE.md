@@ -341,3 +341,21 @@ Explicitly out of scope for `kasette` (web PWA). Do not build, do not plan for:
 - **Scope creep check:** If a feature would touch core architecture, flag it first.
 - **Never silently expand scope.** Always ask.
 - **Screen inventory:** Keep `cassette-screens.html` up to date whenever screens are added, renamed, rerouted, or removed.
+
+---
+
+## 🔚 Session-End Protocol
+
+Canonical body lives on chad-wiki: [`session-end-protocol.md`](https://chadwiki.chadstewartcpa.com/?doc=session-end-protocol.md). Run it via the `/session-end-protocol` skill — triggers include *session-end*, *wrap up*, *close out*, *shipped X next Y*, *sweep inbox*.
+
+**Per-project hooks (read by the skill):**
+
+| Hook | Value |
+|---|---|
+| Tracker filename | `cassette-tracker.html` |
+| Learned-log path | `learned-log.json` (repo root) |
+| Inbox source | none — Cassette has no voice/widget capture flow |
+| Commit-message tag | `[kasette]` for feature work; `Session close [YYYY-MM-DD] — …` for session closes |
+| Deploy target | Cloudflare Pages — CD from `main` via GitHub (web PWA, currently feature-frozen per [2026-05-06] pivot) |
+
+Native iOS lives in the sibling `kasette-native` repo and runs its own session-end protocol against its own tracker + learned-log. Backend (Supabase + R2) and product decisions remain canonical here.

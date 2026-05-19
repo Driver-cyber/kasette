@@ -1554,6 +1554,24 @@ Next step: scaffold the project, init git, first dev build via Expo Go.
 
 ---
 
+### [2026-05-19] — CloudKit Considered & Rejected for kasette-native Backend
+
+**Context:** Raised at scaffold handoff time: should `kasette-native` swap Supabase + R2 for Apple CloudKit? Motivation was real-world friction — Supabase Pro is $20/mo, the payment method declined this month and required manual intervention, and CloudKit is free against the iCloud account the user already has. Downgrading Supabase to free tier was investigated and ruled out: the account already holds the max number of free-tier projects.
+
+**Decision: Stay on Supabase + Cloudflare R2.** CloudKit rejected on three structural grounds:
+
+1. **CloudKit cannot back Android.** It's iOS/macOS-only (CloudKit JS exists but is Apple-ID-gated). If Android ever enters scope, a second backend is required — meaning the migration would be done twice. Supabase + R2 serves both platforms cleanly today.
+2. **Breaks the sellable-clone strategy** ([2026-04-22] platform strategy). CloudKit ties each user's data to their personal iCloud container, which doesn't map to a multi-tenant SaaS. "Architecture is the asset" — the asset evaporates under CloudKit.
+3. **Existing data lives in Supabase + R2.** Even with the web PWA frozen, the wife's clips are there. Backend swap = real data migration or abandonment.
+
+**Secondary concern:** CKQuery has no joins and limited filtering. Cassette's data model (`scrapbook_shares`, profile joins, Surprise Me filtering across shared clips) leans on Postgres in ways awkward to replicate.
+
+**Cost trade accepted:** Supabase Pro ($20/mo) is the cost of keeping the door open on Android + multi-tenant clone. Reviewed; logged; moving on.
+
+**Session close:** Decision logged. Scaffold handoff to projects-root session is in flight; no code touched in this repo. `kasette` (web PWA) remains feature-frozen.
+
+---
+
 ### [2026-04-28] — Tracker Shipped-History Enrichment for Galaxy View
 
 **What happened:** No product features changed this session. Work was entirely meta — enriching the build tracker so the cross-project Galaxy view renders rich data.

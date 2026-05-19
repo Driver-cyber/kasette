@@ -447,7 +447,8 @@
       "name": "kasette-native — iOS",
       "sub": "PRIMARY BUILD TARGET · Expo · React Native · EAS",
       "priorities": [
-        { "title": "Scaffold Expo project + EAS setup", "note": "create-expo-app kasette-native · EAS CLI · Apple Dev account linked." },
+        { "title": "EAS Build config + Apple Dev account link", "note": "Scaffold itself shipped 2026-05-19. Next: eas build:configure, link the purchased Apple Dev account, first archive build." },
+        { "title": "Supabase client + lib/r2.js port", "note": "Prove backend on device — install @supabase/supabase-js, port upload patterns from kasette/lib/r2.js." },
         { "title": "TestFlight pipeline: auth + one video", "note": "Prove the pipeline end to end. First build in hand." },
         { "title": "Port core screens: home, intake shell, playback", "note": "expo-media-library + AVFoundation + React Navigation." }
       ],
@@ -461,6 +462,12 @@
         "Sellable clone — separate repo, rebrand"
       ],
       "shipped": [
+        {
+          "date": "2026-05-19",
+          "what": "kasette-native Day 1 scaffold complete: create-expo-app blank-typescript template (Expo SDK 54), bundle ID com.drivercyber.cassette + display name Cassette set in app.json, repo pushed to driver-cyber/kasette-native (private), dev loop proven end-to-end on iPhone via tunnel mode. Founding docs scaffolded (CLAUDE.md, DECISIONS.md, cassette-native-tracker.html, learned-log.json) per chad-wiki project-checklist.",
+          "tags": ["founding", "ios", "scaffold", "mobile"],
+          "learned": "Expo CLI suppresses QR/tunnel URL when stdout isn't a TTY — curl the dev server manifest at localhost:8081 to recover the hostUri. Newer Expo Go also removed in-app URL entry; Safari + exp:// deep-link is the working remote path."
+        },
         {
           "date": "2026-05-19",
           "what": "CloudKit considered and rejected as kasette-native backend; staying on Supabase + R2 to preserve Android optionality, the sellable-clone strategy, and existing data. Decision and rationale logged in DECISIONS.md.",

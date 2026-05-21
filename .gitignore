@@ -1,0 +1,19 @@
+# Local env files — never commit secrets
+.env
+.env.local
+.env.*.local
+
+# Allow templates
+!.env.example
+!.env.*.example
+
+# Test users with real credentials (passwords inside)
+scripts/test-users.json
+scripts/test-users-*.json
+!scripts/test-users.example.json
+
+# Node
+node_modules/
+
+# macOS
+.DS_Store

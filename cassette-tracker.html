@@ -283,208 +283,354 @@
   "updated": "2026-05-21",
   "columns": [
     {
-      "name": "kasette — Web PWA",
-      "sub": "Feature-frozen · Cloudflare Pages · stays live",
+      "name": "kasette \u2014 Web PWA",
+      "sub": "Feature-frozen \u00b7 Cloudflare Pages \u00b7 stays live",
       "priorities": [
-        { "title": "No active development", "note": "Frozen 2026-05-06. Native iOS is now primary build target. Upload bug intentionally left — real fix is native photo library access." }
+        {
+          "title": "No active development",
+          "note": "Frozen 2026-05-06. Native iOS is now primary build target. Upload bug intentionally left \u2014 real fix is native photo library access."
+        }
       ],
       "backlog": [
-        "Deferred → native: Supabase SMTP via Resend",
-        "Deferred → native: Film Fest Download / Export",
-        "Deferred → native: UX Polish Pass",
-        "Reorder UX — 1-step tap+drag (native touch APIs solve this cleanly)",
-        "Public share links — grandparent view",
-        "Caption burning on export — v2",
+        "Deferred \u2192 native: Supabase SMTP via Resend",
+        "Deferred \u2192 native: Film Fest Download / Export",
+        "Deferred \u2192 native: UX Polish Pass",
+        "Reorder UX \u2014 1-step tap+drag (native touch APIs solve this cleanly)",
+        "Public share links \u2014 grandparent view",
+        "Caption burning on export \u2014 v2",
         "Bug: wrong signOut redirect in HomeScreen"
       ],
       "shipped": [
         {
           "date": "2026-04-23",
-          "what": "Split tool redesigned to instant two-handle UX — both handles appear centered in the playable range and are immediately draggable; single Split button commits.",
-          "tags": ["ux", "mobile", "workspace"]
+          "what": "Split tool redesigned to instant two-handle UX \u2014 both handles appear centered in the playable range and are immediately draggable; single Split button commits.",
+          "tags": [
+            "ux",
+            "mobile",
+            "workspace"
+          ]
         },
         {
           "date": "2026-04-23",
           "what": "Uploads moved to presigned PUT direct to R2, bypassing the Cloudflare Worker 100MB body limit; ceiling is now R2's 5 GB single-object limit.",
-          "tags": ["cloudflare", "mobile", "architecture"],
+          "tags": [
+            "cloudflare",
+            "mobile",
+            "architecture"
+          ],
           "learned": "Workers cap incoming request bodies at 100 MB; presigned S3 URLs route the data path around the Worker entirely."
         },
         {
           "date": "2026-04-23",
           "what": "Orphaned scrapbook records are deleted automatically when an upload fails mid-session, preventing duplicate library entries on retry.",
-          "tags": ["defensive-coding", "mobile"],
+          "tags": [
+            "defensive-coding",
+            "mobile"
+          ],
           "learned": "Stale closures in async cleanup require capturing mutable IDs to a const before nulling the source variable."
         },
         {
           "date": "2026-04-23",
           "what": "Outbound shares now visible in the Shared tab; Share action added to the scrapbook options menu.",
-          "tags": ["ux", "mobile"]
+          "tags": [
+            "ux",
+            "mobile"
+          ]
         },
         {
           "date": "2026-04-22",
-          "what": "Real XHR upload progress replaces fake lerp — bar now reflects actual bytes transferred and no longer stalls at 40%.",
-          "tags": ["ux", "mobile"]
+          "what": "Real XHR upload progress replaces fake lerp \u2014 bar now reflects actual bytes transferred and no longer stalls at 40%.",
+          "tags": [
+            "ux",
+            "mobile"
+          ]
         },
         {
           "date": "2026-04-22",
-          "what": "Background upload queue ships — app navigates to the new scrapbook after clip 1 finishes while remaining clips drain concurrently.",
-          "tags": ["mobile", "architecture"]
+          "what": "Background upload queue ships \u2014 app navigates to the new scrapbook after clip 1 finishes while remaining clips drain concurrently.",
+          "tags": [
+            "mobile",
+            "architecture"
+          ]
         },
         {
           "date": "2026-04-22",
           "what": "Cross-project dashboard live with Galaxy tab; multi-repo workflow established for kasette + kasette-native.",
-          "tags": ["docs", "architecture", "founding"]
+          "tags": [
+            "docs",
+            "architecture",
+            "founding"
+          ]
         },
         {
           "date": "2026-04-21",
           "what": "R2 Worker CORS misconfiguration fixed; upload error messages now include HTTP status; retry logic added for transient failures.",
-          "tags": ["cloudflare", "defensive-coding"]
+          "tags": [
+            "cloudflare",
+            "defensive-coding"
+          ]
         },
         {
           "date": "2026-04-19",
           "what": "Forgot Password and Reset Password flows added; login screen gains a Create Account link.",
-          "tags": ["ux", "mobile"]
+          "tags": [
+            "ux",
+            "mobile"
+          ]
         },
         {
           "date": "2026-04-15",
-          "what": "R2 migration complete — all uploads and deletes route through Cloudflare Worker to R2; Supabase Storage fully retired.",
-          "tags": ["cloudflare", "architecture"]
+          "what": "R2 migration complete \u2014 all uploads and deletes route through Cloudflare Worker to R2; Supabase Storage fully retired.",
+          "tags": [
+            "cloudflare",
+            "architecture"
+          ]
         },
         {
           "date": "2026-04-09",
-          "what": "Surprise Me feature ships in Film Fest — shuffles 10–15 clips across all own (optionally shared) scrapbooks with blob prewarm on mount.",
-          "tags": ["ux", "mobile"]
+          "what": "Surprise Me feature ships in Film Fest \u2014 shuffles 10\u201315 clips across all own (optionally shared) scrapbooks with blob prewarm on mount.",
+          "tags": [
+            "ux",
+            "mobile"
+          ]
         },
         {
           "date": "2026-03-29",
-          "what": "Film Fest studio screen ships — year/month multi-select filters, Watch and Download modes, cassette-reel loading animation.",
-          "tags": ["ux", "mobile", "animation"]
+          "what": "Film Fest studio screen ships \u2014 year/month multi-select filters, Watch and Download modes, cassette-reel loading animation.",
+          "tags": [
+            "ux",
+            "mobile",
+            "animation"
+          ]
         },
         {
           "date": "2026-03-27",
           "what": "Workspace undo (single-level) added to nav header; mini clip timeline with trim region and amber playhead added above the clip strip.",
-          "tags": ["ux", "workspace"]
+          "tags": [
+            "ux",
+            "workspace"
+          ]
         },
         {
           "date": "2026-03-27",
           "what": "Workspace clip strip redesigned to horizontal scrollable row with active amber border; TOOLS row made collapsible.",
-          "tags": ["ux", "workspace", "mobile"]
+          "tags": [
+            "ux",
+            "workspace",
+            "mobile"
+          ]
         },
         {
           "date": "2026-03-27",
-          "what": "Wake Lock API prevents screen sleep during uploads — fixes upload failures when iPhone screen locks mid-session.",
-          "tags": ["mobile", "ios", "defensive-coding"]
+          "what": "Wake Lock API prevents screen sleep during uploads \u2014 fixes upload failures when iPhone screen locks mid-session.",
+          "tags": [
+            "mobile",
+            "ios",
+            "defensive-coding"
+          ]
         },
         {
           "date": "2026-03-27",
           "what": "Scrapbook detail hub screen added; blob preload cache wired so Playback starts instantly without re-fetching.",
-          "tags": ["ux", "mobile", "architecture"]
+          "tags": [
+            "ux",
+            "mobile",
+            "architecture"
+          ]
         },
         {
           "date": "2026-03-27",
           "what": "Trim/Split UX overhauled with drag handles on a filmstrip; swipe-up/down clip navigation added to Playback.",
-          "tags": ["ux", "mobile", "workspace"]
+          "tags": [
+            "ux",
+            "mobile",
+            "workspace"
+          ]
         },
         {
           "date": "2026-03-27",
           "what": "Thumbnail overlay shown between clips in Playback, eliminating the black flash on clip transition.",
-          "tags": ["ux", "mobile", "animation"]
+          "tags": [
+            "ux",
+            "mobile",
+            "animation"
+          ]
         },
         {
           "date": "2026-03-27",
-          "what": "Add Clips to an existing scrapbook — intake flow extended to append clips rather than always creating a new scrapbook.",
-          "tags": ["ux", "mobile"]
+          "what": "Add Clips to an existing scrapbook \u2014 intake flow extended to append clips rather than always creating a new scrapbook.",
+          "tags": [
+            "ux",
+            "mobile"
+          ]
         },
         {
           "date": "2026-03-16",
-          "what": "Auto-share defaults added to Settings — new scrapbooks can be automatically shared with saved family members.",
-          "tags": ["ux", "mobile"]
+          "what": "Auto-share defaults added to Settings \u2014 new scrapbooks can be automatically shared with saved family members.",
+          "tags": [
+            "ux",
+            "mobile"
+          ]
         },
         {
           "date": "2026-03-16",
           "what": "iOS PWA install prompt banner guides mobile users to Add to Home Screen.",
-          "tags": ["ios", "mobile", "ux"]
+          "tags": [
+            "ios",
+            "mobile",
+            "ux"
+          ]
         },
         {
           "date": "2026-03-16",
           "what": "Rename scrapbook flow added; error boundary wraps all screens; cover image cache invalidated on update.",
-          "tags": ["ux", "defensive-coding"]
+          "tags": [
+            "ux",
+            "defensive-coding"
+          ]
         },
         {
           "date": "2026-03-15",
           "what": "Username-based login and name-based signup replace email-only auth; share flow now uses username instead of email.",
-          "tags": ["ux", "mobile", "architecture"]
+          "tags": [
+            "ux",
+            "mobile",
+            "architecture"
+          ]
         },
         {
           "date": "2026-03-15",
-          "what": "Share management screen ships — add family by username, remove self from shared scrapbooks, collapsible shared section on Home.",
-          "tags": ["ux", "mobile"]
+          "what": "Share management screen ships \u2014 add family by username, remove self from shared scrapbooks, collapsible shared section on Home.",
+          "tags": [
+            "ux",
+            "mobile"
+          ]
         },
         {
           "date": "2026-03-14",
-          "what": "Export scrapbook as MP4 — client-side trim+concat via FFmpeg WASM, downloadable or share-sheet on iOS.",
-          "tags": ["ios", "mobile", "architecture"]
+          "what": "Export scrapbook as MP4 \u2014 client-side trim+concat via FFmpeg WASM, downloadable or share-sheet on iOS.",
+          "tags": [
+            "ios",
+            "mobile",
+            "architecture"
+          ]
         },
         {
           "date": "2026-03-14",
           "what": "Public /signup route added so family members can self-register without any admin action.",
-          "tags": ["ux", "mobile", "founding"]
+          "tags": [
+            "ux",
+            "mobile",
+            "founding"
+          ]
         },
         {
           "date": "2026-03-14",
           "what": "FastStart remux (moov atom moved to front) + poster frame extraction run before upload, enabling instant playback seek.",
-          "tags": ["mobile", "ios", "architecture"],
+          "tags": [
+            "mobile",
+            "ios",
+            "architecture"
+          ],
           "learned": "iPhone .MOV files have moov at the tail; remuxing to MP4 FastStart before upload is essential for streaming seek."
         },
         {
           "date": "2026-03-14",
-          "what": "Hold-to-pause fixed — releasing hold no longer fires the tap-to-navigate handler in Playback.",
-          "tags": ["ux", "mobile", "ios"]
+          "what": "Hold-to-pause fixed \u2014 releasing hold no longer fires the tap-to-navigate handler in Playback.",
+          "tags": [
+            "ux",
+            "mobile",
+            "ios"
+          ]
         }
       ]
     },
     {
-      "name": "kasette-native — iOS",
-      "sub": "PRIMARY BUILD TARGET · Expo · React Native · EAS",
+      "name": "kasette-native \u2014 iOS",
+      "sub": "PRIMARY BUILD TARGET \u00b7 Expo \u00b7 React Native \u00b7 EAS",
       "priorities": [
-        { "title": "Phase 3 — HomeScreen + one clip", "note": "Install expo-video + React Navigation. HomeScreen queries Supabase scrapbooks, PlaybackScreen streams one clip from R2. 'Pipeline proven for actual product' moment." },
-        { "title": "Phase 4 — Production build → TestFlight to wife", "note": "eas build --profile production → eas submit → External Testing invite. First Apple Beta Review is ~24h async, plan calendar accordingly." },
-        { "title": "Phase 5 — Iterate from wife's feedback", "note": "Expo Go for fast loop, eas update for OTA on JS/style changes, eas build only for native code changes." }
+        {
+          "title": "Watch for Apple Beta Review approval (~24h)",
+          "note": "Submitted 2026-05-21 14:31 PDT. On approval Joelle + reviewer auto-invited via TestFlight email. Pre-flight her install + sign-in path with her."
+        },
+        {
+          "title": "Phase 3 \u2014 HomeScreen + PlaybackScreen",
+          "note": "Install expo-video + React Navigation. HomeScreen queries Supabase scrapbooks; PlaybackScreen streams one R2 clip. Ship as build 5 via eas update OTA (no second Beta Review for JS-only)."
+        },
+        {
+          "title": "Phase 5 \u2014 Iterate on Joelle's feedback",
+          "note": "Once she's installed and used v0.1. eas update for fast JS/style loops; eas build only for native changes."
+        }
       ],
       "backlog": [
-        "Port workspace editor — trim, split, captions",
-        "Background upload queue — URLSession",
-        "Push notifications — APNs via Expo",
+        "Port workspace editor \u2014 trim, split, captions",
+        "Background upload queue \u2014 URLSession",
+        "Push notifications \u2014 APNs via Expo",
         "Port sharing features",
         "EAS OTA updates config",
-        "App Store submission — unlisted",
-        "Sellable clone — separate repo, rebrand",
-        "Pre-create wife's Supabase user account before TestFlight invite",
-        "ASC Test Info + Beta App Review Info pre-fill (streamlines 24h first-build review)"
+        "App Store submission \u2014 unlisted",
+        "Sellable clone \u2014 separate repo, rebrand",
+        "Add 'Forgot password?' link to native LoginScreen (testers currently bounce to web PWA to reset)",
+        "In-app deeplink to TestFlight beta feedback once Phase 3 ships (Apple's button works but in-app CTA improves capture)"
       ],
       "shipped": [
         {
           "date": "2026-05-21",
-          "what": "Phase 2 — Supabase auth + LoginScreen working end-to-end on iPhone via Expo Go. @supabase/supabase-js + AsyncStorage session persistence + Fraunces/Plus Jakarta Sans for brand fidelity. App.tsx loads fonts, listens to auth state, conditional-renders LoginScreen or SignedInPlaceholder. Verified live: sign-in succeeds, session persists.",
-          "tags": ["supabase", "auth", "ios", "milestone"],
-          "learned": "Deviated from NEXT-SESSION.md plan of expo-secure-store — secure-store has a 2KB-per-key limit that can silently truncate Supabase tokens. AsyncStorage is the documented Supabase-RN pattern. New Supabase publishable key format (sb_publishable_*) is a drop-in replacement for the older anon JWT in supabase-js."
+          "what": "Phase 4 \u2014 submitted Cassette 1.0.0 (4) to Apple TestFlight Beta Review. Big arc in one push: rotated leaked Supabase service_role JWT + R2 admin keys (committed publicly in scripts/.env); migrated web PWA to sb_publishable_*; disabled Supabase legacy keys. Drafted privacy.html at kasette.pages.dev/privacy. Wrote idempotent provision-test-users.js. Replaced Expo default icon with 1024\u00d71024 Cassette logomark rendered from SVG via macOS qlmanage, RGB-flattened. Walnut splash background. Diagnosed Hermes parse error on @supabase/supabase-js ESM's dynamic `import(OTEL_PKG)`; fixed via metro.config.js CJS resolution + eas.json env block for EXPO_PUBLIC_* vars. Built + submitted; ASC ingested cleanly. Pre-flighted via Internal 'Team (Expo)' group on physical iPhone \u2014 brand styling intact, auth flow works for both new reviewer + Chad's primary account. External group 'Joelle+Reviewer' set up with build attached; Beta Review clock running.",
+          "tags": [
+            "testflight",
+            "security",
+            "key-rotation",
+            "ios",
+            "ci-cd",
+            "metro",
+            "hermes",
+            "milestone"
+          ],
+          "learned": "Hermes can't parse `import(VARIABLE)` even with magic comments \u2014 supabase-js ESM trips this; CJS works. EAS Build doesn't see .env.local; use eas.json env or eas env:create. Free Apps Agreement covers External TestFlight \u2014 Paid Apps is NOT required for free apps. eas submit auto-creates Internal 'Team (Expo)' group \u2192 instant Internal pre-flight without Apple review. Same Apple Distribution cert signs dev + production; only the provisioning profile differs."
         },
         {
           "date": "2026-05-21",
-          "what": "Phase 0+1 — auth bottleneck cleared and EAS pipeline proven: expo login (-b browser flow for Google-SSO), eas-cli installed, eas init + eas.json with dev/preview/production profiles, Apple Developer credentials generated via 2FA (distribution cert + provisioning profile + bundle ID + Mac Mini ad-hoc device reg), first development build succeeded on EAS cloud, ASC app record created.",
-          "tags": ["eas", "apple-developer", "ios", "ci-cd", "milestone"],
+          "what": "Phase 2 \u2014 Supabase auth + LoginScreen working end-to-end on iPhone via Expo Go. @supabase/supabase-js + AsyncStorage session persistence + Fraunces/Plus Jakarta Sans for brand fidelity. App.tsx loads fonts, listens to auth state, conditional-renders LoginScreen or SignedInPlaceholder. Verified live: sign-in succeeds, session persists.",
+          "tags": [
+            "supabase",
+            "auth",
+            "ios",
+            "milestone"
+          ],
+          "learned": "Deviated from NEXT-SESSION.md plan of expo-secure-store \u2014 secure-store has a 2KB-per-key limit that can silently truncate Supabase tokens. AsyncStorage is the documented Supabase-RN pattern. New Supabase publishable key format (sb_publishable_*) is a drop-in replacement for the older anon JWT in supabase-js."
+        },
+        {
+          "date": "2026-05-21",
+          "what": "Phase 0+1 \u2014 auth bottleneck cleared and EAS pipeline proven: expo login (-b browser flow for Google-SSO), eas-cli installed, eas init + eas.json with dev/preview/production profiles, Apple Developer credentials generated via 2FA (distribution cert + provisioning profile + bundle ID + Mac Mini ad-hoc device reg), first development build succeeded on EAS cloud, ASC app record created.",
+          "tags": [
+            "eas",
+            "apple-developer",
+            "ios",
+            "ci-cd",
+            "milestone"
+          ],
           "learned": "expo login --sso doesn't work for Google-SSO accounts (counterintuitive); -b browser flow does. eas-cli is its own npm package but shares auth with Expo CLI. First eas build --platform ios is when Apple 2FA fires."
         },
         {
           "date": "2026-05-19",
           "what": "kasette-native Day 1 scaffold complete: create-expo-app blank-typescript template (Expo SDK 54), bundle ID com.drivercyber.cassette + display name Cassette set in app.json, repo pushed to driver-cyber/kasette-native (private), dev loop proven end-to-end on iPhone via tunnel mode. Founding docs scaffolded (CLAUDE.md, DECISIONS.md, cassette-native-tracker.html, learned-log.json) per chad-wiki project-checklist.",
-          "tags": ["founding", "ios", "scaffold", "mobile"],
-          "learned": "Expo CLI suppresses QR/tunnel URL when stdout isn't a TTY — curl the dev server manifest at localhost:8081 to recover the hostUri. Newer Expo Go also removed in-app URL entry; Safari + exp:// deep-link is the working remote path."
+          "tags": [
+            "founding",
+            "ios",
+            "scaffold",
+            "mobile"
+          ],
+          "learned": "Expo CLI suppresses QR/tunnel URL when stdout isn't a TTY \u2014 curl the dev server manifest at localhost:8081 to recover the hostUri. Newer Expo Go also removed in-app URL entry; Safari + exp:// deep-link is the working remote path."
         },
         {
           "date": "2026-05-19",
           "what": "CloudKit considered and rejected as kasette-native backend; staying on Supabase + R2 to preserve Android optionality, the sellable-clone strategy, and existing data. Decision and rationale logged in DECISIONS.md.",
-          "tags": ["architecture", "docs", "founding"]
+          "tags": [
+            "architecture",
+            "docs",
+            "founding"
+          ]
         }
       ]
     }

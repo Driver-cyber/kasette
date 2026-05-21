@@ -280,7 +280,7 @@
 {
   "project": "Cassette",
   "description": "Private family video scrapbook app",
-  "updated": "2026-05-19",
+  "updated": "2026-05-21",
   "columns": [
     {
       "name": "kasette — Web PWA",
@@ -447,10 +447,9 @@
       "name": "kasette-native — iOS",
       "sub": "PRIMARY BUILD TARGET · Expo · React Native · EAS",
       "priorities": [
-        { "title": "EAS Build config + Apple Dev account link", "note": "Scaffold itself shipped 2026-05-19. Next: eas build:configure, link the purchased Apple Dev account, first archive build." },
-        { "title": "Supabase client + lib/r2.js port", "note": "Prove backend on device — install @supabase/supabase-js, port upload patterns from kasette/lib/r2.js." },
-        { "title": "TestFlight pipeline: auth + one video", "note": "Prove the pipeline end to end. First build in hand." },
-        { "title": "Port core screens: home, intake shell, playback", "note": "expo-media-library + AVFoundation + React Navigation." }
+        { "title": "Phase 3 — HomeScreen + one clip", "note": "Install expo-video + React Navigation. HomeScreen queries Supabase scrapbooks, PlaybackScreen streams one clip from R2. 'Pipeline proven for actual product' moment." },
+        { "title": "Phase 4 — Production build → TestFlight to wife", "note": "eas build --profile production → eas submit → External Testing invite. First Apple Beta Review is ~24h async, plan calendar accordingly." },
+        { "title": "Phase 5 — Iterate from wife's feedback", "note": "Expo Go for fast loop, eas update for OTA on JS/style changes, eas build only for native code changes." }
       ],
       "backlog": [
         "Port workspace editor — trim, split, captions",
@@ -459,9 +458,23 @@
         "Port sharing features",
         "EAS OTA updates config",
         "App Store submission — unlisted",
-        "Sellable clone — separate repo, rebrand"
+        "Sellable clone — separate repo, rebrand",
+        "Pre-create wife's Supabase user account before TestFlight invite",
+        "ASC Test Info + Beta App Review Info pre-fill (streamlines 24h first-build review)"
       ],
       "shipped": [
+        {
+          "date": "2026-05-21",
+          "what": "Phase 2 — Supabase auth + LoginScreen working end-to-end on iPhone via Expo Go. @supabase/supabase-js + AsyncStorage session persistence + Fraunces/Plus Jakarta Sans for brand fidelity. App.tsx loads fonts, listens to auth state, conditional-renders LoginScreen or SignedInPlaceholder. Verified live: sign-in succeeds, session persists.",
+          "tags": ["supabase", "auth", "ios", "milestone"],
+          "learned": "Deviated from NEXT-SESSION.md plan of expo-secure-store — secure-store has a 2KB-per-key limit that can silently truncate Supabase tokens. AsyncStorage is the documented Supabase-RN pattern. New Supabase publishable key format (sb_publishable_*) is a drop-in replacement for the older anon JWT in supabase-js."
+        },
+        {
+          "date": "2026-05-21",
+          "what": "Phase 0+1 — auth bottleneck cleared and EAS pipeline proven: expo login (-b browser flow for Google-SSO), eas-cli installed, eas init + eas.json with dev/preview/production profiles, Apple Developer credentials generated via 2FA (distribution cert + provisioning profile + bundle ID + Mac Mini ad-hoc device reg), first development build succeeded on EAS cloud, ASC app record created.",
+          "tags": ["eas", "apple-developer", "ios", "ci-cd", "milestone"],
+          "learned": "expo login --sso doesn't work for Google-SSO accounts (counterintuitive); -b browser flow does. eas-cli is its own npm package but shares auth with Expo CLI. First eas build --platform ios is when Apple 2FA fires."
+        },
         {
           "date": "2026-05-19",
           "what": "kasette-native Day 1 scaffold complete: create-expo-app blank-typescript template (Expo SDK 54), bundle ID com.drivercyber.cassette + display name Cassette set in app.json, repo pushed to driver-cyber/kasette-native (private), dev loop proven end-to-end on iPhone via tunnel mode. Founding docs scaffolded (CLAUDE.md, DECISIONS.md, cassette-native-tracker.html, learned-log.json) per chad-wiki project-checklist.",

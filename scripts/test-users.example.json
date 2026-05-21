@@ -1,0 +1,4 @@
+[
+  { "email": "wife@example.com", "display_name": "Wife" },
+  { "email": "tester2@example.com", "password": "explicit-password-here", "display_name": "Tester 2" }
+]

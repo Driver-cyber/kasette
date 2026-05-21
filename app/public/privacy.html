@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — Cassette</title>
+  <link rel="icon" href="/favicons/favicon.ico" />
+  <style>
+    :root {
+      --amber: #F2A24A;
+      --sienna: #E8855A;
+      --wheat: #F5DEB3;
+      --walnut: #2C1A0E;
+      --walnut-mid: #3D2410;
+      --walnut-light: #4A2E18;
+      --rust: #7A3B1E;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--walnut);
+      color: var(--wheat);
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 48px 24px 96px;
+    }
+    h1 {
+      font-family: 'Fraunces', Georgia, serif;
+      color: var(--amber);
+      font-weight: 600;
+      margin: 0 0 8px;
+      font-size: 36px;
+      letter-spacing: -0.01em;
+    }
+    .lede {
+      color: var(--rust);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin: 0 0 32px;
+    }
+    h2 {
+      font-family: 'Fraunces', Georgia, serif;
+      color: var(--amber);
+      font-weight: 500;
+      font-size: 22px;
+      margin: 36px 0 12px;
+      border-bottom: 1px solid var(--walnut-light);
+      padding-bottom: 8px;
+    }
+    p, li { font-size: 16px; }
+    a { color: var(--sienna); text-decoration: underline; }
+    a:hover { color: var(--amber); }
+    ul { padding-left: 22px; }
+    li { margin-bottom: 8px; }
+    .updated {
+      color: var(--rust);
+      font-size: 13px;
+      margin-top: 48px;
+      padding-top: 16px;
+      border-top: 1px solid var(--walnut-light);
+    }
+    code {
+      background: var(--walnut-mid);
+      color: var(--wheat);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <h1>Privacy Policy</h1>
+    <div class="lede">Cassette · last updated 2026-05-21</div>
+
+    <p>
+      Cassette is a small, family-built app for saving short video memories into
+      private scrapbooks. This page describes what data the app collects,
+      where it lives, and how to ask for it to be deleted. It is intentionally
+      short because the app is intentionally small.
+    </p>
+
+    <h2>What we collect</h2>
+    <ul>
+      <li><strong>Account info:</strong> the email address and password you use to sign in. Passwords are hashed and never stored in plain text.</li>
+      <li><strong>Your videos:</strong> the short video clips you upload to your scrapbooks.</li>
+      <li><strong>Scrapbook metadata:</strong> scrapbook names, captions you write, the order of clips, timestamps, and other text you enter inside the app.</li>
+      <li><strong>Basic technical logs:</strong> connection events and error logs needed to keep the app running. These are kept short-term for debugging and are not used for marketing or profiling.</li>
+    </ul>
+
+    <h2>What we do <em>not</em> collect</h2>
+    <ul>
+      <li>No advertising identifiers, no ad networks, no third-party trackers.</li>
+      <li>No analytics SDKs that profile your behaviour.</li>
+      <li>No contact lists, no photo library scans beyond the videos you explicitly pick.</li>
+      <li>No location data.</li>
+    </ul>
+
+    <h2>Where your data lives</h2>
+    <ul>
+      <li><strong>Accounts and scrapbook metadata</strong> are stored in <a href="https://supabase.com/privacy">Supabase</a>, which provides the database and authentication service.</li>
+      <li><strong>Video files</strong> are stored in <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare R2</a>, an object storage service. Videos are private to your account.</li>
+    </ul>
+    <p>
+      Both providers operate under their own published privacy policies (linked above). We do not sell, rent, or share your data with any other party.
+    </p>
+
+    <h2>Who can see your scrapbooks</h2>
+    <p>
+      By default, scrapbooks are private to your account. If you choose to share
+      a scrapbook (for example, by generating a share link or inviting another
+      account), only the people you share with can see it. We do not make
+      scrapbook contents public or browsable.
+    </p>
+
+    <h2>Children's privacy</h2>
+    <p>
+      Cassette is designed for adults who want to save family memories,
+      including memories of their own children. The app does not have public
+      profiles, no chat features, and no discovery surface. If you believe a
+      child has created an account without parental consent, please email us
+      and we will remove the account and its contents.
+    </p>
+
+    <h2>Deleting your data</h2>
+    <p>
+      To delete your account, your scrapbooks, and all uploaded videos,
+      email <a href="mailto:cstewch@gmail.com?subject=Cassette%20account%20deletion">cstewch@gmail.com</a>
+      from the email address tied to your account. We will confirm and complete
+      deletion within 30 days. Backups containing the deleted data are
+      overwritten in the normal course of operations within 90 days.
+    </p>
+
+    <h2>Changes to this policy</h2>
+    <p>
+      If we change this policy in a meaningful way, the "last updated" date
+      above will change, and signed-in users will see a notice the next time
+      they open the app.
+    </p>
+
+    <h2>Contact</h2>
+    <p>
+      Questions, deletion requests, or anything else:
+      <a href="mailto:cstewch@gmail.com">cstewch@gmail.com</a>.
+    </p>
+
+    <div class="updated">
+      Cassette · Built quietly · Walnut + Amber + Wheat
+    </div>
+  </main>
+</body>
+</html>

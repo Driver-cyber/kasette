@@ -550,30 +550,54 @@
       "sub": "PRIMARY BUILD TARGET \u00b7 Expo \u00b7 React Native \u00b7 EAS",
       "priorities": [
         {
-          "title": "Watch for Apple Beta Review approval (~24h)",
-          "note": "Submitted 2026-05-21 14:31 PDT. On approval Joelle + reviewer auto-invited via TestFlight email. Pre-flight her install + sign-in path with her."
+          "title": "Pre-flight Joelle's TestFlight install once Apple Beta Review clears",
+          "note": "Build 4 submitted 2026-05-21 14:31 PDT. On approval she gets auto-invited via TestFlight email. Verify she signs in with her existing Supabase account, sees scrapbook list, plays a clip. Then promote build 6 (or later) to External Testing so she gets the polished version."
         },
         {
-          "title": "Phase 3 \u2014 HomeScreen + PlaybackScreen",
-          "note": "Install expo-video + React Navigation. HomeScreen queries Supabase scrapbooks; PlaybackScreen streams one R2 clip. Ship as build 5 via eas update OTA (no second Beta Review for JS-only)."
+          "title": "v0.3 \u2014 expo-linear-gradient polish (build 7)",
+          "note": "Card thumb dark-fade gradient on Home + top/bottom cinematic vignettes on Playback. Both need native module (linear-gradient) so triggers a real EAS build. After build 7 lands, the rest of the mock-parity polish ships via OTA."
         },
         {
-          "title": "Phase 5 \u2014 Iterate on Joelle's feedback",
-          "note": "Once she's installed and used v0.1. eas update for fast JS/style loops; eas build only for native changes."
+          "title": "Register iPhone UDID + dev client rebuild",
+          "note": "`eas device:create` website method \u2192 install profile on iPhone \u2192 registers UDID into ad-hoc provisioning profile \u2192 rebuild development client. Unlocks fast JS reload iteration instead of OTA round-trip."
+        },
+        {
+          "title": "Separate dev/prod bundle IDs",
+          "note": "app.config.js APP_VARIANT swap to com.drivercyber.cassette.dev for the development profile so dev client + TestFlight production binary can coexist on the same iPhone (currently iOS refuses with 'already installed')."
         }
       ],
       "backlog": [
+        "Honor caption_x for off-center captions on Playback (currently centered horizontally)",
+        "Tighten card-thumb height to 148px per cassette-screen-home.html mock spec",
+        "'+ New scrapbook' amber pill button on Home top-right (depends on native upload flow)",
+        "Move 'Sign out' off header \u2192 settings sheet, long-press wordmark, or profile chip",
+        "Custom Playback controls (hide native iOS controls + roll our own tap-to-pause + scrubber)",
+        "Pre-buffer next clip for smoother auto-advance transition",
         "Port workspace editor \u2014 trim, split, captions",
         "Background upload queue \u2014 URLSession",
         "Push notifications \u2014 APNs via Expo",
         "Port sharing features",
-        "EAS OTA updates config",
-        "App Store submission \u2014 unlisted",
+        "App Store production listing \u2014 unlisted",
         "Sellable clone \u2014 separate repo, rebrand",
         "Add 'Forgot password?' link to native LoginScreen (testers currently bounce to web PWA to reset)",
-        "In-app deeplink to TestFlight beta feedback once Phase 3 ships (Apple's button works but in-app CTA improves capture)"
+        "In-app deeplink to TestFlight beta feedback once polish stabilizes (Apple's button works but in-app CTA improves capture)"
       ],
       "shipped": [
+        {
+          "date": "2026-05-21",
+          "what": "Phase 3 shipped + mock-parity polish iterated via two OTA pushes in a single evening. React Navigation native stack (Login \u2192 Home \u2192 Playback) with brand-themed walnut/amber chrome. Home: cover thumbnails per scrapbook (first-letter fallback when null), tap-scale cards, two-tone Fraunces section heading. Playback: clip queue auto-advances via expo-video playToEnd + replaceAsync; full-bleed video; Fraunces italic captions positioned at caption_y%; round translucent back button; Instagram-stories segmented progress bar driven by polled player.currentTime. Two production TestFlight builds: build 5 (baseline) and build 6 (first with expo-updates baked in \u2014 runtimeVersion appVersion policy + updates.url + EAS channels). Auto-submit wired via ascAppId + appleTeamId in eas.json submit.production.ios. Two OTA bundles published on top of build 6 closing visual gaps from the cassette-screen-*.html design mocks. Dev client install blocked by missing iPhone UDID on ad-hoc profile \u2014 deferred to next session.",
+          "tags": [
+            "phase-3",
+            "ota",
+            "expo-updates",
+            "react-navigation",
+            "expo-video",
+            "ui-polish",
+            "mock-parity",
+            "milestone"
+          ],
+          "learned": "expo-video's useVideoPlayer + playToEnd listener + replaceAsync = clean clip-queue auto-advance. EAS Update OTA prerequisite sequencing: `eas update:configure` must run BEFORE the build that will use OTA \u2014 older binaries can't be retro-fitted to receive OTA updates. `eas update --non-interactive` is unsupported; use CI=1 env var. Apple's TestFlight Internal 'Team (Expo)' group auto-propagates new builds in place (build 5 \u2192 6 updates the same install). Native dev client install needs iPhone UDID on the ad-hoc provisioning profile; production builds use App Store profile which doesn't need UDIDs. iTunes Search API only returns public apps; ASC App ID for TestFlight-only apps must be read from ASC General Information page directly. The kasette repo root holds static HTML design mocks (cassette-screen-*.html) that are the explicit design reference."
+        },
         {
           "date": "2026-05-21",
           "what": "Phase 4 \u2014 submitted Cassette 1.0.0 (4) to Apple TestFlight Beta Review. Big arc in one push: rotated leaked Supabase service_role JWT + R2 admin keys (committed publicly in scripts/.env); migrated web PWA to sb_publishable_*; disabled Supabase legacy keys. Drafted privacy.html at kasette.pages.dev/privacy. Wrote idempotent provision-test-users.js. Replaced Expo default icon with 1024\u00d71024 Cassette logomark rendered from SVG via macOS qlmanage, RGB-flattened. Walnut splash background. Diagnosed Hermes parse error on @supabase/supabase-js ESM's dynamic `import(OTEL_PKG)`; fixed via metro.config.js CJS resolution + eas.json env block for EXPO_PUBLIC_* vars. Built + submitted; ASC ingested cleanly. Pre-flighted via Internal 'Team (Expo)' group on physical iPhone \u2014 brand styling intact, auth flow works for both new reviewer + Chad's primary account. External group 'Joelle+Reviewer' set up with build attached; Beta Review clock running.",

@@ -232,5 +232,132 @@ The full mapping lands in `02-interactions-glossary.md`. Quick reference:
 
 ---
 
-*Last updated: 2026-05-23. Next update: after the combined session reads
-the native repo and diffs against this brief.*
+## Status
+
+**All 16 handoff docs landed 2026-05-23.** The full reference is below; each
+file is self-contained but cross-references its neighbors.
+
+### Cross-cutting (read first)
+
+| Doc | Purpose | Lines |
+|---|---|---|
+| [`00-brand-system.md`](./00-brand-system.md) | Golden Hour palette (incl. missing `walnutDeep` token), typography scale, motion curves, voice/microcopy rules, cassette-reel SVG, frosted-glass top-bar buttons, ready-made component recipes | 625 |
+| [`01-navigation-flow.md`](./01-navigation-flow.md) | Route table, public-vs-protected auth gate, full edge graph for every navigation in source, recommended `AppNavigator`/`PublicNavigator` structure, deep-link surface area, drift summary | 516 |
+| [`02-interactions-glossary.md`](./02-interactions-glossary.md) | 19 reusable gesture/animation patterns with exact thresholds and native code sketches. **Every per-screen doc references this by §number — read it before any screen doc.** | 1118 |
+| [`03-data-model.md`](./03-data-model.md) | The actual deployed schema (v1 SQL is missing several migrations), RLS policies in plain English, RPCs, R2 paths (correcting CLAUDE.md drift), worker presign flow w/ native code, recommended `lib/types.ts` rewrite | 759 |
+
+### Per-screen (in dependency / criticality order)
+
+| Doc | Priority | Lines |
+|---|---|---|
+| [`screens/playback.md`](./screens/playback.md) | **Critical** — the payoff screen, the swipe-transition spec | 762 |
+| [`screens/home.md`](./screens/home.md) | High — IA backbone, year/month hierarchy | 665 |
+| [`screens/scrapbook-detail.md`](./screens/scrapbook-detail.md) | Medium — hub | 504 |
+| [`screens/intake.md`](./screens/intake.md) | High — heaviest native divergence (3 remux options documented) | 815 |
+| [`screens/workspace.md`](./screens/workspace.md) | High — densest screen | 954 |
+| [`screens/discovery.md`](./screens/discovery.md) | Medium — 95% Playback patterns | 429 |
+| [`screens/remix-film-fest.md`](./screens/remix-film-fest.md) | Medium — filter studio + Surprise Me + Combine | 668 |
+| [`screens/share.md`](./screens/share.md) | Low — short list + form | 240 |
+| [`screens/settings.md`](./screens/settings.md) | Low — auto-share defaults + iOS toggle | 525 |
+| [`screens/login.md`](./screens/login.md) | Low — auth, exists in native, needs username support | 270 |
+| [`screens/signup.md`](./screens/signup.md) | Low — auth, public route | 244 |
+| [`screens/reset-password.md`](./screens/reset-password.md) | Low — auth, deep-link, defer-able to Day-N | 281 |
+
+### Open questions resolved (vs. the original 6 in the kickoff)
+
+1. **Swipe direction (Playback / Discovery)** — **HORIZONTAL** between clips
+   in both screens. CLAUDE.md is wrong; source wins. Documented in
+   `screens/playback.md` and `screens/discovery.md`. Discovery additionally
+   has no swipe-between-scrapbooks (CLAUDE.md says it does; it doesn't).
+2. **Remux strategy** — User decision: document all three options with a
+   recommendation. Recommendation is **A: skip remux for v1** (rely on
+   expo-image-picker / expo-media-library output), **C: AVFoundation Expo
+   Module for v1+** if A produces playback issues, **B: ffmpeg-kit only as
+   a fallback**. See `screens/intake.md` §9.2.
+3. **Navigation library** — React Navigation native-stack. Already wired up
+   in `kasette-native/App.tsx`. Documented in `01-navigation-flow.md` §2.
+4. **Bottom sheet library** — `@gorhom/bottom-sheet` for everything with
+   snap points / pan-to-dismiss. Plain absolute-positioned `<View>` for
+   simple one-button confirmation sheets. See `02-interactions-glossary.md`
+   §11.
+5. **Caption rendering during playback** — RN `<Text>` absolutely
+   positioned over `VideoView`. Burn-in export is v2 / out of scope.
+   Documented in `screens/playback.md` §2 / `screens/workspace.md` §5.6.
+6. **Wake lock** — `expo-keep-awake` (not yet installed in native).
+   Documented in `02-interactions-glossary.md` §13. Always tag your
+   lock ('upload') — namespacing matters.
+
+### Other decisions documented in screen docs
+
+- **Playback architecture divergence** — User decision: document both the
+  PWA 3-video pattern AND the current native single-player code, let
+  porter decide during the port. See `screens/playback.md` §9.
+- **Export on native** — Defer for v0.1, ship "Coming soon" stubs.
+  Documented in `screens/playback.md` §9 and `screens/scrapbook-detail.md`
+  §9.
+- **AsyncStorage → SecureStore for auth tokens** — Recommended pre-
+  TestFlight upgrade. See `03-data-model.md` §1.
+
+### CLAUDE.md drift flagged (for a follow-up PR on the web side)
+
+These mistakes in `kasette/CLAUDE.md` were caught while writing the docs:
+
+- "Swipe up/down between clips" (Playback) — actually horizontal
+- Discovery "Vertical = next clip. Horizontal = next scrapbook" — actually
+  horizontal between clips, no scrapbook swipe at all
+- "11 screens" — actually 12 (ResetPassword counts)
+- Workspace route `/scrapbook/:id/workspace` — actually `/scrapbook/:id/edit`
+- Discovery route `/discovery` — actually `/discover`
+- R2 storage paths `cassette-media/{userId}/videos/{clipId}.mp4` — actually
+  `{userId}/{scrapbookId}/{clipId}.mp4` (no `cassette-media` prefix, no
+  `videos/` subfolder; the `cassette-media` Supabase bucket still exists
+  but hosts FFmpeg WASM only)
+
+A small CLAUDE.md cleanup PR can resolve these; meanwhile, every screen
+doc that touched a drift point flags it inline.
+
+---
+
+## Baton pass — first prompt for the terminal Claude Code session
+
+Paste this into your next session (or read it as a checklist if you're a
+human picking this up):
+
+> We're porting the kasette PWA to kasette-native (Expo iOS, SDK 54).
+> The handoff knowledge base in `kasette/handoff/` is the source of truth
+> — read it instead of re-reading the PWA source.
+>
+> Read in this order before doing anything:
+>
+> 1. `kasette/handoff/README.md` (this file) — orientation
+> 2. `kasette/handoff/00-brand-system.md` — palette, typography, motion
+> 3. `kasette/handoff/02-interactions-glossary.md` — the 19 reusable
+>    patterns (every screen doc cross-references this by §number)
+> 4. `kasette/handoff/screens/playback.md` — the critical screen, the one
+>    the user loves
+>
+> Then start porting Playback first. The current
+> `kasette-native/screens/PlaybackScreen.tsx` uses a single-player +
+> `replaceAsync()` pattern that guarantees a visible flash between clips —
+> rewrite to the three-video sliding container described in
+> `screens/playback.md` §5.1 and §9.
+>
+> Don't port everything at once. Tight v0.5 scope (per `NEXT-SESSION.md`):
+> Login (already 90% done — just add username support and Create Account
+> button), Home (year-grouping + FAB + nav), ScrapbookDetail (Watch CTA +
+> Edit/Share nav), Playback (with the three-video rewrite). Defer Intake,
+> Workspace, Discovery, Remix, Share, Settings, Signup, ResetPassword to
+> later milestones — they each have their own per-screen doc when you get
+> to them.
+>
+> When you hit ambiguity in a doc, the source is authoritative — open the
+> PWA file, check the lines the doc references, and update the doc in the
+> same PR if you find drift. Don't silently translate; if a PWA pattern
+> doesn't fit native, look for a "Native divergence" or "Native
+> translation notes" subsection in the relevant screen doc for the
+> recommended approach.
+
+---
+
+*Last updated: 2026-05-23 (all 16 docs landed). Total reference: ~9 600
+lines of structured handoff knowledge.*

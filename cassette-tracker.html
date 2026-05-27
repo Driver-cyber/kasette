@@ -280,7 +280,7 @@
 {
   "project": "Cassette",
   "description": "Private family video scrapbook app",
-  "updated": "2026-05-21",
+  "updated": "2026-05-27",
   "columns": [
     {
       "name": "kasette \u2014 Web PWA",
@@ -550,39 +550,78 @@
       "sub": "PRIMARY BUILD TARGET \u00b7 Expo \u00b7 React Native \u00b7 EAS",
       "priorities": [
         {
-          "title": "Pre-flight Joelle's TestFlight install once Apple Beta Review clears",
-          "note": "Build 4 submitted 2026-05-21 14:31 PDT. On approval she gets auto-invited via TestFlight email. Verify she signs in with her existing Supabase account, sees scrapbook list, plays a clip. Then promote build 6 (or later) to External Testing so she gets the polished version."
+          "title": "Iterate on lunch-test feedback (build 1dc6fa8b + v0.6.0\u20136 OTAs)",
+          "note": "Workspace + Intake + Shared-tab + options menu + Settings + Search all live on dev build 1dc6fa8b via EAS Update channel 'development'. JS-only fixes ship in seconds; no native deps needed for this round."
         },
         {
-          "title": "v0.3 \u2014 expo-linear-gradient polish (build 7)",
-          "note": "Card thumb dark-fade gradient on Home + top/bottom cinematic vignettes on Playback. Both need native module (linear-gradient) so triggers a real EAS build. After build 7 lands, the rest of the mock-parity polish ships via OTA."
+          "title": "Change Cover on Home options menu",
+          "note": "Deferred from the options-menu round because a one-shot 'pick first photo' UX is worse than nothing. Needs a real image-picker surface (mini-grid modal reusing expo-media-library OR adding expo-image-picker) + resize via expo-image-manipulator (already installed) + r2.ts upload to {userId}/covers/{sbId}.jpg + ?v={Date.now()} cache-bust."
         },
         {
-          "title": "Register iPhone UDID + dev client rebuild",
-          "note": "`eas device:create` website method \u2192 install profile on iPhone \u2192 registers UDID into ad-hoc provisioning profile \u2192 rebuild development client. Unlocks fast JS reload iteration instead of OTA round-trip."
+          "title": "Workspace Split + Caption tools",
+          "note": "Next-biggest editor unlock after TRIM. Split: two sienna draggable bars at 30/70%, commitSplit writes cut_in/cut_out (auto-skip already in ClipSlot). Caption: draggable overlay via Reanimated shared values, size slider 14\u201342, persist on Done. Per handoff/screens/workspace.md \u00a75.3 + \u00a75.6."
         },
         {
-          "title": "Separate dev/prod bundle IDs",
-          "note": "app.config.js APP_VARIANT swap to com.drivercyber.cassette.dev for the development profile so dev client + TestFlight production binary can coexist on the same iPhone (currently iOS refuses with 'already installed')."
+          "title": "Video frame thumbnails (Workspace strip + Detail row)",
+          "note": "Currently bare for any clip uploaded via Intake (thumbnail_url = video_url since we don't extract frames). Options: expo-video's generateThumbnailsAsync (if SDK 54 exposes it), or server-side in the Cloudflare worker during upload."
+        },
+        {
+          "title": "Unlisted App Store cutover",
+          "note": "Discussed this session. TestFlight builds expire every 90 days (mom has to re-install) and require the TestFlight app first. Unlisted App Store goes through review (~24h typical) but installs like any normal App Store app. Trigger isn't user count \u2014 it's when v1 feels stable enough not to babysit."
         }
       ],
       "backlog": [
         "Honor caption_x for off-center captions on Playback (currently centered horizontally)",
-        "Tighten card-thumb height to 148px per cassette-screen-home.html mock spec",
-        "'+ New scrapbook' amber pill button on Home top-right (depends on native upload flow)",
-        "Move 'Sign out' off header \u2192 settings sheet, long-press wordmark, or profile chip",
+        "Workspace Reorder mode \u2014 long-press drag-to-reorder via react-native-draggable-flatlist per handoff \u00a75.9",
+        "Workspace Add Clips tool \u2014 navigates to Intake w/ addToId param (Intake already handles this flow but button is deferred)",
+        "Workspace Remove tool \u2014 confirmation bottom sheet per workspace.md \u00a75.10",
+        "ScrapbookDetail auto-refresh on focus so background-uploading clips appear without manual pull-to-refresh",
         "Custom Playback controls (hide native iOS controls + roll our own tap-to-pause + scrubber)",
         "Pre-buffer next clip for smoother auto-advance transition",
-        "Port workspace editor \u2014 trim, split, captions",
-        "Background upload queue \u2014 URLSession",
         "Push notifications \u2014 APNs via Expo",
-        "Port sharing features",
-        "App Store production listing \u2014 unlisted",
+        "Share screen \u2014 currently ComingSoon stub",
+        "Close-year (annual cassette) flow on Home per handoff \u00a75.5",
+        "Forgot Password inline modal on Login + ResetPassword deep-link screen per handoff/screens/reset-password.md",
+        "Signup screen real implementation (currently 'Coming soon' stub)",
+        "Discovery screen \u2014 shuffled cross-scrapbook playlist",
+        "Remix / Film Fest screen \u2014 filter studio + Surprise Me + Combine",
         "Sellable clone \u2014 separate repo, rebrand",
-        "Add 'Forgot password?' link to native LoginScreen (testers currently bounce to web PWA to reset)",
-        "In-app deeplink to TestFlight beta feedback once polish stabilizes (Apple's button works but in-app CTA improves capture)"
+        "HEIC photo verification on real device \u2014 untested whether iOS RN Image handles them inline or shows broken previews",
+        "In-app deeplink to TestFlight beta feedback once polish stabilizes (transient \u2014 may be moot post-unlisted-cutover)"
       ],
       "shipped": [
+        {
+          "date": "2026-05-27",
+          "what": "v0.6 mock-parity wave — Workspace + Intake + Shared-tab + Home options menu + Settings + Search + outbound shares, plus seven sequential OTAs of polish all on top of one fresh EAS dev build (1dc6fa8b). Bundles three new native deps: expo-media-library + expo-image-manipulator + expo-keep-awake. Workspace v1 per handoff §9 scope (TRIM handles + saved-flash + Mute + photo duration + single-level Undo + clip strip + preview-swipe between clips; Split/Caption/Reorder/Add/Remove deferred). Intake Option-A no-remux flow (custom 2-col grid → name sheet → lerping-progress clip-1 upload + background pool 2..N via UploadContext + wake-lock + cancel + Open Settings linkout). Shared tab real data fetch with owner display_names + amber unread dot + optimistic seen flip. Home card three-dot menu: Rename & Redate + Delete (R2 cleanup). Settings screen w/ display_name + username + email + sign-out (moved off Home top bar). Home search bar (third icon per PWA pattern). Outbound 'Shared with X' badges on own cards. ScrapbookDetail clip thumbnail row + pull-to-refresh. ClipSlot photo-clip support (Image render + duration-timed auto-advance). Home card clip-count pill + total-duration. lib/r2.ts native R2 upload helper + lib/uploadContext.tsx background-upload pool + components/UploadBanner.tsx top-of-screen 'Uploading N more' chip. Shipped via OTAs v0.6.0–6 to EAS Update channel 'development' on top of dev build 1dc6fa8b. Lunch-status.html scrollytelling doc generated for Chad's review.",
+          "tags": [
+            "v0.6",
+            "workspace",
+            "intake",
+            "shared-tab",
+            "options-menu",
+            "settings",
+            "search",
+            "ota-iteration",
+            "expo-media-library",
+            "background-upload",
+            "milestone"
+          ],
+          "learned": "EAS Update channel='development' targets by appVersion (runtimeVersion policy=appVersion) — both build 6 and build 7 share appVersion 1.0.1, so OTA pushes land on whichever build is open. Critical: install the new build BEFORE opening if native deps changed, else the OTA's import of expo-media-library crashes the old binary at load. Fix going forward is runtimeVersion: {policy: 'fingerprint'}, but switching mid-stream requires a new build either way. expo-video's useVideoPlayer doesn't auto-react to source string changes on the same hook instance — explicit player.replace(newSource) on activeClip change is the right pattern for Workspace's single-player + swap-active-clip flow. derhain's PATCH /api/gist proxy expects GitHub Gist API body shape ({files: {filename: {content: stringified-JSON}}}), NOT a raw entries array. Mom-friendly distribution: TestFlight's 90-day build expiry is the real graduate-to-App-Store trigger, not the 100-internal-tester cap. Unlisted App Store (Apple GA'd 2021) is the right cutover for family apps — reviewed but not searchable. Fastlane + Xcode Cloud don't add much over EAS for Expo apps."
+        },
+        {
+          "date": "2026-05-26",
+          "what": "v0.5 PWA-parity batch + polish pass — four screens ported from kasette/handoff/ knowledge base. PlaybackScreen rewritten to three-video sliding container per handoff §5.1+§9 (persistent ClipSlot components keyed by clip.id eliminate re-decode flash on swipe commit). Login extended w/ username support (RPC get_email_by_username) + Create Account pill. HomeScreen redo: year/month grouping w/ current-year auto-expand (one-shot via initDoneRef), 6-color hash-based gradient covers, profiles.display_name greeting, 'Your Scrapbooks' / 'Shared' tab bar w/ amber 2px underline, Shuffle nav + Plus FAB → Intake. New ScrapbookDetail w/ 42% hero + Watch CTA + 2s branded launch overlay + dataCache priming + Edit/Share stubs. Polish: lucide-react-native icons at stroke 1.75 everywhere, expo-blur frosted-glass on Playback top buttons, Reel.tsx + ReelPair (react-native-svg) reproducing the cassette-reel motif from 00-brand-system.md §7 (forward 2.1s + reverse 1.7s asymmetric). Two EAS dev builds (d0f8f0c8 → 356efdad) bundling reanimated + gesture-handler then lucide + svg + expo-blur. Chad's first device-touch reaction to Playback: 'You nailed the hell out of playback.'",
+          "tags": [
+            "v0.5",
+            "playback",
+            "three-video-architecture",
+            "lucide-react-native",
+            "expo-blur",
+            "react-native-svg",
+            "handoff-port",
+            "milestone"
+          ]
+        },
         {
           "date": "2026-05-21",
           "what": "Phase 3 shipped + mock-parity polish iterated via two OTA pushes in a single evening. React Navigation native stack (Login \u2192 Home \u2192 Playback) with brand-themed walnut/amber chrome. Home: cover thumbnails per scrapbook (first-letter fallback when null), tap-scale cards, two-tone Fraunces section heading. Playback: clip queue auto-advances via expo-video playToEnd + replaceAsync; full-bleed video; Fraunces italic captions positioned at caption_y%; round translucent back button; Instagram-stories segmented progress bar driven by polled player.currentTime. Two production TestFlight builds: build 5 (baseline) and build 6 (first with expo-updates baked in \u2014 runtimeVersion appVersion policy + updates.url + EAS channels). Auto-submit wired via ascAppId + appleTeamId in eas.json submit.production.ios. Two OTA bundles published on top of build 6 closing visual gaps from the cassette-screen-*.html design mocks. Dev client install blocked by missing iPhone UDID on ad-hoc profile \u2014 deferred to next session.",

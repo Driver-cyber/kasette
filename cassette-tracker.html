@@ -280,7 +280,7 @@
 {
   "project": "Cassette",
   "description": "Private family video scrapbook app",
-  "updated": "2026-05-27",
+  "updated": "2026-05-28",
   "columns": [
     {
       "name": "kasette \u2014 Web PWA",
@@ -550,46 +550,59 @@
       "sub": "PRIMARY BUILD TARGET \u00b7 Expo \u00b7 React Native \u00b7 EAS",
       "priorities": [
         {
-          "title": "Iterate on lunch-test feedback (build 1dc6fa8b + v0.6.0\u20136 OTAs)",
-          "note": "Workspace + Intake + Shared-tab + options menu + Settings + Search all live on dev build 1dc6fa8b via EAS Update channel 'development'. JS-only fixes ship in seconds; no native deps needed for this round."
+          "title": "\ud83d\udea7 RELEASE BLOCKER \u2014 true background upload (URLSession)",
+          "note": "Current upload is a JS-thread pool that only runs while foregrounded; backgrounding/locking suspends JS after ~30s and an in-flight clip dies with no retry. Mom WILL lock her phone mid-upload. Needs a custom Expo module wrapping URLSession background config (or react-native-background-upload). Rebuild. Acceptance + rationale in kasette-native/DECISIONS.md. Must land before promoting beyond a test build."
         },
         {
-          "title": "Change Cover on Home options menu",
-          "note": "Deferred from the options-menu round because a one-shot 'pick first photo' UX is worse than nothing. Needs a real image-picker surface (mini-grid modal reusing expo-media-library OR adding expo-image-picker) + resize via expo-image-manipulator (already installed) + r2.ts upload to {userId}/covers/{sbId}.jpg + ?v={Date.now()} cache-bust."
+          "title": "Remix / Film Fest studio",
+          "note": "Filter studio (years/months) + Surprise Me + Combine that assembles a clip array and hands to Discovery's remix mode (chrome + lib/remixHandoff.ts buffer already scaffolded). Last unbuilt PWA screen."
         },
         {
-          "title": "Workspace Split + Caption tools",
-          "note": "Next-biggest editor unlock after TRIM. Split: two sienna draggable bars at 30/70%, commitSplit writes cut_in/cut_out (auto-skip already in ClipSlot). Caption: draggable overlay via Reanimated shared values, size slider 14\u201342, persist on Done. Per handoff/screens/workspace.md \u00a75.3 + \u00a75.6."
+          "title": "Export pipeline",
+          "note": "Export a finished scrapbook to camera roll / share sheet (PWA lib/export.js). Native button disabled. Needs AVFoundation Expo module or ffmpeg-kit. Rebuild."
         },
         {
-          "title": "Video frame thumbnails (Workspace strip + Detail row)",
-          "note": "Currently bare for any clip uploaded via Intake (thumbnail_url = video_url since we don't extract frames). Options: expo-video's generateThumbnailsAsync (if SDK 54 exposes it), or server-side in the Cloudflare worker during upload."
+          "title": "Workspace Reorder + Add Clips + Remove",
+          "note": "Rounds out the editor. Reorder = drag list; Add Clips = \u2192 Intake addToId (already supported); Remove = confirm sheet. Per workspace.md \u00a75.9\u20135.10."
+        },
+        {
+          "title": "Reset Password + Home close-year",
+          "note": "ResetPassword needs cassette:// deep-link config; close-year creates the annual '<year> Cassette'. The two remaining smaller parity gaps."
         },
         {
           "title": "Unlisted App Store cutover",
-          "note": "Discussed this session. TestFlight builds expire every 90 days (mom has to re-install) and require the TestFlight app first. Unlisted App Store goes through review (~24h typical) but installs like any normal App Store app. Trigger isn't user count \u2014 it's when v1 feels stable enough not to babysit."
+          "note": "TestFlight's 90-day expiry + TestFlight-app requirement is the trigger, not user count. Reviewed but not searchable; installs like a normal app. Queue when v1 feels stable (post background-upload)."
         }
       ],
       "backlog": [
-        "Honor caption_x for off-center captions on Playback (currently centered horizontally)",
-        "Workspace Reorder mode \u2014 long-press drag-to-reorder via react-native-draggable-flatlist per handoff \u00a75.9",
-        "Workspace Add Clips tool \u2014 navigates to Intake w/ addToId param (Intake already handles this flow but button is deferred)",
-        "Workspace Remove tool \u2014 confirmation bottom sheet per workspace.md \u00a75.10",
-        "ScrapbookDetail auto-refresh on focus so background-uploading clips appear without manual pull-to-refresh",
-        "Custom Playback controls (hide native iOS controls + roll our own tap-to-pause + scrubber)",
+        "Playback/Discovery 'More' action sheet \u2014 surface Edit/Share/Export from the player",
+        "caption_x off-center captions \u2014 Playback + Workspace both use a fixed -100/-20 anchor (matched for WYSIWYG); revisit for precise free-X placement",
+        "Custom Playback controls polish (already roll our own tap-to-pause + scrubber \u2014 this is further refinement)",
         "Pre-buffer next clip for smoother auto-advance transition",
         "Push notifications \u2014 APNs via Expo",
-        "Share screen \u2014 currently ComingSoon stub",
-        "Close-year (annual cassette) flow on Home per handoff \u00a75.5",
-        "Forgot Password inline modal on Login + ResetPassword deep-link screen per handoff/screens/reset-password.md",
-        "Signup screen real implementation (currently 'Coming soon' stub)",
-        "Discovery screen \u2014 shuffled cross-scrapbook playlist",
-        "Remix / Film Fest screen \u2014 filter studio + Surprise Me + Combine",
         "Sellable clone \u2014 separate repo, rebrand",
-        "HEIC photo verification on real device \u2014 untested whether iOS RN Image handles them inline or shows broken previews",
-        "In-app deeplink to TestFlight beta feedback once polish stabilizes (transient \u2014 may be moot post-unlisted-cutover)"
+        "HEIC photo verification on real device",
+        "Signup email-confirmation deep-link auto-sign-in (cassette://auth/callback)",
+        "In-app deeplink to TestFlight beta feedback (transient \u2014 may be moot post-unlisted-cutover)"
       ],
       "shipped": [
+        {
+          "date": "2026-05-28",
+          "what": "v1.0.2 \u2192 TestFlight (build 8, auto-submitted) + near-full PWA parity. Fixed the upload chain end-to-end \u2014 root cause was the Cloudflare worker's empty R2_ACCESS_KEY_ID (May-21 key rotation never reached the worker's wrangler secrets); rotated to a fresh R2 token + set secrets. Also learned `eas update` ignores .env.local (only `eas build` reads it) \u2014 moved all EXPO_PUBLIC_* to EAS env per-environment. Shipped Workspace SPLIT + CAPTION tools, on-device video thumbnails (ClipThumbnail, upload-failure-proof), Change Cover (expo-image-picker), full-library Intake pagination, upload PUT retry, Home + Detail auto-refetch. Built the last parity screens: Share (RPC add/remove by username), Signup (username-from-name + confirm-email card), Discovery \u2014 the LATTER reuses PlaybackScreen's exact gesture engine via a mode param (Option B) so it can never drift from Playback (the web PWA had that exact drift bug). isOwner gate hides Edit/Share/Export on shared scrapbooks. Two EAS builds (dev 2a1c3424 + prod 8, bundle expo-video-thumbnails + expo-image-picker). cassette-tour.html (pure-CSS scrollytelling) made for Joelle. \ud83d\udea7 True background upload (URLSession) logged as a release blocker in kasette-native/DECISIONS.md.",
+          "tags": [
+            "v1.0.2",
+            "testflight",
+            "share",
+            "signup",
+            "discovery",
+            "shared-engine",
+            "video-thumbnails",
+            "r2-fix",
+            "pwa-parity",
+            "milestone"
+          ],
+          "learned": "Broken upload was the worker's empty R2 access key (key rotation didn't reach wrangler secrets) \u2014 blackbox-probe the actual presigned URL to pinpoint. `eas build` reads .env.local; `eas update` does NOT (uses EAS env via the profile's `environment` field) \u2014 OTA runtime config must live in EAS env. Reuse one interaction engine across like screens (Discovery reuses Playback) \u2014 the PWA's separate copies drifted and were painful to debug. expo-video-thumbnails works on remote URLs (display-time fallback). expo-image-picker v17 dropped MediaTypeOptions \u2192 mediaTypes:['images']."
+        },
         {
           "date": "2026-05-27",
           "what": "v0.6 mock-parity wave — Workspace + Intake + Shared-tab + Home options menu + Settings + Search + outbound shares, plus seven sequential OTAs of polish all on top of one fresh EAS dev build (1dc6fa8b). Bundles three new native deps: expo-media-library + expo-image-manipulator + expo-keep-awake. Workspace v1 per handoff §9 scope (TRIM handles + saved-flash + Mute + photo duration + single-level Undo + clip strip + preview-swipe between clips; Split/Caption/Reorder/Add/Remove deferred). Intake Option-A no-remux flow (custom 2-col grid → name sheet → lerping-progress clip-1 upload + background pool 2..N via UploadContext + wake-lock + cancel + Open Settings linkout). Shared tab real data fetch with owner display_names + amber unread dot + optimistic seen flip. Home card three-dot menu: Rename & Redate + Delete (R2 cleanup). Settings screen w/ display_name + username + email + sign-out (moved off Home top bar). Home search bar (third icon per PWA pattern). Outbound 'Shared with X' badges on own cards. ScrapbookDetail clip thumbnail row + pull-to-refresh. ClipSlot photo-clip support (Image render + duration-timed auto-advance). Home card clip-count pill + total-duration. lib/r2.ts native R2 upload helper + lib/uploadContext.tsx background-upload pool + components/UploadBanner.tsx top-of-screen 'Uploading N more' chip. Shipped via OTAs v0.6.0–6 to EAS Update channel 'development' on top of dev build 1dc6fa8b. Lunch-status.html scrollytelling doc generated for Chad's review.",

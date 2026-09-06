@@ -18,7 +18,14 @@
  * BUCKET binding is declared in wrangler.toml (used by /delete only).
  */
 
-const PRESIGN_EXPIRY_SECS = 900 // 15 minutes
+// 6 hours. Was 15 minutes, which was fine while uploads only ran with the app
+// foregrounded and died after ~30s in the background anyway. The native app now
+// uploads on an iOS background NSURLSession, so a single transfer can legitimately
+// stay in flight for hours — locked phone, weak signal, iOS retrying on its own
+// schedule. A URL that expires mid-transfer 403s with no way to re-sign the
+// request already handed to the OS, so the TTL has to outlast a realistic
+// worst-case upload rather than a foreground one.
+const PRESIGN_EXPIRY_SECS = 21600 // 6 hours
 
 // ── Crypto helpers ────────────────────────────────────────────────────────────
 

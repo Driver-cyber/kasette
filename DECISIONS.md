@@ -1590,3 +1590,74 @@ Next step: scaffold the project, init git, first dev build via Expo Go.
 **Session close:**
 - All changes committed and pushed to `main` (`953a8a1`)
 - Good pause point; no outstanding code or verification work
+
+---
+
+### [2026-09-06] — Schema Drift: the checked-in schema no longer describes the database
+
+**Context:** Raised while answering "is anything still using Supabase?" — the
+premise being that the R2 migration had left Supabase idle. It hasn't. Supabase
+still provides **auth, Postgres, RLS, four stored functions, and realtime** for
+both apps: 69 call sites across 17 files in `kasette/app/src`, 24 across 12 files
+in `kasette-native`. R2 replaced Storage only. Auditing that turned up a
+bigger problem than the billing question that prompted it.
+
+**The finding:** `app/supabase-schema.sql` is a ~March-2026 snapshot. It creates
+**2 tables**. The apps query **6 tables and 4 stored functions**. Everything
+added after mid-March was run by hand in the SQL editor and never written back.
+
+Absent from the file, live in the database:
+- Tables: `profiles`, `scrapbook_shares`, `sharing_defaults`, `film_fest_saves`
+- Functions: `get_email_by_username`, `check_username_available`,
+  `get_user_id_by_username`, `get_scrapbook_shares`
+- Columns: `scrapbooks.year`, `scrapbooks.month`, `clips.thumbnail_url`,
+  `clips.cut_in`, `clips.cut_out`, `clips.media_type`
+
+**The part that matters most — RLS.** The file's only SELECT policy on `clips`
+(line 50) permits the owner and nobody else. Under that rule a shared scrapbook
+returns zero clips to its recipient. Sharing works, so the live policy must also
+permit reads through `scrapbook_shares`. That policy — the rule deciding which
+family member can see whose memories — exists **only inside the hosted
+database**. Never committed, never reviewed in a diff, not inspectable without
+opening the dashboard.
+
+**Three risks this creates:**
+1. **No rebuild path.** If the project is deleted, paused past recovery, or
+   corrupted, this repo cannot reconstruct it.
+2. **No review surface.** Changes to the rules separating one family's clips
+   from another's leave no trace.
+3. **Every backend migration starts blind.** The Cloudflare/Neon question can't
+   be scoped honestly until the real schema is on disk.
+
+**Also stale in that file:** the three `storage.objects` policies at the bottom
+govern the Supabase Storage `cassette-media` bucket, dead since the R2 migration
+completed 2026-04-15.
+
+**One contradiction to settle:** `CLAUDE.md` documents a *unique* constraint on
+`clips (scrapbook_id, "order")` as a known gotcha (the reason Split shifts orders
+before inserting). The schema file creates only a plain, non-unique index. One is
+wrong; the dump will say which.
+
+**Decision:** Capture the true schema and commit it before any further backend
+work. Procedure written up in `docs/schema-capture.md` — `supabase db pull`
+preferred over a raw `pg_dump` because it also establishes migration tracking, so
+the drift cannot silently recur. A browser-only fallback (read-only catalog
+queries in the SQL editor) is documented alongside it for when the CLI isn't
+worth the setup.
+
+**Status:** Not yet run — requires a connection to the live project, which a
+sandboxed session can't make. Procedure is ready; capture is the user's step.
+
+**Related — the billing question that started this.** Supabase Pro at $20/mo now
+buys almost nothing but no-auto-pause and daily backups; the data footprint is
+metadata only since the R2 migration. The [2026-05-19] `kasette-native` entry
+ruled out a free-tier downgrade because the account held the max number of
+free-tier projects — an org-level constraint, not a Cassette one, and now
+several months stale. A scheduled `pg_dump --data-only` to R2 (the existing
+Worker could run it on a cron) covers the backup half independently. Migrating
+auth+DB to Cloudflare was evaluated and **not** recommended on cost grounds:
+D1 has no RLS equivalent, Cloudflare has no first-party end-user auth product
+and no transactional email, so the move trades 2 vendors for 4 and hand-rolls
+the authorization layer, to save ~$15/mo against ~93 call sites in two apps that
+must cut over simultaneously. If a move ever happens for non-cost reasons, prefer
+a Postgres-compatible target (Neon) so schema, SQL and RLS survive.
